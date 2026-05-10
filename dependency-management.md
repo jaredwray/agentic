@@ -11,6 +11,11 @@ Determine the repo shape first:
 - **Monorepo** — has `pnpm-workspace.yaml` or `workspaces` in `package.json`. Handle the root and each workspace package.
 - **Single-package** — everything else. The root package is the only package.
 
+## Environment
+
+- **`local`** — developer machine with a working `git` remote and Docker available. Sync `main` before each branch; start test services with `pnpm test:services:start`.
+- **`sandbox`** — anything else (CI, single-branch agent session, no Docker). If the sandbox can't create separate branches and PRs, stop and report.
+
 ## Standard groups
 
 Group upgrades by ecosystem, toolchain, or logical area. Each group is **one branch and one PR** containing every listed dep that appears in `pnpm outdated`. In monorepos, a group may span the root and multiple packages.
@@ -50,14 +55,16 @@ Standalone runtime deps with no clear ecosystem partner each get their own PR.
 3. **Start test services if `local`.** Run `pnpm test:services:start`. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers.
 
 4. **For each group**, in order — root devDependencies first (code quality, then other dev groups), then root dependencies, then per-workspace deps in monorepos. Cross-package groups span all affected workspaces in one PR.
-   - Branch from latest `main`
-   - Apply the upgrade
-   - Run tests: root-level `pnpm test`, or the package's test command when available
+   - Branch from latest `main` (naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/react`, `chore/<pkg>` for singletons)
+   - Apply the upgrade — use `pnpm add <pkg>@<version>` for explicit pins (required for any `@types/node` change), `pnpm update <pkg> --latest` for ranged minors/patches. Never `pnpm up --latest @types/node`.
+   - Run tests: root-level `pnpm test`, or the package's test command when available (check `package.json` `scripts.test`)
    - Open one PR — don't open until tests pass, or any failure is understood and explained in the PR body
 
 5. **Resolve conflicts as PRs merge.** Rebase open branches on updated `main`. Keep two conflict types distinct:
    - **Docker container conflicts** → remove the conflicting test-service container
    - **Git conflicts** → rebase or otherwise resolve the branch
+
+6. **Done.** The workflow ends when every group from the plan has either an opened PR or a documented deferral (e.g. "typescript 6 needs tsconfig migration — deferred"). Report the list of opened PRs and any deferrals to the user.
 
 ## Pull request rules
 
@@ -81,6 +88,27 @@ Examples:
 - `web-app - chore: upgrade Next.js dependencies`
 - `api - chore: upgrade Prisma dependencies`
 - `root - chore: upgrade TypeScript tooling`
+
+### PR body
+
+Keep PR bodies short. Use this skeleton, omitting sections that don't apply:
+
+```
+## Summary
+<one sentence: what's upgraded>
+
+## Versions
+- `<pkg>` `<old>` → `<new>`
+
+## Tests
+- [x] `pnpm test` passes
+- [x] `pnpm build` passes (if applicable)
+
+## Breaking notes
+<only for (breaking) PRs — list code changes required>
+```
+
+Don't add commentary beyond the skeleton unless something genuinely surprising came up (e.g. a flaky test pre-existing on `main`).
 
 ### Major version upgrades
 
