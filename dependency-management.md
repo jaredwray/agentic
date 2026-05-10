@@ -1,7 +1,5 @@
 # Dependency Management
 
-#oss
-
 Workflow for upgrading dependencies based on `pnpm outdated`.
 
 ## Repository type
