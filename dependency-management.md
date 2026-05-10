@@ -59,13 +59,13 @@ If `.github/workflows/` exists, open one additional PR that upgrades every `uses
 
 1. **Sync `main`.** Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work. Then `git checkout main && git pull --ff-only origin main`. Repeat before each new branch — never branch from stale `main`.
 
-2. **Check outdated.** Run `pnpm outdated` (single-package) or `pnpm -r outdated` (monorepo). Plan groups per [Standard groups](#standard-groups) before changing anything.
+2. **Check outdated.** Run `pnpm outdated` (single-package) or `pnpm -r outdated` (monorepo). **The "Latest" column is the exact target version — never upgrade past it.** This repo uses pnpm's `minimumReleaseAge` to gate freshly-published versions, so `pnpm outdated`'s "Latest" is already the curated upgrade target. Don't cross-reference npm, GitHub releases, or CHANGELOGs to pick a newer version. Plan groups per [Standard groups](#standard-groups) before changing anything.
 
 3. **Start test services if `local`.** Run `pnpm test:services:start`. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers.
 
 4. **For each group**, in order — root devDependencies first (code quality, then other dev groups), then root dependencies, then per-workspace deps in monorepos. Cross-package groups span all affected workspaces in one PR.
    - Branch from latest `main` (naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/react`, `chore/<pkg>` for singletons)
-   - Apply the upgrade — use `pnpm add <pkg>@<version>` for explicit pins (required for any `@types/node` change), `pnpm update <pkg> --latest` for ranged minors/patches. Never `pnpm up --latest @types/node`.
+   - Apply the upgrade — `pnpm add <pkg>@<version>` where `<version>` is the exact value from the "Latest" column of `pnpm outdated`. Never `pnpm add <pkg>@latest`, `pnpm update --latest`, or `pnpm up --latest` — they can bypass `minimumReleaseAge` and pull versions younger than the gate allows.
    - Run tests: root-level `pnpm test`, or the package's test command when available (check `package.json` `scripts.test`)
    - Open one PR — don't open until tests pass, or any failure is understood and explained in the PR body
 
