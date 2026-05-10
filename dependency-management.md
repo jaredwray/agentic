@@ -46,6 +46,15 @@ Group upgrades by ecosystem, toolchain, or logical area. Each group is **one bra
 **Everything else → 1 PR per dependency**:
 Standalone runtime deps with no clear ecosystem partner each get their own PR.
 
+## GitHub Actions
+
+If `.github/workflows/` exists, open one additional PR that upgrades every `uses: <action>@<ref>` reference to the latest available version. This runs alongside the `pnpm` upgrades — GitHub Actions aren't surfaced by `pnpm outdated`.
+
+- Branch: `chore/github-actions`
+- PR title: e.g. `root - chore: upgrade GitHub Actions` (or `mono - chore: …`); append `(breaking)` if any action's major changed
+- Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`) — don't change pin style during the upgrade
+- Verify the workflow YAML still parses before opening the PR
+
 ## Workflow
 
 1. **Sync `main`.** Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work. Then `git checkout main && git pull --ff-only origin main`. Repeat before each new branch — never branch from stale `main`.
