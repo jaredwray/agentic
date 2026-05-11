@@ -99,10 +99,13 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 6. **Drive CI to green.** After opening the PR, watch CI with `gh pr checks --watch`. If any check fails, diagnose, fix, and push until every check is green. **Do not stop on a red PR.** Only after the PR is green do you proceed.
 
-7. **Stop and wait.** Report to the user:
+7. **Check for already-merged.** Before stopping, run `gh pr view <pr-number> --json state,mergedAt` (or equivalent). If the PR is already merged — auto-merge was enabled, or the user merged during CI — treat that as an implicit `next` and **return to Step 1 immediately**. Do not wait, do not prompt. The same applies if the head branch is already gone from the remote.
+
+8. **Stop and wait.** Report to the user with exactly these four things:
    - PR URL and group name
    - Confirmation that CI is green
    - What's still left in the active phase, and whether the runtime phase has remaining work
+   - **A literal prompt to resume**, e.g.: *"Merge the PR when you're ready, then reply `continue` (or `next`) and I'll open the next dep-management PR."*
 
    Then **wait**. Do not open another PR. The workflow resumes only when the user says `continue`, `next`, `next dep PR`, or similar — at which point, return to Step 1.
 
