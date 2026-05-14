@@ -1,4 +1,14 @@
-# Node.js OSS Defense in Depth Checklist
+# Defense in Depth (Node.js)
+
+Operation manual for hardening high-download npm packages and adjacent OSS projects (Keyv, Cacheable, flat-cache, file-entry-cache, and similar) against supply-chain compromise. One controllable improvement per PR; status tracked in the target repo's `SECURITY.md`.
+
+> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow) Step 1. The first step audits the target repo's `SECURITY.md` so the agent can pick the next item from the catalog. Only stop to ask the user when the document explicitly says to stop and report (uncommitted changes, the next item is manual-only, `SECURITY.md` disagrees with reality) or when a decision genuinely requires their input.
+>
+> **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next defense PR`, or similar. Never open a second defense-in-depth PR while one is already in flight.
+>
+> **Track status in `SECURITY.md` in the target repo.** Every item from the [Reference](#reference) catalog maps to a checkbox in the `Defense in Depth status` block. Check an item off only after the PR that implements it is merged. Manual / external items are tracked in the same block so the maintainer can tick them off; the agent never opens a PR for those.
+
+## Scope and goal
 
 **Scope:** high-download npm packages and related OSS projects such as Keyv, Cacheable, flat-cache, file-entry-cache, and adjacent repos.
 
@@ -6,12 +16,226 @@
 
 ## Operating Principles
 
-- [ ] **No single system is the root of trust.** GitHub can provide build provenance, npm can provide registry integrity, and Sigstore/Cosign can provide owner approval, but no single layer is treated as sufficient.
-- [ ] **Human release approval is separate from GitHub.** A release may be built by GitHub Actions, but maintainer approval must come from an approved non-GitHub identity, such as `release@jaredwray.com` via Google OIDC or a pinned hardware/KMS release key.
-- [ ] **Every install is treated as potential code execution.** Dependency lifecycle scripts, transitive dependencies, exotic dependency sources, and fresh package versions are all controlled by policy.
-- [ ] **CI is untrusted until constrained.** GitHub Actions must run with read-only defaults, pinned actions, minimal permissions, no release secrets in PR jobs, and isolated publish authority.
-- [ ] **Release authority is explicit and auditable.** Every release must have a signed intent, a reproducible install policy, a protected publish path, provenance where supported, and verification instructions for consumers.
-- [ ] **Blast radius is intentionally small.** Workstations, VMs, credentials, package ownership, CI permissions, and security tools are separated by company and, where practical, by major project family.
+- **No single system is the root of trust.** GitHub can provide build provenance, npm can provide registry integrity, and Sigstore/Cosign can provide owner approval, but no single layer is treated as sufficient.
+- **Human release approval is separate from GitHub.** A release may be built by GitHub Actions, but maintainer approval must come from an approved non-GitHub identity, such as `release@jaredwray.com` via Google OIDC or a pinned hardware/KMS release key.
+- **Every install is treated as potential code execution.** Dependency lifecycle scripts, transitive dependencies, exotic dependency sources, and fresh package versions are all controlled by policy.
+- **CI is untrusted until constrained.** GitHub Actions must run with read-only defaults, pinned actions, minimal permissions, no release secrets in PR jobs, and isolated publish authority.
+- **Release authority is explicit and auditable.** Every release must have a signed intent, a reproducible install policy, a protected publish path, provenance where supported, and verification instructions for consumers.
+- **Blast radius is intentionally small.** Workstations, VMs, credentials, package ownership, CI permissions, and security tools are separated by company and, where practical, by major project family.
+
+## Status tracking in SECURITY.md
+
+The target repo's `SECURITY.md` carries a `Defense in Depth status` block. It is the source of truth for what's done, what's pending, and what was deferred or marked manual. When this manual is run against a repo:
+
+- The block is appended to `SECURITY.md` (preserving any existing content above and below).
+- Item ordering follows this document's catalog. Do not invent new items — the catalog defines the universe.
+- Each item uses one of three states:
+  - `- [ ] <item>` — not started.
+  - `- [ ] <item> (PR #<n> pending)` — implementation PR open, not yet merged.
+  - `- [x] <item> — PR #<n>` — implemented and merged.
+- Items the agent cannot implement (npm.com settings, hardware keys, VM isolation, etc.) live under the `Manual / external` heading inside the same block. The maintainer ticks them off.
+
+Block template (the agent scaffolds this on first run; section list mirrors the [Reference](#reference)):
+
+```md
+## Defense in Depth status
+
+Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth-nodejs.md.
+
+### 3. Dependency Policy
+- [ ] Committed lockfile present
+- [ ] All GitHub Actions installs use `pnpm install --frozen-lockfile`
+- [ ] CI blocks if the lockfile would be modified
+- [ ] Renovate/Dependabot run only as controlled PRs
+- [ ] New direct dependencies require human review
+- [ ] High-risk dependencies (install scripts, native builds, exotic sources, recent ownership changes) require additional review
+- [ ] Direct-dependency owner map maintained for critical packages
+- [ ] Direct dependencies use narrower version ranges (`~` over `^` where reasonable; exact versions for high-risk tooling)
+
+### 4. pnpm 11 Supply Chain Controls
+- [ ] `packageManager: pnpm@11.x` pinned in `package.json`
+- [ ] `minimumReleaseAge: 10080` set in `pnpm-workspace.yaml`
+- [ ] `minimumReleaseAgeStrict: true` set
+- [ ] `minimumReleaseAgeIgnoreMissingTime: false` set
+- [ ] `blockExoticSubdeps: true` set
+- [ ] `strictDepBuilds: true` set
+- [ ] `dangerouslyAllowAllBuilds: false` confirmed
+- [ ] `allowBuilds: {}` baseline set
+- [ ] Approved build scripts maintained as code-reviewed policy
+- [ ] `pnpm approve-builds` only used during dependency review, never automatically in CI
+
+### 5. GitHub Actions Hardening
+- [ ] Default `permissions: contents: read` on every workflow
+- [ ] `id-token: write` only on the final publish job
+- [ ] No npm tokens stored in GitHub Actions secrets
+- [ ] All third-party actions pinned to a full commit SHA
+- [ ] CODEOWNERS review required for `.github/workflows/**`, release scripts, signer policy, and package-manager config
+- [ ] No `pull_request_target` for workflows that check out or execute untrusted PR code
+- [ ] Caches not shared across trust boundaries
+- [ ] Package-manager caching disabled in release builds
+- [ ] No self-hosted runners on public PR workflows (or just-in-time/ephemeral only)
+- [ ] GitHub Actions blocked from creating or approving PRs unless explicitly needed
+- [ ] Workflow/security scanner runs on every PR touching CI, manifests, lockfiles, release scripts, or security policy
+
+### 8. Security Tooling and Detection
+- [ ] Aikido runs on every build
+- [ ] Socket.dev integrated as a second detection layer
+- [ ] Socket Gateway in report-only mode (and evaluated for blocking)
+- [ ] `deepsec` runs on PRs touching release/dep/CI/auth/crypto/package paths
+- [ ] Secret scanning enabled on repo and CI artifacts
+- [ ] SBOMs generated for releases
+- [ ] Monitoring on npm package versions, dist-tags, and package settings
+- [ ] Monitoring on GitHub audit events for workflow / tag / secret / environment changes
+
+### 9. Public Transparency
+- [ ] Release policy documented in `SECURITY.md`
+- [ ] Approved signer identities and key fingerprints published (here and/or on `jaredwray.com`)
+- [ ] Release verification instructions published
+- [ ] Per-release `release-intent.json` + signature bundle published
+- [ ] Final tarball signature bundles + SHA256 digests published as release assets
+- [ ] Statement that releases without owner approval are suspicious
+
+### 10. Incident Response
+- [ ] Host-compromise procedure documented (rotate, purge caches, deprecate)
+- [ ] Credential rotation list documented (npm, GitHub, Google, cloud, SSH, registry, CI)
+- [ ] Cache purge procedure documented for confirmed malicious versions
+- [ ] Version deprecation procedure documented
+- [ ] Incident-notice template documented
+- [ ] VM rebuild trigger documented
+- [ ] Quarterly release-compromise tabletop scheduled
+
+### Manual / external (maintainer-owned)
+- [ ] (1) Phishing-resistant 2FA on npm, GitHub, Google Workspace, email, password manager
+- [ ] (1) Hardware security keys / passkeys preferred over SMS/TOTP
+- [ ] (1) Dedicated release identity created (e.g. `release@jaredwray.com`)
+- [ ] (1) Google Workspace 2SV / security keys enforced for release identity
+- [ ] (1) Recovery codes stored offline, recovery procedure documented
+- [ ] (1) Inactive npm collaborators / GitHub maintainers removed quarterly
+- [ ] (1) npm package setting **Require two-factor authentication and disallow tokens** applied
+- [ ] (1) Unused npm automation tokens revoked
+- [ ] (2) Isolated coding VMs between companies / project families
+- [ ] (2) Release VM separated from general development
+- [ ] (2) No shared browser / npm / GitHub / cloud sessions across VMs
+- [ ] (2) Release signing keys kept out of normal dev shells
+- [ ] (2) No random global npm packages on the release VM
+- [ ] (2) Release VM network and credential access restricted
+- [ ] (2) VMs rebuilt or rotated after suspicious dependency installs
+- [ ] (7) npm org/package ownership intentional; broad owner lists avoided
+- [ ] (7) Trusted publishing configured only on hardened release workflows
+- [ ] (7) `repository.url` accurate so npm provenance maps to the expected repo
+- [ ] (7) Trusted publisher settings audited regularly
+```
+
+## Item priority
+
+The agent picks the highest-priority section with unchecked auto-implementable items, then the first unchecked item top-to-bottom inside that section.
+
+**Auto-implementable (the agent opens PRs):**
+
+1. **Section 4 — pnpm 11 Supply Chain Controls** — `pnpm-workspace.yaml` settings, `packageManager` pin, `allowBuilds` baseline, lifecycle-script policy.
+2. **Section 5 — GitHub Actions Hardening** — workflow `permissions`, `id-token` scope, full-SHA action pinning, CODEOWNERS for workflow files.
+3. **Section 3 — Dependency Policy** — committed lockfile, frozen-install in CI, dependency review process, new-dep gating, range tightening.
+4. **Section 8 — Security Tooling and Detection** — Aikido/Socket/`deepsec` workflow integrations, secret scanning, SBOM generation, monitoring.
+5. **Section 9 — Public Transparency** — `SECURITY.md` content (release policy, signer identities, verification instructions), release asset publishing.
+6. **Section 10 — Incident Response** — documented procedures in `SECURITY.md`.
+
+**Manual / external (the agent records but does not implement):**
+
+- **Section 1 — Maintainer Identity and Account Security**
+- **Section 2 — Device, VM, and Workspace Isolation**
+- **Section 7 — npm Package Settings** (npm.com configuration; agent can verify state but cannot change it)
+
+**Out of scope here:**
+
+- **Section 6 — Release Management** — covered by `release-management-nodejs.md`. Run that doc for release pipeline work; the SECURITY.md block for release work lives there.
+
+## Workflow
+
+Run these steps on the **first** invocation, and again on **every resume** when the user says `continue`, `next`, `next defense PR`, or similar.
+
+1. **Sync `main`.** Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work. Then `git checkout main && git pull --ff-only origin main`.
+
+2. **Audit `SECURITY.md`.**
+   - If `SECURITY.md` does not exist, scaffold it from the [Status tracking](#status-tracking-in-securitymd) template and include a link to this operation manual.
+   - If the `Defense in Depth status` block is missing, append it to `SECURITY.md` without modifying existing content above or below.
+   - For each item in the block, verify that the actual repo state matches the checkbox state, using the [Reference](#reference) for what the implementation looks like. Reconciliation rules:
+     - `[ ]` items where the repo already has the change → check them off and add a brief note (e.g. `— verified <date>` instead of a PR number if there is no record of which PR implemented it).
+     - `[ ] X (PR #<n> pending)` where PR #n is now merged → mark `[x] X — PR #<n>`.
+     - `[x]` items where the repo state is missing the change → **stop and report the regression**; do not silently uncheck.
+     - `[x]` items where the repo state still matches → leave alone.
+   - Audit changes are committed as part of the next item's PR; do not push a standalone reconciliation commit unless every item is up to date and the only change is the audit itself.
+
+3. **Pick the next item.** Walk [Item priority](#item-priority) in order and pick the first unchecked auto-implementable item. If no auto-implementable items remain, list every still-unchecked manual item and stop with a final summary — do not open a PR.
+
+4. **Open the PR.**
+   - Branch from latest `main`. Naming: `chore/defense-<section-key>-<item-key>` (e.g. `chore/defense-pnpm-min-release-age`, `chore/defense-actions-default-perms`, `chore/defense-deps-frozen-lockfile-ci`).
+   - Implement the item per the matching section in [Reference](#reference). Touch only what the item requires — no opportunistic refactors.
+   - Update the `Defense in Depth status` block: leave the checkbox unchecked, append `(PR #<n> pending)`. If the PR number is not known yet, write `(PR pending)` and amend the commit after the PR is opened, or push a follow-up commit with the real PR number.
+   - Run any local verification the section spec calls for (e.g. `pnpm install --frozen-lockfile` should succeed; `pnpm test`/`pnpm build` should pass if they exist).
+   - Open the PR — title and body per [Pull request rules](#pull-request-rules).
+
+5. **Drive CI to green.** Watch CI on the PR. If any check fails, diagnose, fix, and push until every check is green. **Do not stop on a red PR.**
+
+6. **Check for already-merged.** Before stopping, check whether the PR was merged during CI (auto-merge, user merged manually). If merged, return to Step 1 immediately — do not wait, do not prompt.
+
+7. **Stop and wait.** Report:
+   - PR URL and the implemented item (with section number from the catalog).
+   - Confirmation that CI is green.
+   - Items still pending in the current section and what comes next in the priority order.
+   - **A literal prompt to resume**, e.g. *"Merge the PR when you're ready, then reply `continue` (or `next`) and I'll open the next defense-in-depth PR."*
+
+   Then wait. Do not open another PR. The workflow resumes only when the user says `continue`, `next`, `next defense PR`, or similar — at which point return to Step 1.
+
+## Pull request rules
+
+- **One item per PR.** Don't bundle multiple unchecked items, even within the same section.
+- **Only one open defense-in-depth PR at a time.** If a previous one is still open, drive its CI to green if needed, then stop and wait.
+- Every PR uses a unique branch from latest `main`. Branch naming: `chore/defense-<section-key>-<item-key>`.
+
+### Title prefixes
+
+Match the style in `dependency-management.md`:
+
+| Scope                                       | Prefix                          |
+| ------------------------------------------- | ------------------------------- |
+| Monorepo root                               | `mono - chore: defense - `      |
+| Cross-package monorepo change               | `mono - chore: defense - `      |
+| Specific package (any repo)                 | `<package> - chore: defense - ` |
+| Single-package repo with no package name    | `root - chore: defense - `      |
+
+Examples:
+
+- `mono - chore: defense - pin packageManager to pnpm@11`
+- `root - chore: defense - set permissions: contents: read default`
+- `keyv - chore: defense - pin all GitHub Actions to full SHAs`
+
+### PR body
+
+Keep PR bodies short:
+
+```
+## Summary
+<one sentence: which item this implements, with section number>
+
+## Status update
+- `SECURITY.md` updated: `<item>` → `(PR #<n> pending)`
+
+## Verification
+- [x] <local verification command from the reference section, e.g. `pnpm install --frozen-lockfile`>
+- [x] `pnpm test` passes (if applicable)
+- [x] `pnpm build` passes (if applicable)
+
+## Reference
+defense-in-depth-nodejs.md § <section number>
+```
+
+When the user merges, the next `continue` invocation reconciles the audit in Step 2 and marks the item `[x]` in `SECURITY.md` as part of the next item's PR.
+
+---
+
+## Reference
+
+The remaining sections are the implementation spec for items in the catalog. The agent uses these when it picks an item in Workflow Step 4. Section numbers here match the section identifiers in the `SECURITY.md` block.
 
 ## 1. Maintainer Identity and Account Security
 
@@ -117,17 +341,7 @@ Checklist:
 
 ## 6. Release Management
 
-- [ ] Decide per package whether it is:
-  - [ ] **Local-only release:** local npm publish with interactive 2FA and detached tarball signature.
-  - [ ] **Best-of-both-worlds release:** non-GitHub maintainer approval plus GitHub Actions trusted publishing and npm provenance.
-- [ ] For CI-provenance releases, configure npm trusted publishing to the exact GitHub repo, workflow filename, and `npm-publish` environment.
-- [ ] Require one approved maintainer signature over `release-intent.json` before publishing.
-- [ ] Verify the maintainer signature using Cosign keyless verification pinned to an allowed identity and issuer, for example `release@jaredwray.com` and `https://accounts.google.com`.
-- [ ] Reject GitHub or GitHub Actions OIDC identities as human approval identities.
-- [ ] Use a signed signer policy so a compromised repo cannot silently add a new approved signer.
-- [ ] Check in the signed release intent and approval bundle.
-- [ ] Publish final tarball signatures as GitHub Release assets and mirror them on `jaredwray.com`.
-- [ ] Verify after publish that the tarball fetched from npm matches the expected package/version and release metadata.
+Covered by `release-management-nodejs.md`. Status for release pipeline work lives in the `Release Management status` block in `SECURITY.md`, not in this manual's block.
 
 ## 7. npm Package Settings
 
@@ -169,6 +383,8 @@ Checklist:
 - [ ] Run a quarterly release-compromise tabletop exercise.
 
 ## First 30-Day Rollout
+
+A curated subset of the catalog for new repos. Items here are also tracked in `SECURITY.md`; this list exists as a quick-start view of the highest-leverage moves.
 
 - [ ] Move all repos to `pnpm install --frozen-lockfile` in CI.
 - [ ] Pin all GitHub Actions to full commit SHAs.
