@@ -405,6 +405,7 @@ ACTUAL_LOCK_SHA="$(sha256sum "${LOCKFILE}" | awk '{print $1}')"
 EXPECTED_LOCK_SHA="$(jq -r '.lockfile_sha256' "${MANIFEST}")"
 test "${ACTUAL_LOCK_SHA}" = "${EXPECTED_LOCK_SHA}"
 
+# Simple grep; replace with a YAML-aware parser if false positives or negatives arise.
 if grep -R "pnpm install" .github/workflows | grep -v -- "--frozen-lockfile"; then
   echo "Release blocked: found pnpm install without --frozen-lockfile" >&2
   exit 1
@@ -506,6 +507,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      pkg: ${{ steps.resolve.outputs.pkg }}
+      version: ${{ steps.resolve.outputs.version }}
 
     steps:
       - name: Checkout
@@ -517,18 +521,19 @@ jobs:
         run: git tag -v "$GITHUB_REF_NAME"
 
       - name: Resolve package/version
+        id: resolve
         shell: bash
         run: |
           PKG="${GITHUB_REF_NAME%@*}"
           VERSION="${GITHUB_REF_NAME##*@}"
           echo "PKG=$PKG" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Install verification tools
-        run: |
-          # Prefer pinned, vendored, or checksum-verified tooling in production.
-          sudo apt-get update
-          sudo apt-get install -y jq
+      - name: Install cosign
+        # jq is pre-installed on GitHub-hosted runners; cosign is not.
+        uses: sigstore/cosign-installer@<FULL_COMMIT_SHA>
 
       - name: Verify actions are SHA-pinned
         run: ./scripts/verify-actions-pinned.sh
@@ -544,6 +549,9 @@ jobs:
     needs: verify-release-approval
     runs-on: ubuntu-latest
     environment: npm-publish
+    env:
+      PKG: ${{ needs.verify-release-approval.outputs.pkg }}
+      VERSION: ${{ needs.verify-release-approval.outputs.version }}
 
     permissions:
       contents: read
@@ -566,19 +574,19 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test
-        run: pnpm test
+        run: pnpm --filter "$PKG" test
 
       - name: Build
-        run: pnpm build
+        run: pnpm --filter "$PKG" build
 
       - name: Pack
         run: |
           mkdir -p dist
-          npm pack --pack-destination dist
+          pnpm --filter "$PKG" pack --pack-destination "$PWD/dist"
           sha256sum dist/*.tgz > dist/SHA256SUMS
 
       - name: Publish through npm trusted publishing
-        run: npm publish --access public
+        run: pnpm --filter "$PKG" publish --access public --no-git-checks
 ```
 
 Important release-job rules:
