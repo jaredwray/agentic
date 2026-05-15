@@ -23,7 +23,7 @@ All templates live under `templates/` in this repo. The mapping below shows wher
 | `templates/LICENSE`                                       | `LICENSE`                                          | Confirm copyright holder (default `Jared Wray`); confirm MIT is the intended license.                                                  |
 | `templates/SECURITY.md`                                   | `SECURITY.md`                                      | Confirm reporting email (default `me@jaredwray.com`). Preserve any existing `Defense in Depth status` / `Release Management status` blocks below the boilerplate. |
 | `templates/CODE_OF_CONDUCT.md`                            | `CODE_OF_CONDUCT.md`                               | Confirm enforcement email (default `me@jaredwray.com`). Do not modify the Contributor Covenant body.                                  |
-| `templates/CONTRIBUTING.md`                               | `CONTRIBUTING.md`                                  | Replace every `{{PROJECT_NAME}}` with the repo name (e.g. `keyv`, `cacheable`). Adjust `pnpm install` / `pnpm test` if the project uses a different toolchain. |
+| `templates/CONTRIBUTING.md`                               | `CONTRIBUTING.md`                                  | Replace every `{{PROJECT_NAME}}` with the repo name (e.g. `keyv`, `cacheable`). Adjust `pnpm install` / `pnpm test` if the project uses a different toolchain. Adjust the release-cadence line if the project does not ship monthly. |
 | `templates/.github/PULL_REQUEST_TEMPLATE.md`              | `.github/PULL_REQUEST_TEMPLATE.md`                 | None required. The `../blob/main/` URLs work via GitHub's rewrite — leave them alone.                                                  |
 | `templates/.github/ISSUE_TEMPLATE/bug_report.md`          | `.github/ISSUE_TEMPLATE/bug_report.md`             | Optional: adjust `labels:` to match the project's label scheme.                                                                        |
 | `templates/.github/ISSUE_TEMPLATE/feature_request.md`     | `.github/ISSUE_TEMPLATE/feature_request.md`        | Optional: adjust `labels:` to match the project's label scheme.                                                                        |
@@ -47,7 +47,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 2. **Audit the target repo.** For each row in the [Catalog](#catalog), assign one of four states:
    - **Missing** — file does not exist at the target path.
-   - **Drifted** — file exists but its boilerplate differs from the canonical template in `agentic/templates/` in ways that look like an older template snapshot, not intentional per-repo content.
+   - **Drifted** — file exists but its boilerplate differs from the canonical template in `templates/` in ways that look like an older template snapshot, not intentional per-repo content.
    - **Needs customization** — file exists and matches the template, but contains unresolved placeholders (e.g. `{{PROJECT_NAME}}`) or stale per-repo values (wrong project name, wrong contact email, install commands that don't match the repo's toolchain).
    - **OK** — file exists, matches the template, and customizations are in place.
 
@@ -66,6 +66,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
    - Resolve every customization per the [Catalog](#catalog) row:
      - Replace `{{PROJECT_NAME}}` with the target repo name. Never leave a placeholder in.
      - For `CONTRIBUTING.md`, align the install/test commands with the repo's actual toolchain (check `package.json` `scripts` and the lockfile — `pnpm-lock.yaml` → `pnpm`, `package-lock.json` → `npm`, `yarn.lock` → `yarn`).
+     - For `CONTRIBUTING.md`, adjust the release-cadence sentence if the project does not ship on a monthly cadence (some projects ship weekly, on-demand, or follow a SemVer release train).
      - For `SECURITY.md`, if the existing file has a `Defense in Depth status` or `Release Management status` block, keep it appended below the refreshed boilerplate.
    - Run local verification:
      - Files are valid plaintext / Markdown (no broken local links).
@@ -131,10 +132,11 @@ project-templates.md § <catalog row>
 When this manual runs against a repo that already has some or all of the templates in place, the audit in Workflow Step 2 produces one of four states per file. How to act on each:
 
 - **Missing** → add the file in the next PR per the [Priority](#priority) order.
-- **Drifted** → diff the file against the canonical template in `agentic/templates/`. If the differences look like template drift (older boilerplate text, formatting changes, structural changes that match an older version of the template), refresh in a PR. If the differences look like intentional per-repo content (additional sections, project-specific advice, alternate license), **stop and ask the user** — never overwrite intentional additions.
+- **Drifted** → diff the file against the canonical template in `templates/`. If the differences look like template drift (older boilerplate text, formatting changes, structural changes that match an older version of the template), refresh in a PR. If the differences look like intentional per-repo content (additional sections, project-specific advice, alternate license), **stop and ask the user** — never overwrite intentional additions.
 - **Needs customization** → resolve placeholders and stale values in a PR. Common findings:
   - `CONTRIBUTING.md` with `{{PROJECT_NAME}}` still in it.
   - `CONTRIBUTING.md` referencing the wrong repo name (e.g. copied from another project without renaming).
+  - `CONTRIBUTING.md` claiming a monthly release cadence when the project actually ships on a different schedule.
   - `SECURITY.md` / `CODE_OF_CONDUCT.md` with the wrong reporting email.
   - `LICENSE` with a placeholder copyright holder.
   - `.github/ISSUE_TEMPLATE/*` with labels that don't exist in the target repo.
@@ -175,6 +177,7 @@ Each template was sourced from a working project and may need light edits for th
 
 - Replace every `{{PROJECT_NAME}}` with the target repo name (case-sensitive — match the repo's casing in its README).
 - The template assumes `pnpm install` and `pnpm test`. If the repo uses a different package manager or test command, update both occurrences.
+- The template advertises a **monthly** release cadence. Adjust the sentence ("We release new versions of this project (maintenance/features) on a monthly cadence…") if the project ships weekly, on-demand, on a SemVer train, or otherwise. If you remove it entirely, leave a one-line note about the project's actual release cadence so contributors know what to expect.
 - If the project ships multiple module formats (ESM/CJS/browser) and benefits from an export-verification section like Hookified's, add it after the Pull Request Process section. Keep it out of the base template — it is project-specific.
 - If the project has a documented release process the contributor should know about, add a brief `Releasing` section.
 
