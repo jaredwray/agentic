@@ -65,8 +65,8 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
    - Repo type (single / monorepo / monorepo-fixed).
    - Per package: current → proposed version, and the **single line of rationale** (e.g. "minor: 1 feat, 3 fix").
-   - The full rendered release notes for each package.
    - The list of commits considered, grouped by category, with SHA + subject + PR link.
+   - **The full rendered release notes for each package, inside a fenced ` ```md ` code block** so the maintainer can copy the raw markdown straight into the GitHub Release. Do not paraphrase, do not collapse, do not drop the surrounding fence — the block goes in chat verbatim, exactly as it will appear in the PR body and the GitHub Release.
    - **A literal prompt to approve**, e.g. *"Reply `ship it` (or `lgtm`, `approved`) to open the PR with these notes. Reply with edits (e.g. `bump to 2.0.0`, `move X out of breaking`) if you want changes first."*
 
    Then **wait**. Do not open the PR yet. The agent only proceeds when the user approves.
@@ -172,6 +172,11 @@ Render notes in **Keep a Changelog**-flavored markdown. The same rendered notes 
 ### Features
 - <feat subject without the `feat:` prefix> (<short-sha>, #<pr>)
 
+  ```<language>
+  // Short usage example — prefer before/after when behavior changed.
+  // See the "Code examples for features" rule below.
+  ```
+
 ### Bug Fixes
 - <fix subject without the `fix:` prefix> (<short-sha>, #<pr>)
 
@@ -198,6 +203,13 @@ Rules:
 - **Link the PR**, not the commit, when both are present. Use `(#123)`; GitHub auto-renders this in PR bodies and Release bodies.
 - **Migration notes are mandatory for breaking changes.** Every `BREAKING CHANGES` bullet has a `Migration:` sub-line. If you can't write one, that's a sign the change isn't actually ready to ship — stop and ask.
 - **No marketing language.** "Massive performance improvements" → "reduced X by N%". "Better DX" → name the specific change.
+- **Code examples for features.** Every bullet under `Features` should be followed by a short fenced code block showing how to use it — readers learn the change faster from one line of code than from a paragraph. Rules:
+  - **Required** when the feature adds a new exported symbol, a new option/flag, a new CLI subcommand, a new HTTP endpoint, or otherwise changes the public surface consumers call.
+  - **Required** when the feature changes the resolution of an existing input (e.g. URL routing, parser, matcher). Show a real **before / after**: input on the left, what the old version returned, what the new version returns.
+  - **Skip** for purely internal optimizations, tooling-only features, or anything a consumer cannot observe.
+  - Keep each block under ~12 lines. Use the smallest realistic snippet that demonstrates the feature, not a full program. Pick the language fence that matches the example (`ts`, `js`, `bash`, `http`, `json`, etc.).
+  - If a single feature warrants more than one example (e.g. an SDK call + a CLI invocation), use two separate fenced blocks, not one combined one.
+  - `Bug Fixes`, `Performance`, `Documentation`, and `Internal` bullets do **not** include code blocks by default — only if a fix is subtle enough that the diff in behavior needs to be shown explicitly.
 - **Contributors section** lists every distinct commit author, sorted by commit count desc. Skip bot accounts (`dependabot`, `renovate-bot`, `claude[bot]`).
 
 ### Multi-package monorepo cut
