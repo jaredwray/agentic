@@ -40,7 +40,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
 2. **Map the call graph.** For every symbol the refactor touches, find every callsite. Do not skip categories — refactors die in the categories you didn't search:
 
-   - **Direct calls / imports.** `grep` / `rg` for the bare symbol name and its qualified forms (`Foo.bar`, `module.bar`, `pkg::Foo::bar`). Distinguish definition from use; both show up in the same search.
+   - **Direct calls / imports.** Prefer symbol-aware search (LSP "find references" via `tsserver`, `gopls`, `rust-analyzer`, `pyright`, or an IDE index) when available — common names like `init`, `run`, `execute`, `handle` drown a plain text search. Fall back to `grep` / `rg` for the bare symbol name and its qualified forms (`Foo.bar`, `module.bar`, `pkg::Foo::bar`) when no symbol index is available, and tighten the regex with surrounding syntax (`\bbar\(`, `\.bar\b`) to cut noise. Distinguish definition from use; both show up in the same search.
    - **Re-exports.** Barrel files, index files, `lib.rs`, `__init__.py` re-exports. A consumer importing from the barrel is still a caller — find them through the barrel.
    - **Dynamic dispatch.** Interface implementations, polymorphic / virtual methods, trait impls, abstract method overrides. If the refactor touches one implementation of an interface, search for **all** implementations — the contract is shared.
    - **Reflection and string lookups.** `getattr`, `Reflect.get`, `eval`, route handlers registered by string, DI containers wired by name, plugins discovered at runtime, serialized class names. These do not appear in a search for the function — also search for the symbol's **string literal**.
@@ -87,12 +87,13 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
    - **Behavior delta.** Did the refactor change a return value for an edge case, an exception type, an output format, an ordering, a default value? Even an "equivalent" refactor can change rounding, null handling, coercion, or short-circuit evaluation. Find these.
    - **Concurrency.** Did the refactor remove a lock, widen or narrow a critical section, change atomicity, change retry semantics, change idempotency, move work between threads / tasks?
-   - **Performance.** Did the asymptotic complexity, the allocation profile, the hot-path latency, the cache hit rate, or the network-call count change? Especially: did the refactor introduce an N+1, a quadratic loop, or an unbounded fan-out?
+   - **Performance.** Did the asymptotic complexity, the allocation profile, the hot-path latency, the cache hit rate, or the network-call count change? Especially: did the refactor introduce an N+1, a quadratic loop, an unbounded fan-out, or a resource leak (memory, file descriptors, connection-pool slots, goroutines / tasks)?
    - **API contracts.** Did the public surface change in a way that breaks callers — signature, types, exception shape, async-vs-sync, return-type widening / narrowing, optional-vs-required? For library code, does this require a semver major?
    - **Side effects.** Did the refactor change what gets logged, emitted, persisted, or fired? Did it add or remove an I/O call? Did the **ordering** of side effects change relative to other observable state (e.g. an event now fires before the database commit instead of after)?
    - **Error handling.** Did the refactor change which errors are thrown, caught, swallowed, retried, or surfaced? Did error messages change in a way that breaks operator runbooks or alert filters? Did internal errors become user-visible or vice versa?
-   - **Deployment-time hazards.** Will in-flight requests see a mix of old and new code during deploy? Does the new code work against the old database schema (and vice versa) during the rollout window? Are there cached values, serialized objects, or queued messages with the old shape still in flight?
+   - **Deployment-time hazards.** Will in-flight requests see a mix of old and new code during deploy? Does the new code work against the old database schema (and vice versa) during the rollout window? Are there cached values (Redis, Memcached, in-process LRU), serialized objects (sessions, RPC payloads, on-disk state), or queued messages with the old shape still in flight that the new code might fail to deserialize — or that the old code might fail to read after the new code writes them?
    - **Observability.** Did the refactor break log lines, metric names, trace span names, or dashboard queries that operators depend on? Did it remove a log line someone is paged on?
+   - **Security.** Did the refactor remove, weaken, or bypass an authentication / authorization check? Did it change how untrusted input is escaped or sanitized before reaching a sink (SQL, shell, HTML, template, log)? Did it change a comparison on a secret to be non-constant-time? Did it widen what gets logged, returned, or serialized into sensitive fields (tokens, PII, credentials, internal error detail)? Did it weaken a rate limit, a CSRF check, a CORS policy, or a session-binding assumption?
 
 6. **Decide the verdict.** Use exactly three:
 
@@ -109,7 +110,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
      - **What lands** in this step (concretely — which code, which flag value, which schema migration).
      - **How long it stays** before the next step (e.g. "one release cycle", "one week at full traffic", "until the mismatch dashboard shows zero for 24 hours").
      - **How to verify** the step is safe before proceeding — a concrete signal (a named metric, a log query, a dashboard, a test result). "Looks good" is not verification.
-     - **How to roll back** if the step misbehaves. If a step has no rollback (e.g. an irreversible data migration, a destructive schema change), call that out — those steps need extra dwell time and extra verification before they run.
+     - **How to roll back** if the step misbehaves. If a step has no rollback (e.g. an irreversible data migration, a destructive schema change, a `DROP TABLE`), call that out — those steps need an explicit **pre-flight check** before they run (a dry run that writes to a temp location, a staging rehearsal against a recent prod snapshot, or a sampled trial on a non-canonical subset), extra dwell time between steps, and extra verification afterward. "Push the button and hope" is not a migration step.
    - For **🔴 Don't refactor this (yet)**: write what would have to change for the verdict to flip. E.g. *"If you can enumerate the external consumers, this becomes 🟡 with a 2-step expand-contract."* *"If the call graph were bounded to internal services, this would be 🟢."*
 
 8. **Render the proposal.** Format per [§ 1 Proposal output format](#1-proposal-output-format). The proposal is posted in chat. **Do not apply the refactor** unless the user explicitly says `apply it`, `ship it`, `do it`, or similar after reading the proposal.
@@ -179,6 +180,9 @@ Render the proposal as a single chat message in this shape. Keep prose tight —
 - <findings or "no risks identified — <one-line reason>">.
 
 ### Observability
+- <findings or "no risks identified — <one-line reason>">.
+
+### Security
 - <findings or "no risks identified — <one-line reason>">.
 
 ## Migration path
