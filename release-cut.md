@@ -61,11 +61,30 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
 4. **Decide the semver bump per package.** Apply the rules in [§ 1 Semver decision rules](#1-semver-decision-rules). For each package, output: current version → proposed next version, with the rationale (which commit forced the bump).
 
+   **Monorepos: walk every workspace package, not just the ones with code changes.** For each workspace package:
+
+   1. Resolve its anchor (from Step 2) and the commits touching its path (from Step 3).
+   2. If the package has unreleased commits in its own path → decide its bump per [§ 1](#1-semver-decision-rules) and add it to the release set.
+   3. If the package has **no commits in its own path but consumes a workspace dep that is being bumped**, decide whether to re-release it. Patch-bump it if the consumed dep's bump is patch or minor (so consumers pick up the new dep without action); for a consumed major bump, ask the user — sometimes a re-release is wanted, sometimes the consumer should be updated first.
+   4. If the package has no unreleased work and consumes nothing that is changing, skip it. Mark it `(skipped — no changes)` in the per-package output so the maintainer can see it was considered.
+   5. Mark `"private": true` workspaces as `(private — never released)` and exclude them from the release set, but still surface their commit count so the maintainer knows the work was considered.
+
+   The per-package decisions go into the proposal table rendered in Step 5.
+
 5. **Generate release notes and present the proposal.** Render notes per [§ 2 Release notes format](#2-release-notes-format). Then **stop and present** to the user — this is the only approval gate. Display, in chat:
 
    - Repo type (single / monorepo / monorepo-fixed).
-   - Per package: current → proposed version, and the **single line of rationale** (e.g. "minor: 1 feat, 3 fix").
-   - The list of commits considered, grouped by category, with SHA + subject + PR link.
+   - **A release summary table.** Required for monorepos with two or more packages in scope; recommended (but optional) for single-package repos and one-package monorepo cuts. The table lists **every workspace package the agent considered**, not only the ones being released — skipped and private packages appear too, so the maintainer can see the full audit. Use this column set:
+
+     | Package | Current | New | Bump | Rationale | Commits |
+     |---|---|---|---|---|---|
+     | `keyv` | `5.4.2` | `5.5.0` | **minor** | 1 feat, 2 fix | 3 |
+     | `cacheable` | `2.1.0` | `2.1.1` | patch | 1 fix | 1 |
+     | `flat-cache` | `6.0.0` | — | _skipped_ | no changes since `flat-cache@6.0.0` | 0 |
+     | `internal-utils` | `0.3.0` | — | _private_ | not published | 2 |
+
+     The `Bump` column uses **bold** for any bump that ships (`major` / `minor` / `patch`) and italic for non-shipping rows (`_skipped_`, `_private_`). The `Commits` column is the count of non-merge commits touching the package's path since its anchor. Order rows: shipping rows first (major → minor → patch), then skipped, then private. For single-package repos, the table has one row.
+   - Per package being released: the **single line of rationale** (e.g. "minor: 1 feat, 3 fix") and the list of commits considered, grouped by category, with SHA + subject + PR link.
    - **The full rendered release notes for each package, wrapped in a four-backtick fenced ` ````md ` block.** The outer fence is a chat-presentation wrapper only — it keeps the raw markdown displayed verbatim in chat so the maintainer can copy the **content between the fences** straight into the PR body and the GitHub Release. (The fence itself is not part of the PR body or Release.) The wrapper is four backticks (not three) because the notes themselves contain three-backtick code examples under `Features`, and a three-backtick wrapper would be terminated by the first inner fence. Do not paraphrase, do not collapse, do not drop the surrounding wrapper. If a feature example itself uses four backticks, escalate to five on the wrapper; the rule is "wrapper fence length > longest inner fence length."
    - **A literal prompt to approve**, e.g. *"Reply `ship it` (or `lgtm`, `approved`) to open the PR with these notes. Reply with edits (e.g. `bump to 2.0.0`, `move X out of breaking`) if you want changes first."*
 
@@ -239,7 +258,10 @@ Append `(breaking)` to the title for any release that contains a major bump.
 ## Release summary
 <one-sentence summary — for monorepos, the multi-package summary line from § 2>
 
-<release notes per § 2 — full content, not a link>
+## Packages
+<the release summary table from Step 5 — required for any monorepo cut (single or multi-package). Lists every workspace package considered, including skipped and private rows. Omit this section only for single-package repos.>
+
+<release notes per § 2 — full content, not a link. For multi-package monorepo cuts, render one per-package notes block per shipped package, in the same order as the table above.>
 
 ## Verification
 - [x] `pnpm install --frozen-lockfile` succeeds
