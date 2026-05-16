@@ -65,16 +65,16 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
    1. Resolve its anchor (from Step 2) and the commits touching its path (from Step 3).
    2. If the package has unreleased commits in its own path → decide its bump per [§ 1](#1-semver-decision-rules) and add it to the release set.
-   3. If the package has **no commits in its own path but consumes a workspace dep that is being bumped**, decide whether to re-release it. Patch-bump it if the consumed dep's bump is patch or minor (so consumers pick up the new dep without action); for a consumed major bump, ask the user — sometimes a re-release is wanted, sometimes the consumer should be updated first.
-   4. If the package has no unreleased work and consumes nothing that is changing, skip it. Mark it `(skipped — no changes)` in the per-package output so the maintainer can see it was considered.
-   5. Mark `"private": true` workspaces as `(private — never released)` and exclude them from the release set, but still surface their commit count so the maintainer knows the work was considered.
+   3. If the package has **no commits in its own path but consumes a workspace dep that is being bumped**, decide whether to re-release it. Patch-bump it if the consumed dep's bump is non-breaking (patch, or minor for `1.0+`); for a consumed breaking bump (major, or minor for `0.x`), ask the user — sometimes a re-release is wanted, sometimes the consumer should be updated first.
+   4. If the package has no unreleased work and consumes nothing that is changing, skip it. Mark it as `_skipped_` in the proposal table with a rationale like `no changes since <last-tag>` so the maintainer can see it was considered.
+   5. Mark `"private": true` workspaces as `_private_` (rationale: `not published`) and exclude them from the release set, but still surface their commit count so the maintainer knows the work was considered.
 
    The per-package decisions go into the proposal table rendered in Step 5.
 
 5. **Generate release notes and present the proposal.** Render notes per [§ 2 Release notes format](#2-release-notes-format). Then **stop and present** to the user — this is the only approval gate. Display, in chat:
 
    - Repo type (single / monorepo / monorepo-fixed).
-   - **A release summary table.** Required for monorepos with two or more packages in scope; recommended (but optional) for single-package repos and one-package monorepo cuts. The table lists **every workspace package the agent considered**, not only the ones being released — skipped and private packages appear too, so the maintainer can see the full audit. Use this column set:
+   - **A release summary table.** Required for all monorepo cuts (single-package or multi-package — the whole point is to show the full audit including skipped and private rows); recommended but optional for single-package repos. The table lists **every workspace package the agent considered**, not only the ones being released — skipped and private packages appear too, so the maintainer can see the full audit. Use this column set:
 
      | Package | Current | New | Bump | Rationale | Commits |
      |---|---|---|---|---|---|
@@ -171,7 +171,7 @@ Stop and ask the user (do not guess) when:
 
 - The only unreleased commits are `chore` / `docs` / `ci` and there's no clear shipping reason. ("There are no `feat` or `fix` commits since the last release. Cut a patch anyway?")
 - A breaking change is detected but the project follows a deprecation policy (e.g. deprecate-then-remove). Confirm the deprecation cycle is complete.
-- A monorepo package has only **transitive** changes (its own code is untouched, but a workspace dep it consumes was bumped). Ask whether to release it; sometimes the answer is yes (re-publish to pick up the new dep), sometimes no.
+- A monorepo package has only **transitive** changes (its own code is untouched, but a workspace dep it consumes was bumped) **and** the consumed dep's bump is breaking (major, or minor for `0.x`). Apply the Step 4 rule: patch-bump the consumer automatically for a non-breaking consumed bump (patch, or minor for `1.0+`); ask the user for a breaking one — sometimes a re-release is wanted, sometimes the consumer should be updated first.
 
 ## 2. Release notes format
 
