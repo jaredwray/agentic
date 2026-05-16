@@ -30,7 +30,7 @@ Detect this in Step 1 of the workflow. The shape determines how many packages ca
 
 - **Single-package** — root `package.json` is the only manifest. The release is one version bump on root `package.json` plus (optionally) one `CHANGELOG.md` entry at the repo root.
 - **Monorepo (pnpm workspace)** — `pnpm-workspace.yaml` exists, or root `package.json` declares `workspaces`. Each workspace package is released independently. A single release cut may cover **one or more packages** that have unreleased work, but each gets its own version decision and its own section in the release notes. `package.json` versions and per-package `CHANGELOG.md` files are updated in the same PR.
-- **Monorepo with a fixed/locked version** — rare; detected by a `version` field in `pnpm-workspace.yaml`, a Changesets `fixed` config (`.changeset/config.json` → `fixed`), or all package versions historically moving in lockstep. In that case treat the whole repo as one logical package: pick the highest semver bump implied by any change and apply it to every package.
+- **Monorepo with a fixed/locked version** — rare; detected by a Changesets `fixed` config (`.changeset/config.json` → `fixed`), a Lerna `version: "independent"` opt-out (i.e. Lerna in fixed mode), or all package versions historically moving in lockstep. In that case treat the whole repo as one logical package: pick the highest semver bump implied by any change and apply it to every package.
 
 If the repo uses **Changesets** (`.changeset/` directory present, `@changesets/cli` in devDependencies), defer to the Changesets flow — see [Reference § 5](#5-changesets-projects).
 
@@ -46,9 +46,9 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
 2. **Find the last released anchor for each package.** For each package in scope (the root for single-package, or each workspace package for monorepos), determine the **last released version**. Try in order until one yields a definite answer:
 
-   1. **Latest matching git tag.** Single-package: `v<x.y.z>` or `<x.y.z>` (whichever pattern this repo uses — pick by `git tag --sort=-version:refname | head`). Monorepo: `<package-name>@<x.y.z>` or `<package-name>-v<x.y.z>`.
+   1. **Latest matching git tag.** Single-package: `v<x.y.z>` or `<x.y.z>` (whichever pattern this repo uses — pick by `git tag --sort=-version:refname | head -n 1`). Monorepo: `<package-name>@<x.y.z>` or `<package-name>-v<x.y.z>`.
    2. **Latest GitHub Release.** Useful when tags exist but the repo doesn't keep them locally; query via `mcp__github__list_releases`.
-   3. **`package.json` version vs. npm registry.** If the version in `package.json` matches the latest published version on npm, that commit is the anchor (find it with `git log -S '"version": "<x.y.z>"' -- <pkg>/package.json | head -1`). If `package.json` is **ahead** of npm, the previous version's anchor is the right one — the current `package.json` version is an unreleased bump-in-flight.
+   3. **`package.json` version vs. npm registry.** If the version in `package.json` matches the latest published version on npm, that commit is the anchor (find it with `git log -G '"version":[[:space:]]*"<x.y.z>"' -- <pkg>/package.json | head -n 1`). If `package.json` is **ahead** of npm, the previous version's anchor is the right one — the current `package.json` version is an unreleased bump-in-flight.
    4. **First commit on `main`.** Only if the repo has never been released. In that case, the first release is `0.1.0` or `1.0.0` (ask the user).
 
    Record the anchor SHA per package. If sources disagree (e.g. tag points to a different SHA than the `package.json` history), stop and report — do not guess.
@@ -98,7 +98,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
 - **One release per PR.** A release cut PR contains only the version bump, the `CHANGELOG.md` update (if applicable), and a lockfile refresh if needed. Never bundle code changes, dep upgrades, or refactors into a release PR.
 - **Only one open release PR at a time.** If a previous release PR is still open, drive its CI to green if needed, then stop and wait.
-- **Branch names** match the patterns in Step 6 — `release/v<version>` (single), `release/<pkg>@<version>` (single package in monorepo), `release/<date>-<n>pkgs` (multi-package cut).
+- **Branch names** match the patterns in Step 6 — `release/v<version>` (single), `release/<pkg>@<version>` (single package in monorepo), `release/<date>-<n-packages>` (multi-package cut).
 - The PR is opened **as ready for review**, not as a draft.
 
 ---
@@ -251,7 +251,7 @@ Don't add commentary beyond the skeleton unless something genuinely surprising c
 
 ```bash
 # Most recent release tag (whichever pattern is used):
-git tag --sort=-version:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1
+git tag --sort=-version:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1
 # → v1.5.1
 
 # Commits since that tag:
@@ -270,7 +270,7 @@ npm view "$(node -p "require('./package.json').name")" version
 # → 1.5.0  (so package.json is already bumped to 1.5.1; previous release was 1.5.0)
 
 # Commit that introduced the current package.json version (the bump-in-flight):
-git log -S '"version": "1.5.1"' --reverse -- package.json | head -1
+git log -G '"version":[[:space:]]*"1\.5\.1"' --reverse -- package.json | head -n 1
 # Use that commit's parent as the anchor — that's where 1.5.0 ended.
 ```
 
@@ -278,7 +278,7 @@ git log -S '"version": "1.5.1"' --reverse -- package.json | head -1
 
 ```bash
 # Latest tag per package (typical pattern: <pkg>@<version>):
-git tag --sort=-version:refname | grep -E '^keyv@[0-9]' | head -1
+git tag --sort=-version:refname | grep -E '^keyv@[0-9]' | head -n 1
 # → keyv@5.4.2
 
 git log keyv@5.4.2..HEAD --oneline -- packages/keyv
