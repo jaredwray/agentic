@@ -42,7 +42,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work.
    - `git checkout main && git pull --ff-only origin main`.
    - Detect the repo type per [Repository type](#repository-type). Record it (single / monorepo / monorepo-fixed / changesets).
-   - Check whether a release PR matching `release/v*` or `release/<pkg>@*` is already open. If yes, jump to Step 6 (drive its CI to green, then stop and wait).
+   - Check whether a release PR matching any of the Step 6 branch patterns is already open: `release/v*` (single-package), `release/*@*` (single package in a monorepo), or `release/[0-9][0-9][0-9][0-9]-*` (multi-package cut, e.g. `release/2026-05-16-3-packages`). If yes, jump to Step 6 (drive its CI to green, then stop and wait).
 
 2. **Find the last released anchor for each package.** For each package in scope (the root for single-package, or each workspace package for monorepos), determine the **last released version**. Try in order until one yields a definite answer:
 
