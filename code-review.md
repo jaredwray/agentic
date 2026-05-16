@@ -27,7 +27,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 1. **Pick the review target.** In order:
    - If the user named a PR (number or URL), use that. Fetch the diff and the PR description via the GitHub MCP tools.
    - Else, if the working tree has uncommitted changes (`git status --short` is non-empty), the target is the uncommitted diff (`git diff HEAD`).
-   - Else, if the current branch is not `main` / `master` and is ahead of it, the target is the branch diff (`git diff $(git merge-base HEAD origin/main)..HEAD`).
+   - Else, if the current branch is not `main` / `master` and is ahead of it, the target is the branch diff (`git diff origin/main...HEAD` or `git diff origin/master...HEAD`, whichever default branch this repo uses).
    - Else, stop and ask the user what to review — there is nothing obvious.
 
    Record: target type (uncommitted / branch / PR), base ref, head ref, files changed, lines changed.
