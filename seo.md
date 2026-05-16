@@ -36,7 +36,7 @@ Detect this in Step 1 of the workflow. The shape determines where config and tem
 - **Static HTML** — plain `.html` files served from a static host. Config lives in repo root (`robots.txt`, `sitemap.xml`). No build step beyond a deploy.
 - **Static-site generator** — Astro, Hugo, Eleventy, Jekyll, Gatsby, Docusaurus, VitePress, MkDocs. `robots.txt` and `sitemap.xml` are usually generated or live in the `static/` / `public/` directory. The build produces a `dist/` or `_site/` or `build/` output that the agent inspects to verify the rendered HTML.
 - **Server-rendered framework** — Next.js, Nuxt, Remix, SvelteKit, Astro SSR, Rails, Django, Laravel. Metadata and structured data are usually emitted from route components or controllers. Sitemaps are often generated at build time (e.g. Next.js `app/sitemap.ts`).
-- **SPA (client-rendered only)** — Vite + React, CRA, plain Vue without SSR. Flag this in the audit. AI bots and many traditional crawlers do **not** execute JavaScript — content that only exists in client-rendered output is invisible. The fix is bigger than this guide (move to SSR / SSG / prerendering); surface the gap and stop.
+- **SPA (client-rendered only)** — Vite + React, CRA, plain Vue without SSR. Flag this in the audit and surface the trade-off: Googlebot renders JavaScript so the site **can** be indexed, but rendering is queued (delayed and budgeted), and most non-Google AI crawlers (`GPTBot`, `ClaudeBot`, `PerplexityBot`, etc.) do not execute JS at all — content that only exists in client-rendered output is invisible to them. The durable fix is SSR / SSG / prerendering for the routes that need to rank or be cited. Don't stop the workflow — proceed with the groups that still apply to a JS-rendered site (`robots.txt`, canonicals, sitemap, `<title>`/meta in the index HTML, structured data injected server-side, performance), and document the SPA-rendering limitation in the audit report so the user can decide on a prerendering strategy separately.
 
 If the site is hosted on a CMS the agent can't edit through the repo (WordPress without a headless setup, Webflow, Shopify theme not exported), stop and report — this guide is for repo-controlled sites.
 
@@ -285,7 +285,7 @@ For these, surface the diff and the impact in chat, get a `lgtm` / `ship it`, th
 - `Article.datePublished` and `Article.dateModified` use ISO 8601 (`2026-05-16T10:00:00-07:00`).
 - `Article.author` is an object with `@type: Person` and a `name`, not a string.
 - `Article.image` is an array of absolute URLs at 16:9, 4:3, and 1:1 ratios when possible — Google picks one.
-- `BreadcrumbList` `itemListElement` order matches the URL hierarchy, last element is the current page (no `item` URL on the last one is fine).
+- `BreadcrumbList` `itemListElement` order matches the URL hierarchy. Set `item` to the absolute URL on every element, **including the last one (the current page)** — Schema.org permits omitting `item` on the trailing element, but the Rich Results Test treats every element with an `item` URL as the cleanest pass, and AI features prefer breadcrumbs where every node is addressable.
 - `Organization` lives once, on the home page. Include `name`, `url`, `logo` (absolute URL, at least 112×112), `sameAs` (array of social profile URLs).
 
 ### 5. Content quality
