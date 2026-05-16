@@ -78,7 +78,9 @@ Run on first invocation and again on every resume.
    - **Channel and format:** where it's going (X thread, TikTok script, founder video, etc.) and rough length.
    - **Stakes:** what would make this launch a hit vs. a flop, in the user's own words.
    - **Constraints:** legal, brand voice, things that must not be claimed, things that must appear.
-   - **Assets available:** demo footage, screenshots, founder quotes, customer quotes, data points.
+   - **Founder / brand voice:** 3–10 verbatim quotes from the founder (prior threads, interviews, podcasts, internal docs) that capture the voice the launch must sound like. Without this, the body will sound like a homepage even after weapons check. If no quotes exist, ask once — do not synthesize a fake voice.
+   - **Assets available:** demo footage, screenshots, founder quotes, customer quotes, data points. Note which ones are *ready to ship* vs. *needs production*.
+   - **Live URLs:** the destination the CTA points at (landing page, sign-up form, App Store link). Required — a launch with no live URL has no CTA.
 
    If any required field is missing, stop and ask **once**, with the missing fields enumerated. Do not invent.
 
@@ -100,6 +102,7 @@ Run on first invocation and again on every resume.
    - **The customer-language list** — 10–20 verbatim phrases the audience uses, lifted from Reddit/X. The hook and body will be built from these, not from invented copy.
    - **The viral-pattern list** — what's worked in this category. Title formats, opening lines, demo structures.
    - **Dead phrases to avoid** — the generic SaaS/B2B language Agent 9 will reject on sight. ("Built a platform," "help teams save time," "streamline workflows," "powerful," "seamless," "intelligent," "built for modern teams.")
+   - **Research confidence** — `high` / `medium` / `low`, scored by how many of Agents 3–6 returned real signal. If **three or more sources returned empty** (common for niche B2B, stealth-mode products, or invented categories), mark confidence `low`, lift the customer-language quota from the brief's stated voice quotes + founder-supplied references, and surface a warning in `paper-trail/07-dossier.md` so the human knows the hook is leaning on the brief rather than the market.
 
 5. **Write and harden the hook (Agents 8–9).**
    - **Agent 8 Hook Writer** drafts at least **10 hook candidates** from the dossier. Each candidate is one to two sentences.
@@ -114,6 +117,7 @@ Run on first invocation and again on every resume.
 
 7. **Write the body (Agent 12).** Agent 12 writes the body / script that proves the hook. **Demo-driven narrative.** The body has one job: make the claim feel real.
    - Show the product. Show the before state. Show the new behavior. Show the moment where the viewer understands why this matters.
+   - **Match the founder voice from the brief.** Re-read the founder quotes before drafting. Sentence length, vocabulary, the cadence of clauses, the things the founder *won't* say — all of it has to feel like the founder, not like a copywriter writing in the founder's general direction. A line that's sharp and in-voice beats a line that's sharper and off-voice.
    - Length is set by the channel (a 60s founder video is ~150 words spoken; an X thread is 6–10 posts; a Product Hunt body is one tight paragraph plus bullets).
    - Save the first draft to `paper-trail/12-body-v1.md`.
 
@@ -125,6 +129,7 @@ Run on first invocation and again on every resume.
    - Each specialist writes to `paper-trail/<n>-<name>.md` (i.e. `13-weapons.md`, `14-controversy.md`, `15-technical.md`, `16-flow.md`).
 
 9. **Reconcile and rewrite the body (Agent 17 Body Manager).** Agent 17 reads all four specialist reports and drives the rewrite. Cut every line marked `cut` by Weapons. Rewrite every line marked `rewrite`. Address every contradiction the Controversy Specialist surfaced. Reconcile every overreach the Technical Specialist flagged. Restructure the beats the Flow Specialist marked as dead.
+   - **Voice-fidelity check.** Before approving the round, Body Manager reads the draft side-by-side with the founder quotes in the brief. If the draft has become sharper but less in-voice, send back to Agent 12 with the specific lines that drifted. A weapons-clean body in the wrong voice is a fail.
    - **Maximum 3 rewrite rounds.** After each round, re-run the four specialists. If a line still doesn't pass after round 3, cut it and surface the cut in the paper trail — do not ship a line that no specialist would defend.
    - Save each round to `paper-trail/17-body-v2.md`, `…-v3.md`, etc. The final body goes to `paper-trail/17-body-final.md`.
 
@@ -142,10 +147,17 @@ Run on first invocation and again on every resume.
 13. **Deliver (Agent 21).** Agent 21 assembles the deliverable into the dated subdirectory created per [Output rules](#output-rules) (e.g. `launch/2026-05-16-<slug>/`). All paths below are relative to that subdirectory — never the root `launch/` — so reruns never clobber prior artifacts.
     - **`final.md`** — the launch as it would ship. Hook, body, giveaway, CTA, in the format the channel requires.
     - **`paper-trail/`** — every numbered artifact from Steps 1–12, in order.
+    - **`receipts.md`** — the evidence bundle Agent 15 demanded for every product claim: the screenshot path, the customer quote with source, the metric source, the demo timestamp. One bullet per claim in `final.md` that has factual content.
+    - **`first-frame.md`** (video channels only — TikTok, Reels, YouTube, founder video) — the opening 3 seconds rendered explicitly: what's on screen, what's spoken, what's overlaid. For YouTube, also: the thumbnail concept (composition, text overlay ≤ 4 words, the single visual element that earns the click). The first frame and thumbnail carry as much weight as the hook itself; missing them is shipping a script without a movie.
     - **`HUMAN-EDIT.md`** — the **5% list**: the three to five places where Claude's judgment is least confident and a human's taste matters most. Specific lines, not "review the whole thing." Examples: "The hook works on paper but feels safe — try sharpening to: <alternative>." "Beat at 0:23 in the script feels expository — consider cutting." "Giveaway prize might underwhelm this audience — verify with founder."
-    - Report to the user: the absolute path to `final.md`, the absolute path to `HUMAN-EDIT.md`, and a one-line readout of what the human should attack first.
+    - **Pre-flight check** — before declaring delivery complete, Agent 21 verifies (a) every URL in the CTA and body resolves to a 200, (b) every asset referenced in the script exists and is in the assets list from the brief, (c) the live date in the brief is in the future. Any failure surfaces as a `🛑` line in `HUMAN-EDIT.md` — a viral hit landing on a 404 is the worst outcome the pipeline can produce.
+    - Report to the user: the absolute path to `final.md`, the absolute path to `HUMAN-EDIT.md`, the pre-flight result, and a one-line readout of what the human should attack first.
 
-14. **Stop and wait.** Do not iterate further. The pipeline's job is done. Resume only when the user says `revise`, `next launch`, `re-run`, or similar — at which point return to Step 1.
+14. **Stop and wait.** Do not iterate further. The pipeline's job is done.
+    - **`revise`** — iterate on the existing launch. Agent 21 reads the user's specific direction, runs only the affected phases (e.g. "rewrite the hook" → Agents 8–9 only; "the body's third beat is weak" → Agents 12, 13–17 on that beat), and writes the new version into the **same dated subdirectory** with a `-rN` suffix (`final-r2.md`, `paper-trail/08-hooks-r2.md`). Do not create a new dated directory.
+    - **`re-run`** — start over from scratch with new inputs (the user wants a different angle, channel, or framing). Agent 1 re-collects the brief and Step 1 creates a **new dated subdirectory** with a `-v2` suffix.
+    - **`next launch`** — a different launch entirely. New brief, new slug, new dated subdirectory.
+    - On any other input, stop and ask.
 
 ## Output rules
 
@@ -208,15 +220,12 @@ The order is not negotiable for most launches. The demo moment can come earlier 
 
 **Decision rules:**
 
-| Novelty | Intensity | Verdict      |
-| ------- | --------- | ------------ |
-| ≥ 4     | ≥ 4       | **Keep**     |
-| ≥ 3     | ≥ 3       | Keep         |
-| 2       | ≥ 3       | **Rewrite**  |
-| ≥ 3     | 2         | **Rewrite**  |
-| ≤ 2     | ≤ 2       | **Cut**      |
-| 0 or 1  | any       | **Cut**      |
-| any     | 0 or 1    | **Cut**      |
+| Min(Novelty, Intensity) | Max(Novelty, Intensity) | Verdict     |
+| ----------------------- | ----------------------- | ----------- |
+| ≥ 3                     | any                     | **Keep**    |
+| 2                       | ≥ 3                     | **Rewrite** |
+| ≤ 1                     | any                     | **Cut**     |
+| ≤ 2                     | ≤ 2                     | **Cut**     |
 
 A line that is true and clear can still score 2/2 — that's the point. True and clear is not enough. **The final body should feel like every sentence survived a fight.**
 
