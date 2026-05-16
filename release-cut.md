@@ -66,7 +66,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - Repo type (single / monorepo / monorepo-fixed).
    - Per package: current → proposed version, and the **single line of rationale** (e.g. "minor: 1 feat, 3 fix").
    - The list of commits considered, grouped by category, with SHA + subject + PR link.
-   - **The full rendered release notes for each package, inside a fenced ` ```md ` code block** so the maintainer can copy the raw markdown straight into the GitHub Release. Do not paraphrase, do not collapse, do not drop the surrounding fence — the block goes in chat verbatim, exactly as it will appear in the PR body and the GitHub Release.
+   - **The full rendered release notes for each package, inside a four-backtick fenced ` ````md ` code block** so the maintainer can copy the raw markdown straight into the GitHub Release. The outer fence is four backticks (not three) because the notes themselves contain three-backtick code examples under `Features` — a three-backtick wrapper would be terminated by the first inner fence. Do not paraphrase, do not collapse, do not drop the surrounding fence — the block goes in chat verbatim, exactly as it will appear in the PR body and the GitHub Release. If a feature example itself contains four backticks, escalate to five on the outer fence; the rule is "outer fence length > longest inner fence length."
    - **A literal prompt to approve**, e.g. *"Reply `ship it` (or `lgtm`, `approved`) to open the PR with these notes. Reply with edits (e.g. `bump to 2.0.0`, `move X out of breaking`) if you want changes first."*
 
    Then **wait**. Do not open the PR yet. The agent only proceeds when the user approves.
