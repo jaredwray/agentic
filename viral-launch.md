@@ -82,6 +82,8 @@ Run on first invocation and again on every resume.
 
    If any required field is missing, stop and ask **once**, with the missing fields enumerated. Do not invent.
 
+   Once the brief is complete, **create the dated subdirectory** per [Output rules](#output-rules) — `launch/<YYYY-MM-DD>-<slug>/` plus `launch/<YYYY-MM-DD>-<slug>/paper-trail/`. Every `paper-trail/...` path in the steps below is relative to this subdirectory; resolving them at the repo root would clobber prior launches. Save the brief itself to `paper-trail/01-brief.md`.
+
 2. **Run the keyword pass (Agent 2).** Extract 5–15 keywords / category terms / search phrases that the rest of the research pipeline will use. Save to `paper-trail/02-keywords.md`.
 
 3. **Run research in parallel (Agents 3–6).** Spawn the four research agents concurrently — they have no dependencies on each other.
@@ -120,7 +122,7 @@ Run on first invocation and again on every resume.
    - **14 Controversy Specialist** — finds the contrarian/spiky angle. If the body sounds like every other company's announcement, this agent says so. Surfaces what the body could *say* that competitors *wouldn't*. The take, not the description.
    - **15 Technical Specialist** — audits every product claim against the dossier and brand brief. Any claim without evidence gets flagged. Any claim that overreaches what the product actually does gets flagged. The goal is not to make the launch boring — it's to make sure no claim collapses under five seconds of scrutiny.
    - **16 Flow Specialist** — audits pacing. Where is the viewer 10 seconds in? 30 seconds in? Is there a dead beat? Does the demo land before attention drops? Marks the points where the audience walks away.
-   - Each specialist writes to `paper-trail/13–16-<name>.md`.
+   - Each specialist writes to `paper-trail/<n>-<name>.md` (i.e. `13-weapons.md`, `14-controversy.md`, `15-technical.md`, `16-flow.md`).
 
 9. **Reconcile and rewrite the body (Agent 17 Body Manager).** Agent 17 reads all four specialist reports and drives the rewrite. Cut every line marked `cut` by Weapons. Rewrite every line marked `rewrite`. Address every contradiction the Controversy Specialist surfaced. Reconcile every overreach the Technical Specialist flagged. Restructure the beats the Flow Specialist marked as dead.
    - **Maximum 3 rewrite rounds.** After each round, re-run the four specialists. If a line still doesn't pass after round 3, cut it and surface the cut in the paper trail — do not ship a line that no specialist would defend.
@@ -137,11 +139,11 @@ Run on first invocation and again on every resume.
 12. **Final review (Agent 20).** End-to-end read. Does the body deliver on the hook? Does every line still earn its place after the rewrites? Is anything missing — a date, a price, a URL, a credit, a disclaimer? Agent 20 writes a punch list, and the pipeline does one more rewrite pass to address it.
     - Save to `paper-trail/20-final-review.md`.
 
-13. **Deliver (Agent 21).** Agent 21 assembles the deliverable.
-    - **`launch/final.md`** — the launch as it would ship. Hook, body, giveaway, CTA, in the format the channel requires.
-    - **`launch/paper-trail/`** — every numbered artifact from Steps 1–12, in order.
-    - **`launch/HUMAN-EDIT.md`** — the **5% list**: the three to five places where Claude's judgment is least confident and a human's taste matters most. Specific lines, not "review the whole thing." Examples: "The hook works on paper but feels safe — try sharpening to: <alternative>." "Beat at 0:23 in the script feels expository — consider cutting." "Giveaway prize might underwhelm this audience — verify with founder."
-    - Report to the user: the path to `final.md`, the path to `HUMAN-EDIT.md`, and a one-line readout of what the human should attack first.
+13. **Deliver (Agent 21).** Agent 21 assembles the deliverable into the dated subdirectory created per [Output rules](#output-rules) (e.g. `launch/2026-05-16-<slug>/`). All paths below are relative to that subdirectory — never the root `launch/` — so reruns never clobber prior artifacts.
+    - **`final.md`** — the launch as it would ship. Hook, body, giveaway, CTA, in the format the channel requires.
+    - **`paper-trail/`** — every numbered artifact from Steps 1–12, in order.
+    - **`HUMAN-EDIT.md`** — the **5% list**: the three to five places where Claude's judgment is least confident and a human's taste matters most. Specific lines, not "review the whole thing." Examples: "The hook works on paper but feels safe — try sharpening to: <alternative>." "Beat at 0:23 in the script feels expository — consider cutting." "Giveaway prize might underwhelm this audience — verify with founder."
+    - Report to the user: the absolute path to `final.md`, the absolute path to `HUMAN-EDIT.md`, and a one-line readout of what the human should attack first.
 
 14. **Stop and wait.** Do not iterate further. The pipeline's job is done. Resume only when the user says `revise`, `next launch`, `re-run`, or similar — at which point return to Step 1.
 
