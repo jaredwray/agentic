@@ -31,7 +31,7 @@ Operation manual for **opening (or updating) a single pull request on GitHub** f
 
 Run these steps on the **first** invocation, and again on every resume when the user says `submit again`, `update the PR`, `next branch`, or similar.
 
-1. **Identify the change set.** Resolve the default branch ref with `git symbolic-ref --short refs/remotes/origin/HEAD` (typically `origin/main` or `origin/master`). Resolve the current branch with `git rev-parse --abbrev-ref HEAD`. If the current branch is the default branch, or HEAD is detached, stop and report — there is nothing to open a PR for.
+1. **Identify the change set.** Resolve the default branch ref with `git symbolic-ref --short refs/remotes/origin/HEAD` (typically `origin/main` or `origin/master`); if that command fails, fall back to whichever of `origin/main` or `origin/master` exists. **Strip the `origin/` prefix to get the bare base branch name** (e.g. `origin/main` → `main`) — Step 7 passes that bare name as the `base` argument to `mcp__github__create_pull_request`, which rejects remote-prefixed refs. Resolve the current branch with `git rev-parse --abbrev-ref HEAD`. If the current branch is the default branch, or HEAD is detached, stop and report — there is nothing to open a PR for.
 
    Collect the change set:
    - `git log <base>..HEAD --oneline` — the commits this PR will contain.
@@ -167,7 +167,7 @@ Pick **one** type. When the PR contains commits spanning multiple types, pick th
 | `chore` | Maintenance that doesn't fit elsewhere: dep bumps, repo plumbing, internal scripts, codeowners updates. | 8 |
 | `build` | Changes to the build system or external dependencies (bundler config, lockfile-only changes, Dockerfile). | 9 |
 | `ci` | Changes to CI configuration (`.github/workflows/`, CI scripts, release pipelines). | 10 |
-| `revert` | A revert of a previous commit. The body must reference the reverted SHA. | matches the reverted commit's type |
+| `revert` | A revert of a previous commit. The body must reference the reverted SHA. | matches the reverted commit's type (inherits its impact number) |
 
 **Breaking changes override everything.** Any commit that removes, renames, or incompatibly changes a public API is a breaking change. Mark the title with `!` (e.g. `feat(api)!: rename listSessions to listActiveSessions`) **and** include a `BREAKING CHANGE:` paragraph in the body's Summary describing the break and the migration. See [`../release-cut.md`](../release-cut.md) § 1 for how breaking changes flow through semver — this primitive only needs to flag them; the release-cut workflow handles the version bump.
 
