@@ -53,10 +53,15 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
    Record the anchor SHA per package. If sources disagree (e.g. tag points to a different SHA than the `package.json` history), stop and report — do not guess.
 
-3. **Collect unreleased commits.** For each package with an anchor, run `git log <anchor>..HEAD` (single-package) or `git log <anchor>..HEAD -- <package-path>` (monorepo) to gather the unreleased commits. For each commit, capture: short SHA, subject, author, and PR number if the subject ends with `(#<n>)` or matches a merge-commit pattern.
+3. **Collect unreleased commits.** For each package with an anchor, run `git log <anchor>..HEAD` (single-package) or `git log <anchor>..HEAD -- <package-path>` (monorepo) to gather the unreleased commits. For each commit, capture: short SHA, subject, author, and the associated PR number (see resolution rule below).
 
+   - **Resolve the PR per commit.** Subject parsing alone is unreliable — squash-merge subjects carry `(#<n>)` and merge-commit subjects carry `Merge pull request #<n>`, but rebase-and-merge and customized squash templates land commits on `main` with no PR reference in the subject. Resolve in this order, stopping at the first hit:
+     1. Parse the subject for `(#<n>)` (squash-merge default) or `Merge pull request #<n>` (merge-commit default).
+     2. Query the GitHub commit-to-PR association via `mcp__github__search_pull_requests` with `query: "repo:<owner>/<repo> is:merged <sha>"` — GitHub indexes the merge commit SHA on the PR. For rebase-and-merge, this resolves the original PR even though no individual commit on `main` references it.
+     3. If neither resolves a PR, treat the commit as a direct push to `main` (see the `Commits with no PR` rule in [§ 2](#2-release-notes-format)).
    - **Filter merge commits** unless they are the only commit carrying the change (e.g. squashed PRs land as one commit; "Merge pull request #N" lines without a real change should be dropped from the notes but not from the diff).
    - **Skip empty diffs.** A package with no commits touching its path has no unreleased work and is not part of this cut.
+   - **Resolve PR titles and authors.** For each distinct PR number captured, fetch the PR's title, merge date, author handle, and `author_association` via `mcp__github__pull_request_read`. This data feeds the `Full List of Changes` section in [§ 2](#2-release-notes-format). Batch the lookups — one call per PR is fine for releases under ~10 PRs; for larger releases, prefer `mcp__github__list_pull_requests` with `state: "closed"` and filter client-side to avoid latency and rate-limit pressure. Cache results per cut so a re-render doesn't re-fetch.
    - If **no package has any unreleased commits**, stop and report: "Nothing to release. Last released version is `<x.y.z>` at `<sha>`."
 
 4. **Decide the semver bump per package.** Apply the rules in [§ 1 Semver decision rules](#1-semver-decision-rules). For each package, output: current version → proposed next version, with the rationale (which commit forced the bump).
@@ -211,13 +216,17 @@ Render notes in **Keep a Changelog**-flavored markdown. The same rendered notes 
 ### Contributors
 - @<github-handle> (<commit-count>)
 
+### Full List of Changes
+- <PR title> by @<author> in #<pr>
+- <PR title> by @<author> in #<pr>
+
 **Full diff:** https://github.com/<owner>/<repo>/compare/<previous-tag>...<new-tag>
 ```
 
 Rules:
 
-- **Drop empty sections.** A patch release with only fixes shows only the `Bug Fixes` section.
-- **One bullet per commit**, not per PR. If a PR landed as one squashed commit, that's one bullet. If a PR landed as a merge with multiple commits, prefer the merge subject as one bullet.
+- **Drop empty sections.** A patch release with only fixes shows only the `Bug Fixes` section. The `Full List of Changes` and `Contributors` sections are exempt from this rule — they always render as long as the release contains any commits.
+- **One bullet per commit**, not per PR, in the category sections (`Features`, `Bug Fixes`, etc.). If a PR landed as one squashed commit, that's one bullet. If a PR landed as a merge with multiple commits, prefer the merge subject as one bullet. The `Full List of Changes` section is the exception — it's one bullet per PR (see below).
 - **Strip the conventional prefix** from each bullet. `feat: add retry support` → `add retry support`.
 - **Link the PR**, not the commit, when both are present. Use `(#123)`; GitHub auto-renders this in PR bodies and Release bodies.
 - **Migration notes are mandatory for breaking changes.** Every `BREAKING CHANGES` bullet has a `Migration:` sub-line. If you can't write one, that's a sign the change isn't actually ready to ship — stop and ask.
@@ -230,6 +239,14 @@ Rules:
   - If a single feature warrants more than one example (e.g. an SDK call + a CLI invocation), use two separate fenced blocks, not one combined one.
   - `Bug Fixes`, `Performance`, `Documentation`, and `Internal` bullets do **not** include code blocks by default — only if a fix is subtle enough that the diff in behavior needs to be shown explicitly.
 - **Contributors section** lists every distinct commit author, sorted by commit count desc. Skip bot accounts (`dependabot`, `renovate-bot`, `claude[bot]`).
+- **Full List of Changes section** is a flat, complete inventory of every PR shipped in this release — one bullet per PR, not per commit, rendered at the bottom right before the `Full diff:` link. This mirrors GitHub's auto-generated "What's Changed" format so readers can scan every PR at a glance even when the categorized sections collapse multiple PRs into a single line.
+  - **Source.** Walk the unreleased commits collected in Workflow Step 3, using each commit's resolved PR number (Step 3 already runs the subject-parse → commit-to-PR API lookup → no-PR fallback chain, so this section just consumes the result). For a monorepo cut, filter to PRs whose commits touch the package's path.
+  - **Format.** `- <PR title> by @<author> in #<pr>`. Use the PR title from GitHub (via `mcp__github__pull_request_read`), not the commit subject — they often differ, and the PR title is what the maintainer wrote on the PR. The `#<pr>` reference auto-renders as a link in PR bodies and Release bodies.
+  - **Order.** Chronological by merge date (or commit date for direct commits with no PR), oldest first. This matches GitHub's default and gives readers a sense of the release's timeline.
+  - **Deduplicate.** If two commits reference the same PR (rare — usually a follow-up commit landed on a merge PR), list the PR once.
+  - **Bots.** Include bot PRs (`dependabot`, `renovate-bot`, `claude[bot]`) — unlike the `Contributors` section, this list is meant to be exhaustive. Dependency bumps and automated updates are real changes a consumer might care about.
+  - **Commits with no PR.** If a commit was pushed directly to `main` without a PR (uncommon on protected branches but possible on solo projects), render it as `- <commit subject> by @<author> in <short-sha>` so the inventory stays complete.
+  - **New contributors.** If a PR author's `author_association` field on the PR is `FIRST_TIME_CONTRIBUTOR` or `FIRST_TIMER`, append ` (first-time contributor)` to their bullet. This field is already in the PR data fetched in Step 3, so no extra lookup is needed.
 
 ### Multi-package monorepo cut
 
