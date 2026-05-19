@@ -46,10 +46,9 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth
 - [ ] Committed lockfile present
 - [ ] All GitHub Actions installs use `pnpm install --frozen-lockfile`
 - [ ] CI blocks if the lockfile would be modified
-- [ ] Renovate/Dependabot run only as controlled PRs
+- [ ] Any dependency-update tooling in use runs in controlled-PR mode (never auto-merge); the agent does not add a tool that isn't already present
 - [ ] New direct dependencies require human review
 - [ ] High-risk dependencies (install scripts, native builds, exotic sources, recent ownership changes) require additional review
-- [ ] Direct-dependency owner map maintained for critical packages
 - [ ] Direct dependencies use narrower version ranges (`~` over `^` where reasonable; exact versions for high-risk tooling)
 
 ### 4. pnpm 11 Supply Chain Controls
@@ -274,10 +273,9 @@ The remaining sections are the implementation spec for items in the catalog. The
   ```
 
 - [ ] Block CI if the lockfile would be modified.
-- [ ] Use Renovate/Dependabot in controlled PRs, not automatic release pipelines.
+- [ ] If the repo already uses a dependency-update tool (Renovate, Dependabot, or another), require it to open PRs that go through normal review — never auto-merge. The agent does not add such a tool when one isn't already configured; tool choice is the maintainer's call.
 - [ ] Require human review for any new direct dependency.
 - [ ] Require additional review for dependencies with install scripts, native builds, binary downloads, exotic sources, or recent ownership changes.
-- [ ] Maintain a direct-dependency owner map for critical packages.
 
 ## 4. pnpm 11 Supply Chain Controls
 
