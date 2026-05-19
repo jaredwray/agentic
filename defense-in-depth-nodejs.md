@@ -46,10 +46,9 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth
 - [ ] Committed lockfile present
 - [ ] All GitHub Actions installs use `pnpm install --frozen-lockfile`
 - [ ] CI blocks if the lockfile would be modified
-- [ ] Renovate/Dependabot run only as controlled PRs
+- [ ] Any dependency-update tooling in use runs in controlled-PR mode (never auto-merge)
 - [ ] New direct dependencies require human review
 - [ ] High-risk dependencies (install scripts, native builds, exotic sources, recent ownership changes) require additional review
-- [ ] Direct-dependency owner map maintained for critical packages
 - [ ] Direct dependencies use narrower version ranges (`~` over `^` where reasonable; exact versions for high-risk tooling)
 
 ### 4. pnpm 11 Supply Chain Controls
@@ -69,7 +68,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth
 - [ ] `id-token: write` only on the final publish job
 - [ ] No npm tokens stored in GitHub Actions secrets
 - [ ] All third-party actions pinned to a full commit SHA
-- [ ] CODEOWNERS review required for `.github/workflows/**`, release scripts, signer policy, and package-manager config
+- [ ] CODEOWNERS in place, listing the maintainer and a shared security contact
 - [ ] No `pull_request_target` for workflows that check out or execute untrusted PR code
 - [ ] Caches not shared across trust boundaries
 - [ ] Package-manager caching disabled in release builds
@@ -274,10 +273,9 @@ The remaining sections are the implementation spec for items in the catalog. The
   ```
 
 - [ ] Block CI if the lockfile would be modified.
-- [ ] Use Renovate/Dependabot in controlled PRs, not automatic release pipelines.
+- [ ] If the repo already uses a dependency-update tool (Renovate, Dependabot, or another), require it to open PRs that go through normal review — never auto-merge. The agent does not add such a tool when one isn't already configured; tool choice is the maintainer's call.
 - [ ] Require human review for any new direct dependency.
 - [ ] Require additional review for dependencies with install scripts, native builds, binary downloads, exotic sources, or recent ownership changes.
-- [ ] Maintain a direct-dependency owner map for critical packages.
 
 ## 4. pnpm 11 Supply Chain Controls
 
@@ -330,7 +328,26 @@ Checklist:
 - [ ] No npm tokens in GitHub Actions.
 - [ ] All third-party actions must be pinned to a full commit SHA.
 - [ ] Treat tag-pinned or branch-pinned actions as policy violations.
-- [ ] Require CODEOWNERS review for `.github/workflows/**`, release scripts, signer policy, and package-manager config.
+- [ ] Add a `.github/CODEOWNERS` file with a single wildcard rule listing the
+  maintainer and a shared security inbox. This is the simplest shape that
+  forces a code-owner review on every PR — including PRs that touch
+  `.github/workflows/**`, release scripts, signer policy, and the
+  package-manager config.
+
+  ```
+  *  @maintainer  security@example.com
+  ```
+
+  Branch protection on the default branch must enable "Require review from
+  Code Owners" for the rule to enforce. Email-style owners only work for
+  GitHub accounts with that exact address verified; for a shared security
+  contact, list a handle instead (e.g. `@org/security-team`) or a second
+  trusted account. Listing a single owner alongside "Require review from
+  Code Owners" prevents that owner from merging their own PRs without
+  bypassing the policy, so always pair the maintainer with at least one
+  other reviewer. Larger repos with distinct ownership domains can scope
+  owners by path, but for one- or two-maintainer projects the wildcard
+  is enough.
 - [ ] Avoid `pull_request_target` for workflows that check out or execute untrusted PR code.
 - [ ] Do not share caches across trust boundaries.
 - [ ] Disable package-manager caching in release builds.
