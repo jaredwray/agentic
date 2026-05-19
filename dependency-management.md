@@ -116,6 +116,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 - Every PR uses a unique branch from latest `main`.
 - If the environment can't create separate branches or PRs (sandbox, single-branch session, etc.), stop and report. Don't bundle groups onto one branch as commits.
 - **You must respond to every comment that is not you on what you did.** Reply to each PR comment, review, and review-thread comment authored by someone other than yourself — bots included (CodeQL, Codecov, Gemini, etc.). Reply inline on review-thread comments; for top-level reviews and PR-level bot comments, leave a top-level PR comment. State concretely what was done (or why no action is needed) and reference the commit SHA when applicable. Skip only comments you authored.
+  - **Exception — don't engage in pleasantry loops.** Once you've replied to a substantive comment, if the other party (especially a bot) follows up with a pure pleasantry (e.g. "You're welcome", "Glad I could help", "Good luck with the merge") that introduces no new question, finding, or action item, do not reply again. Replying to non-actionable acknowledgements keeps bots ping-ponging. The rule above covers comments about *what you did*; a thank-you is not such a comment.
 
 ### Version targeting
 
