@@ -69,7 +69,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth
 - [ ] `id-token: write` only on the final publish job
 - [ ] No npm tokens stored in GitHub Actions secrets
 - [ ] All third-party actions pinned to a full commit SHA
-- [ ] CODEOWNERS review required for `.github/workflows/**`, release scripts, signer policy, and package-manager config
+- [ ] CODEOWNERS in place, listing the maintainer and a shared security contact
 - [ ] No `pull_request_target` for workflows that check out or execute untrusted PR code
 - [ ] Caches not shared across trust boundaries
 - [ ] Package-manager caching disabled in release builds
@@ -330,7 +330,22 @@ Checklist:
 - [ ] No npm tokens in GitHub Actions.
 - [ ] All third-party actions must be pinned to a full commit SHA.
 - [ ] Treat tag-pinned or branch-pinned actions as policy violations.
-- [ ] Require CODEOWNERS review for `.github/workflows/**`, release scripts, signer policy, and package-manager config.
+- [ ] Add a `.github/CODEOWNERS` file with a single wildcard rule listing the
+  maintainer and a shared security inbox. This is the simplest shape that
+  forces a code-owner review on every PR — including PRs that touch
+  `.github/workflows/**`, release scripts, signer policy, and the
+  package-manager config.
+
+  ```
+  *  @maintainer  security@example.com
+  ```
+
+  Branch protection on the default branch must enable "Require review from
+  Code Owners" for the rule to enforce. Email-style owners only work for
+  GitHub accounts with that exact address verified; for a shared inbox,
+  list a handle instead (e.g. `@org/security-team`) or omit it. Larger
+  repos with distinct ownership domains can scope owners by path, but for
+  one- or two-maintainer projects the wildcard is enough.
 - [ ] Avoid `pull_request_target` for workflows that check out or execute untrusted PR code.
 - [ ] Do not share caches across trust boundaries.
 - [ ] Disable package-manager caching in release builds.
