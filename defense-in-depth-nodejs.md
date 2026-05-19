@@ -46,7 +46,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth
 - [ ] Committed lockfile present
 - [ ] All GitHub Actions installs use `pnpm install --frozen-lockfile`
 - [ ] CI blocks if the lockfile would be modified
-- [ ] Any dependency-update tooling in use runs in controlled-PR mode (never auto-merge); the agent does not add a tool that isn't already present
+- [ ] Any dependency-update tooling in use runs in controlled-PR mode (never auto-merge)
 - [ ] New direct dependencies require human review
 - [ ] High-risk dependencies (install scripts, native builds, exotic sources, recent ownership changes) require additional review
 - [ ] Direct dependencies use narrower version ranges (`~` over `^` where reasonable; exact versions for high-risk tooling)
@@ -340,10 +340,14 @@ Checklist:
 
   Branch protection on the default branch must enable "Require review from
   Code Owners" for the rule to enforce. Email-style owners only work for
-  GitHub accounts with that exact address verified; for a shared inbox,
-  list a handle instead (e.g. `@org/security-team`) or omit it. Larger
-  repos with distinct ownership domains can scope owners by path, but for
-  one- or two-maintainer projects the wildcard is enough.
+  GitHub accounts with that exact address verified; for a shared security
+  contact, list a handle instead (e.g. `@org/security-team`) or a second
+  trusted account. Listing a single owner alongside "Require review from
+  Code Owners" prevents that owner from merging their own PRs without
+  bypassing the policy, so always pair the maintainer with at least one
+  other reviewer. Larger repos with distinct ownership domains can scope
+  owners by path, but for one- or two-maintainer projects the wildcard
+  is enough.
 - [ ] Avoid `pull_request_target` for workflows that check out or execute untrusted PR code.
 - [ ] Do not share caches across trust boundaries.
 - [ ] Disable package-manager caching in release builds.
