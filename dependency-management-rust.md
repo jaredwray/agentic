@@ -94,7 +94,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 5. **Open the PR.**
    - Branch from latest `main` (naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons).
    - Apply the upgrade — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
-   - Refresh the lockfile — run `cargo update -p <crate>` (or `cargo update --workspace`) so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
+   - Refresh the lockfile — run `cargo update -p <crate>` so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
    - Verify the upgrade. The minimum gate is `cargo build --workspace --all-targets && cargo test --workspace`; also run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` if MSRV is declared (see [MSRV rule](#msrv-rule)). These are the same checks CI will run.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
@@ -113,7 +113,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 ## Pull request rules
 
 - **One PR per logical group — always.** Don't combine unrelated groups. Don't fragment a clear group across multiple PRs.
-- **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 7.
+- **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 8.
 - Every PR uses a unique branch from latest `main`.
 - If the environment can't create separate branches or PRs (sandbox, single-branch session, etc.), stop and report. Don't bundle groups onto one branch as commits.
 - **You must respond to every comment that is not you on what you did.** Reply to each PR comment, review, and review-thread comment authored by someone other than yourself — bots included (Codecov, dependency-bot, GitHub Advisory, clippy review bots, etc.). Reply inline on review-thread comments; for top-level reviews and PR-level bot comments, leave a top-level PR comment. State concretely what was done (or why no action is needed) and reference the commit SHA when applicable. Skip only comments you authored.
