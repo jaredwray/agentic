@@ -112,7 +112,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 ## Pull request rules
 
 - **One PR per logical group — always.** Don't combine unrelated groups. Don't fragment a clear group across multiple PRs.
-- **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 7.
+- **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 8.
 - Every PR uses a unique branch from latest `main`.
 - If the environment can't create separate branches or PRs (sandbox, single-branch session, etc.), stop and report. Don't bundle groups onto one branch as commits.
 - **You must respond to every comment that is not you on what you did.** Reply to each PR comment, review, and review-thread comment authored by someone other than yourself — bots included (CodeQL, Codecov, Gemini, etc.). Reply inline on review-thread comments; for top-level reviews and PR-level bot comments, leave a top-level PR comment. State concretely what was done (or why no action is needed) and reference the commit SHA when applicable. Skip only comments you authored.
