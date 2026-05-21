@@ -1,29 +1,30 @@
 # Submit a Pull Request to GitHub
 
-Operation manual for **opening (or updating) a single pull request on GitHub** from a branch that is already committed locally. The deliverable is a PR URL with a Conventional-Commit-compliant title, a structured body the reviewer can read in 30 seconds, and green CI. One PR per invocation.
+Operation manual for **opening (or updating) a single pull request on GitHub** from a branch that is already committed locally. The deliverable is a PR URL with a Conventional-Commit-compliant title, a structured body the reviewer can read in 30 seconds, green CI, and a PR that stays responsive to reviewer code-change suggestions until it's merged or closed. One PR per invocation.
 
 > **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow) Step 1. Step 1 figures out **what** is being shipped (which branch, which base, which commits). Only stop to ask when the document explicitly says to stop and report.
 >
 > **Persona.** Act as a **release engineer who treats the PR title as the permanent commit log entry**. Once this PR merges, the title is what `git log` shows for the rest of the project's life. Spend the effort on the title and body that a careful reviewer would expect — not a minute less, not a minute more.
 >
-> **Three stop points in the happy path** and only three: (a) a dirty working tree on entry — stop and tell the user to commit or stash first; (b) the title-and-body draft — present it once and wait for approval before any push; (c) CI is green on the opened PR — report and stop. Everywhere else the agent proceeds autonomously, including pushing fixes when CI fails.
+> **Three stop points in the happy path** before green and one quiet phase after: (a) a dirty working tree on entry — stop and tell the user to commit or stash first; (b) the title-and-body draft — present it once and wait for approval before any push; (c) CI is green on the opened PR — report, then proceed to (d) **subscribe to PR activity and end the turn**, resuming only when a reviewer comment arrives. Everywhere else the agent proceeds autonomously, including pushing fixes when CI fails and pushing fixes for agreed-with review suggestions per [Reference § 6](#6-handling-code-change-review-comments).
 >
-> **One PR per invocation.** Drive one PR to "open + green" and stop. Do not approve, merge, enable auto-merge, request reviewers, or set labels — those are the maintainer's calls, not the agent's.
+> **One PR per invocation.** Drive one PR to "open + green + subscribed" and stop. Do not approve, merge, enable auto-merge, request reviewers, or set labels — those are the maintainer's calls, not the agent's.
 
 ## Scope
 
-**In scope:** opening or updating exactly one PR for a feature branch that is already committed locally. The agent:
+**In scope:** opening or updating exactly one PR for a feature branch that is already committed locally, and keeping that PR responsive to reviewer code-change suggestions until it's merged or closed. The agent:
 
 1. Identifies the change set (current branch vs. default branch).
 2. Picks a single **Conventional Commit type** (`feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `chore`, `build`, `ci`, `revert`, with optional `!` for breaking) and composes a compliant title.
 3. Renders a PR body using the project's standard skeleton (Summary / Changes / Verification / Test plan).
 4. Pushes the branch and posts the PR via the GitHub MCP tools.
 5. Drives CI to green by diagnosing failures, pushing fixes, and rechecking — until every required check passes or the failure is a known flake on `main`.
+6. Subscribes to PR activity and responds to every non-self review comment that suggests a code change — either applying the fix and acknowledging with the new commit SHA, or replying with the concrete reason for disagreement. See [Reference § 6](#6-handling-code-change-review-comments).
 
 **Out of scope:**
 
-- **Writing the underlying commits.** This document assumes the branch is committed. If the working tree is dirty, stop and ask the user to commit or stash first — do not commit on their behalf.
-- **Code review.** Reviewing the diff for bugs, security, or architecture is a different job — defer to [`code-review.md`](./code-review.md).
+- **Writing the underlying commits before the PR is open.** This document assumes the branch is committed when the workflow starts. If the working tree is dirty, stop and ask the user to commit or stash first — do not commit on their behalf. (Fixes pushed in response to CI failures or to agreed-with review suggestions are in scope; they are this primitive's job.)
+- **Reviewing this PR's own diff.** Critiquing the agent's own change for bugs, security, or architecture is a different job — defer to [`code-review.md`](./code-review.md). This primitive only reacts to reviews left by others.
 - **Release cuts.** Version bumps, `CHANGELOG.md` updates, and release notes are owned by [`../release-cut.md`](../release-cut.md). Do not run that workflow from here.
 - **Approving, merging, enabling auto-merge, requesting reviewers, or setting labels.** These are maintainer actions, not agent actions.
 
@@ -82,7 +83,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - **Open or update.** In new-PR mode: `mcp__github__create_pull_request` with `owner`, `repo`, `title`, `body`, `head=<branch>`, `base=<default-branch>`, `draft=false`. In update mode: `mcp__github__update_pull_request` with `pull_number=<n>`, `title`, `body`.
    - **Capture the result.** Record the PR number, URL, and the SHA the PR currently points at.
 
-8. **Drive CI to green, then stop.** Poll the PR's check runs via `mcp__github__pull_request_read` (request `method: "status"` or the checks view). For each failing check:
+8. **Drive CI to green.** Poll the PR's check runs via `mcp__github__pull_request_read` (request `method: "status"` or the checks view). For each failing check:
 
    1. Read the failure (job logs, failed test names, error output).
    2. Decide: is this **a real failure** (introduced by this PR) or **flaky on `main` too** (intermittent, unrelated)? Confirm flakes by checking the same check on the latest `main` SHA.
@@ -98,7 +99,9 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - Check summary: `<n> passed, <m> flaky-on-main` (or `all green`).
    - The next manual step is the maintainer's: review and merge.
 
-   Then **stop.** Do not request reviewers, do not add labels, do not enable auto-merge, do not merge. The PR is the deliverable; the agent's job ends at the green checkmark.
+   Then proceed to Step 9. Do not request reviewers, do not add labels, do not enable auto-merge, do not merge — those remain the maintainer's calls.
+
+9. **Subscribe to PR activity, then end the turn.** Call `mcp__github__subscribe_pr_activity` with the PR number from Step 7 and end the turn. The session resumes only when a `<github-webhook-activity>` event arrives. From this point on, the agent's job is to react to reviewer comments per [Reference § 6](#6-handling-code-change-review-comments) — not to keep working on its own and not to poll. Call `mcp__github__unsubscribe_pr_activity` only when the PR is merged or closed, or the user says `stop watching`, `unsubscribe`, or `done with this PR`.
 
 ---
 
@@ -231,8 +234,12 @@ Use the GitHub MCP tools — not `gh` CLI, not raw API. The tools accept structu
 | `mcp__github__list_pull_requests` | Step 3 — dedupe | `owner`, `repo`, `head=<owner>:<branch>`, `state=open` |
 | `mcp__github__create_pull_request` | Step 7 — new-PR mode | `owner`, `repo`, `title`, `body`, `head`, `base`, `draft=false` |
 | `mcp__github__update_pull_request` | Step 7 — update mode | `owner`, `repo`, `pull_number`, `title`, `body` |
-| `mcp__github__pull_request_read` | Step 8 — CI polling | `owner`, `repo`, `pull_number`, `method` (`get`, `status`, or `files` as needed) |
+| `mcp__github__pull_request_read` | Step 8 — CI polling, Step 9 — fetching review threads | `owner`, `repo`, `pullNumber`, `method` (`get_status`, `get_check_runs`, `get_review_comments`, `get_reviews`, `get_comments` as needed) |
 | `mcp__github__add_issue_comment` | Step 8 — flake comment | `owner`, `repo`, `issue_number=<pull_number>`, `body` |
+| `mcp__github__subscribe_pr_activity` | Step 9 — start monitoring | `owner`, `repo`, `pullNumber` |
+| `mcp__github__add_reply_to_pull_request_comment` | § 6 — inline reply on a review thread | `owner`, `repo`, `pullNumber`, `commentId`, `body` |
+| `mcp__github__resolve_review_thread` | § 6 — close an agreed-and-fixed thread | `owner`, `repo`, `threadId` (GraphQL node ID from `get_review_comments`) |
+| `mcp__github__unsubscribe_pr_activity` | § 6 — stop monitoring on merge/close or user request | `owner`, `repo`, `pullNumber` |
 
 **Defaults to enforce:**
 
@@ -241,7 +248,42 @@ Use the GitHub MCP tools — not `gh` CLI, not raw API. The tools accept structu
 
 **Fallback when MCP is unavailable.** If the GitHub MCP server is disconnected (the tools fail with "tool not found" or similar), do **not** improvise with `gh` CLI or `curl` — that's a different transport with different auth. Stop and report the title + body to the user so they can open the PR by hand. The agent's job ends at "PR content drafted, transport unavailable."
 
-## 6. Anti-patterns the submitter must avoid
+## 6. Handling code-change review comments
+
+Once Step 9 has subscribed the session, every `<github-webhook-activity>` event for a non-self review comment that targets a specific piece of this PR's code — an inline review-thread comment, a `RequestedChanges` review body that names a concrete change, a bot suggestion with a code block (CodeQL, Copilot review, Gemini, etc.) — is **mandatory** to handle. Self-authored comments are skipped. There are exactly two responses for code-change comments, and there is no third "ignore" path.
+
+**Classifying the comment.** Before responding, fetch the thread context with `mcp__github__pull_request_read` `method=get_review_comments` (for inline threads) or `get_reviews` / `get_comments` for top-level review and PR-level comments. A comment is a **code-change comment** when it asks for a specific change — a rename, a fix, a missing test, a different API call, a refactor — at a specific location. Pleasantries ("thanks", "LGTM"), broad approvals without a request, and questions that don't propose a change are **not** code-change comments and don't require the agree/disagree dance below — handle them per the [non-actionable comments](#non-actionable-comments) note.
+
+### Agree — fix, push, and acknowledge
+
+When the suggested change is correct (the bug exists, the simplification works, the missing test should be added, the rename clarifies):
+
+1. **Make the fix** locally on the same branch — same tools, same discipline as the original change.
+2. **Run the same local checks** the PR ran originally (`pnpm test`, `pnpm build`, etc., per project). A fix that breaks CI is not a fix.
+3. **Push the new commit.** Regular `git push` — do not force-push, since force-pushes detach the reviewer's anchor and bury the context they were commenting on. Use a focused commit message (`fix: <what>` or `refactor: <what>`).
+4. **Reply on the original thread** with `mcp__github__add_reply_to_pull_request_comment` (for inline review-thread comments) or `mcp__github__add_issue_comment` (for top-level review or PR-level comments). The reply names what was done and the new commit SHA, e.g.: *"Done in `<sha>`: replaced the regex with `URL.parse` and added the BOM case to `parser.test.ts`."* Vague replies (`"fixed"`, `"good catch"`) are not acceptable — the reviewer needs to know what changed without re-reading the diff.
+5. **Resolve the thread** with `mcp__github__resolve_review_thread` once the reply is posted. Leave the thread open only when the reviewer explicitly asked a follow-up question that the fix didn't answer.
+
+### Disagree — reply with the concrete reason, do not push
+
+When the suggested change is wrong, would regress observable behavior, conflicts with project guidance, or rests on a misreading:
+
+1. **Do not push code.** A disagreement that ends in a commit is not a disagreement — it's a confused agreement. If the comment makes you uncertain, re-read the relevant code first; commit only after you've actually concluded the change is right.
+2. **Reply on the original thread** with the concrete reason. One short paragraph: which file/line/behavior the suggestion would break, the project convention it conflicts with, or the misread it rests on. Cite a path with `path/to/file.ts:42` so the reviewer can verify. Do not argue stylistic preferences as if they were correctness — when the disagreement is a "could go either way" trade-off, name it as such and ask the reviewer to weigh in.
+3. **Do not resolve the thread.** The agent never resolves its own pushback. Leave the thread open so the reviewer can respond; the maintainer resolves disagreements they accept.
+4. **No silent skips.** If you decided not to act, you owe a reply explaining why. Going quiet on a reviewer's suggestion is the worst outcome — it looks like the comment was missed.
+
+### Non-actionable comments
+
+Pleasantries, broad approvals, status-echo bot comments, and questions that don't propose a change do **not** trigger the agree/disagree rule — that path is reserved for code-change suggestions. Replying to non-actionable comments creates pleasantry loops (see [`../dependency-management.md`](../dependency-management.md) § Pull request rules for the same rule on dep PRs). Reply only when the comment introduces a new question, finding, or action item.
+
+### Loop discipline
+
+- **One event, one response.** Each webhook event gets its own investigation and reply (or fix + reply). Do not batch multiple reviewer comments into one push without a per-comment acknowledgment — the reviewer should not have to read the diff to find out which of their suggestions you took.
+- **Self-authored comments are skipped.** The agent's own replies, the agent's own `add_issue_comment` flake notes from Step 8, and `<github-webhook-activity>` echoes of the agent's own pushes are not new work.
+- **Stop watching on the user's word or PR end-of-life.** Call `mcp__github__unsubscribe_pr_activity` and end the turn when the PR is merged or closed, or when the user says `stop watching`, `unsubscribe`, `done with this PR`, or similar. Don't push further changes to that PR after unsubscribing.
+
+## 7. Anti-patterns the submitter must avoid
 
 These are the failure modes of bad PR submissions. Catch yourself in them and back up.
 
@@ -256,3 +298,9 @@ These are the failure modes of bad PR submissions. Catch yourself in them and ba
 - **The unauthorized merge.** Calling `mcp__github__merge_pull_request` or `mcp__github__enable_pr_auto_merge` because CI is green. Merging is the maintainer's call. The agent stops at green.
 - **The reviewer-spam.** Requesting three reviewers without being asked. The agent does not pick reviewers.
 - **The red-PR victory lap.** Reporting "PR opened" as success while CI is still red. Step 8 is part of the workflow, not a nice-to-have. A red PR is an unfinished PR.
+- **The silent skip on a review comment.** A code-change comment with no reply — neither a fix-and-acknowledge nor a reasoned disagreement — looks like the comment was missed. Every non-self code-change comment gets one of the two responses in [§ 6](#6-handling-code-change-review-comments).
+- **The vague "fixed" acknowledgment.** Replying `"fixed"` or `"good catch"` without naming what changed and the SHA forces the reviewer to dig through the diff. State what was done and reference the commit.
+- **The capitulating "disagreement".** Pushing the change anyway after writing a disagreement reply, or writing a wishy-washy "I see your point, but…" and then doing it. Pick a side: either fix-and-acknowledge or reason-and-hold.
+- **The self-resolved pushback.** Resolving a review thread on a comment the agent disagreed with. The agent only resolves threads it actually fixed; reviewers and maintainers resolve disagreements they accept.
+- **The force-push that buries the review.** `git push --force` (or `--force-with-lease`) on top of fixes for review comments — the reviewer's inline anchors detach and the conversation loses its line context. Use force-push only when an explicit rebase is the change being made.
+- **The poll-when-you-could-subscribe.** Calling `pull_request_read` in a `sleep` loop waiting for new comments instead of subscribing and ending the turn. Step 9 is the contract: subscribe, end the turn, wake on event.
