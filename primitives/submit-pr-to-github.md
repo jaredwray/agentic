@@ -275,7 +275,7 @@ When the suggested change is wrong, would regress observable behavior, conflicts
 
 ### Non-actionable comments
 
-Pleasantries, broad approvals, status-echo bot comments, and questions that don't propose a change do **not** trigger the agree/disagree rule — that path is reserved for code-change suggestions. Replying to non-actionable comments creates pleasantry loops (see [`../dependency-management.md`](../dependency-management.md) § Pull request rules for the same rule on dep PRs). Reply only when the comment introduces a new question, finding, or action item.
+Pleasantries, broad approvals, status-echo bot comments, and questions that don't propose a change do **not** trigger the agree/disagree rule — that path is reserved for code-change suggestions. Replying to non-actionable comments creates pleasantry loops (see [`../dependency-management-node.md`](../dependency-management-node.md) § Pull request rules for the same rule on dep PRs). Reply only when the comment introduces a new question, finding, or action item.
 
 ### Loop discipline
 

@@ -144,7 +144,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-Match the style in `dependency-management.md`:
+Match the style in `dependency-management-node.md`:
 
 | Scope                                       | Prefix                          |
 | ------------------------------------------- | ------------------------------- |
