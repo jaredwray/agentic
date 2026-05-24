@@ -93,7 +93,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-Match the style in `dependency-management.md`:
+Match the style in `dependency-management-node.md`:
 
 | Scope                                       | Prefix                            |
 | ------------------------------------------- | --------------------------------- |
@@ -197,7 +197,7 @@ These templates are the baseline. Most projects layer additional governance on t
 
 - **CI workflows, action pinning, CODEOWNERS, pnpm policy** → [`defense-in-depth-nodejs.md`](./defense-in-depth-nodejs.md).
 - **Release pipeline, signer policy, trusted publishing, release-intent signing** → [`release-management-nodejs.md`](./release-management-nodejs.md).
-- **Dependency upgrades** → [`dependency-management.md`](./dependency-management.md) (or [`dependency-management-rust.md`](./dependency-management-rust.md) for Rust projects).
+- **Dependency upgrades** → [`dependency-management-node.md`](./dependency-management-node.md) (or [`dependency-management-rust.md`](./dependency-management-rust.md) for Rust projects).
 - **Agent instruction files (`AGENTS.md`, `CLAUDE.md`)** — repo-specific by design; not templated.
 
 After the template baseline is in place, point the maintainer to those manuals for the next layer of hardening.
