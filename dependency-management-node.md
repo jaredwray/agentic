@@ -130,7 +130,7 @@ Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrad
 
 Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) are breaking — own PR with `(breaking)` suffix.
 
-**Floating tags** (e.g. `node:20-alpine` without a digest pin) resolve to the latest image at pull time. There is nothing to upgrade — skip. If the tag has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
+**Floating tags** (e.g. `node:20-alpine` without a digest pin) resolve to the latest image at pull time. Offer to upgrade them to a pinned version — resolve the floating tag to the current concrete version and rewrite the reference (e.g. `node:20-alpine` → `node:20.11.1-alpine3.19`). This makes builds reproducible and gives future upgrade runs a version to compare against. If the tag already has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
 
 ### System packages and script-installed tools
 

@@ -132,7 +132,7 @@ Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrad
 
 Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17`) are breaking — own PR with `(breaking)` suffix. For Rust, since `rust:1.x` images follow the Rust release train, a minor bump (`rust:1.85` → `rust:1.86`) is not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule).
 
-**Floating tags** (e.g. `rust:1-slim` without a digest pin) resolve to the latest image at pull time. There is nothing to upgrade — skip. If the tag has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
+**Floating tags** (e.g. `rust:1-slim` without a digest pin) resolve to the latest image at pull time. Offer to upgrade them to a pinned version — resolve the floating tag to the current concrete version and rewrite the reference (e.g. `rust:1-slim` → `rust:1.85.0-slim-bookworm`). This makes builds reproducible and gives future upgrade runs a version to compare against. If the tag already has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
 
 ### System packages and script-installed tools
 
