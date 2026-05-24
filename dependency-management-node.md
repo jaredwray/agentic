@@ -113,20 +113,20 @@ In multi-stage Dockerfiles, identify builder vs runtime stages:
 
 ### Query for latest versions
 
-Use `skopeo` (does not require a Docker daemon) to inspect and list tags:
+Use `skopeo` (does not require a Docker daemon) to inspect and list tags. Use the full image reference — `docker.io/library/<image>` for official Docker Hub images, or the full registry path for others (e.g. `ghcr.io/<owner>/<image>`, `<org>/<image>`):
 
-- `skopeo inspect docker://docker.io/library/<image>:<tag>` — returns the digest and labels for the current tag.
-- `skopeo list-tags docker://docker.io/library/<image>` — lists all available tags.
+- `skopeo inspect docker://<registry>/<image>:<tag>` — returns the digest and labels for the current tag.
+- `skopeo list-tags docker://<registry>/<image>` — lists all available tags.
 - If `skopeo` is not available, install it or use `crane` as a fallback (`crane ls <image>`, `crane digest <image>:<tag>`).
 
 ### Tag lineage targeting
 
-Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the latest tag sharing the same **major** and **variant**:
+Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the latest tag sharing the same **major** and **variant family**. The variant family is the base variant name without its version — e.g. `alpine3.19` belongs to the `alpine` family, `bookworm` and `bullseye` are distinct families:
 
-- `node:20.11.1-alpine3.19` → latest `node:20.*-alpine*`
-- `node:20-alpine` → this is a floating tag; upgrade means refreshing the digest pin (if pinned) or skip (if not pinned)
+- `node:20.11.1-alpine3.19` → latest `node:20.*-alpine*` (the Alpine OS version may advance, e.g. `alpine3.19` → `alpine3.21`)
+- `node:20-alpine` → this is a floating tag; upgrade means resolving to a pinned version (see [Floating tags](#tag-lineage-targeting) above)
 - `ubuntu:24.04` → latest `ubuntu:24.04` digest (point releases); `ubuntu:24.10` is a major upgrade
-- `postgres:16.2-alpine` → latest `postgres:16.*-alpine*`
+- `postgres:16.2-alpine` → latest `postgres:16.*-alpine*` (Alpine version may advance)
 
 Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix.
 
@@ -305,5 +305,5 @@ For non-Node images (e.g. `python`, `golang`) referenced in Dockerfiles: apply t
 
 - If an image reference already has a digest pin (`FROM node:20-alpine@sha256:abc123...`), updating the tag without updating the digest is a no-op — the digest wins. Always update **both** tag and digest together.
 - If an image reference does not have a digest pin, do not introduce one during a dependency management PR. Introduction of digest pinning is defense-in-depth work.
-- To resolve a new digest: `skopeo inspect --raw docker://<image>:<tag>` returns the manifest; the digest is the sha256 of that manifest. Alternatively, `crane digest <image>:<tag>`.
+- To resolve a new digest: `crane digest <image>:<tag>` or `skopeo inspect --format '{{.Digest}}' docker://<registry>/<image>:<tag>`.
 - Always pin to the manifest list digest (multi-arch index), not a platform-specific manifest, unless the Dockerfile uses `--platform`.
