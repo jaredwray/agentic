@@ -128,7 +128,7 @@ Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrad
 - `ubuntu:24.04` → latest `ubuntu:24.04` digest (point releases); `ubuntu:24.10` is a major upgrade
 - `postgres:16.2-alpine` → latest `postgres:16.*-alpine*`
 
-Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) are breaking — own PR with `(breaking)` suffix.
+Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix.
 
 **Floating tags** (e.g. `node:20-alpine` without a digest pin) resolve to the latest image at pull time. Offer to upgrade them to a pinned version — resolve the floating tag to the current concrete version and rewrite the reference (e.g. `node:20-alpine` → `node:20.11.1-alpine3.19`). This makes builds reproducible and gives future upgrade runs a version to compare against. If the tag already has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
 
@@ -270,7 +270,7 @@ For Docker image PRs, use this skeleton instead:
 - Update code as needed for the new version.
 - Append `(breaking)` to the PR title: `mono - chore: upgrade code quality dependencies (breaking)`.
 - **Each major version upgrade gets its own PR.** Never combine two unrelated majors in one PR. The only exception is related majors within a single ecosystem that must move together (e.g. `react` + `react-dom`, or a framework and its required peer majors) — those may share one PR.
-- **Docker major version upgrades** follow the same rule. `node:20` → `node:22`, `ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17` each get their own PR with `(breaking)` suffix. When a Docker image major bump requires updating project version sources (`.nvmrc`, `package.json engines.node`, `@types/node`), all of those changes travel in the same PR.
+- **Docker major version upgrades require asking first.** `node:20` → `node:22`, `ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17` — stop and ask the user before proceeding. If approved, each gets its own PR with `(breaking)` suffix. When a Docker image major bump requires updating project version sources (`.nvmrc`, `package.json engines.node`, `@types/node`), all of those changes travel in the same PR.
 
 ## `@types/node` rule
 
@@ -293,11 +293,11 @@ In monorepos, the root Node config governs `@types/node` unless a workspace pack
 
 ## Container image version agreement
 
-When upgrading Docker base images, the project's canonical Node.js version source is the authority — the Dockerfile must agree.
+The Node.js version in Docker images must match `.nvmrc` — Docker follows `.nvmrc`, never the other way around.
 
-The canonical Node version is determined from the same priority list as the [`@types/node` rule](#typesnode-rule). The `FROM node:<major>` major in every Dockerfile must equal the canonical major. If they disagree, stop and report.
+The canonical Node version is determined from the first available source (same list as the [`@types/node` rule](#typesnode-rule), with `.nvmrc` as first priority). The `FROM node:<major>` in every Dockerfile must equal the canonical major, and patch-level upgrades must stay within that major. If a Dockerfile's Node version disagrees with `.nvmrc`, stop and report — do not upgrade the Dockerfile independently.
 
-When a Docker image major bump is needed (e.g. `node:20` → `node:22`), update **all** version sources in the same PR: `.nvmrc`, `.node-version`, `package.json engines.node`, `@types/node`, and every `FROM node:*` line. Never upgrade the Dockerfile image past the project's canonical version without upgrading the project version source in the same PR.
+**Do not upgrade the Node major in Docker as part of dependency management.** If `.nvmrc` says `20`, every `FROM node:*` line stays on `20.x`. A Node major bump is a project-wide decision that updates `.nvmrc` first; the Dockerfile follows. If a newer Node major is available and the Docker image is the only place you notice it, report it as a deferral — do not open a PR.
 
 For non-Node images (e.g. `python`, `golang`) referenced in Dockerfiles: apply the same principle using whatever version source the project declares (`.python-version`, `go.mod`, etc.). If no project-level version source exists, upgrade based on tag lineage from [Container image discovery](#container-image-discovery).
 

@@ -130,7 +130,7 @@ Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrad
 - `debian:bookworm-slim` → latest `debian:bookworm-slim` digest (point releases)
 - `postgres:16.2-alpine` → latest `postgres:16.*-alpine*`
 
-Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17`) are breaking — own PR with `(breaking)` suffix. For Rust, since `rust:1.x` images follow the Rust release train, a minor bump (`rust:1.85` → `rust:1.86`) is not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule).
+Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix. For Rust, since `rust:1.x` images follow the Rust release train, a minor bump (`rust:1.85` → `rust:1.86`) is not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule).
 
 **Floating tags** (e.g. `rust:1-slim` without a digest pin) resolve to the latest image at pull time. Offer to upgrade them to a pinned version — resolve the floating tag to the current concrete version and rewrite the reference (e.g. `rust:1-slim` → `rust:1.85.0-slim-bookworm`). This makes builds reproducible and gives future upgrade runs a version to compare against. If the tag already has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
 
@@ -275,7 +275,7 @@ For Docker image PRs, use this skeleton instead:
 - Append `(breaking)` to the PR title: `workspace - chore: upgrade tokio dependencies (breaking)`.
 - **Each major version upgrade gets its own PR.** Never combine two unrelated majors in one PR. The only exception is related majors within a single ecosystem that must move together (e.g. `serde` + `serde_derive`, `tonic` + `prost`, `axum` + the `tower` peers it requires) — those may share one PR.
 - Pre-1.0 minor bumps (`0.x` → `0.(x+1)`) are major for semver purposes — treat them the same way.
-- **Docker major version upgrades** follow the same rule. `ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17` each get their own PR with `(breaking)` suffix. Rust image minor bumps (`rust:1.85` → `rust:1.86`) are not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule). When a Docker image version bump requires updating `rust-toolchain.toml` or `Cargo.toml rust-version`, all of those changes travel in the same PR.
+- **Docker major version upgrades require asking first.** `ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17` — stop and ask the user before proceeding. If approved, each gets its own PR with `(breaking)` suffix. Rust image minor bumps (`rust:1.85` → `rust:1.86`) are not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule). When a Docker image version bump requires updating `rust-toolchain.toml` or `Cargo.toml rust-version`, all of those changes travel in the same PR.
 
 ## MSRV rule
 
@@ -296,11 +296,11 @@ When an upgrade would raise the MSRV, defer it: document it as a deferral and mo
 
 ## Container image version agreement
 
-When upgrading Docker base images, the project's canonical Rust version source is the authority — the Dockerfile must agree.
+The Rust version in Docker images must match `rust-toolchain.toml` — Docker follows `rust-toolchain.toml`, never the other way around.
 
-The canonical Rust version is determined from the same priority list as the [MSRV rule](#msrv-rule). The `FROM rust:<version>` in every Dockerfile must be compatible with the declared MSRV and must match `rust-toolchain.toml` if present. If they disagree, stop and report.
+The canonical Rust version is determined from the same priority list as the [MSRV rule](#msrv-rule), with `rust-toolchain.toml` as the primary source. The `FROM rust:<version>` in every Dockerfile must be compatible with the declared MSRV and must match the toolchain pin. If a Dockerfile's Rust version disagrees with `rust-toolchain.toml`, stop and report — do not upgrade the Dockerfile independently.
 
-When a Docker Rust image bump is needed (e.g. `rust:1.85` → `rust:1.86`), verify it does not exceed the MSRV floor. If `rust-toolchain.toml` pins a specific version, update it in the same PR. Never upgrade the Dockerfile image past the project's canonical version without upgrading the project version source in the same PR.
+**Do not upgrade the Rust version in Docker past what `rust-toolchain.toml` declares.** If `rust-toolchain.toml` says `1.85`, every `FROM rust:*` line stays on `1.85.x`. A Rust toolchain bump is a project-wide decision that updates `rust-toolchain.toml` first; the Dockerfile follows. Minor bumps (`rust:1.85` → `rust:1.86`) are permitted only when `rust-toolchain.toml` is updated in the same PR (or already declares the newer version).
 
 For non-Rust images (e.g. `python`, `node`) referenced in Dockerfiles: apply the same principle using whatever version source the project declares (`.python-version`, `.nvmrc`, etc.). If no project-level version source exists, upgrade based on tag lineage from [Container image discovery](#container-image-discovery).
 
