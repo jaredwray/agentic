@@ -1,3 +1,10 @@
+---
+name: dependency-management-node
+description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — code-quality tooling, build tooling, monorepo tooling, GitHub Actions, Docker images, then runtime ecosystems — respecting pnpm minimumReleaseAge and the @types/node-versus-Node-major rule. Use when asked to update, upgrade, or bump dependencies on a Node or pnpm project. Manual and resumable; dev phase before runtime phase.
+disable-model-invocation: true
+user-invocable: true
+---
+
 # Dependency Management
 
 Workflow for upgrading both **devDependencies** (with CI tooling) and **runtime dependencies**, one pull request at a time.
@@ -7,6 +14,8 @@ Workflow for upgrading both **devDependencies** (with CI tooling) and **runtime 
 > **One PR at a time.** Open a PR, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next dep PR`, or similar. Never open a second dep-management PR while one is already in flight.
 >
 > **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
+>
+> This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it).
 
 ## Repository type
 
