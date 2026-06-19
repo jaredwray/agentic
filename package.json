@@ -6,12 +6,9 @@
   "description": "Operation manuals as installable Claude Code Agent Skills.",
   "scripts": {
     "validate": "node scripts/validate-skills.mjs",
-    "changeset": "changeset",
-    "version": "changeset version && node scripts/sync-plugin-version.mjs"
+    "changeset": "npx -y @changesets/cli",
+    "version": "npx -y @changesets/cli version && node scripts/sync-plugin-version.mjs"
   },
   "author": "Jared Wray <me@jaredwray.com>",
-  "license": "MIT",
-  "devDependencies": {
-    "@changesets/cli": "^2.27.9"
-  }
+  "license": "MIT"
 }
