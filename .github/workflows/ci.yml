@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least-privilege by default, per this repo's own defense-in-depth guidance.
+permissions:
+  contents: read
+
+jobs:
+  validate-skills:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are SHA-pinned (with a version comment) per the defense-in-depth skill.
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # This job runs PR-controlled code (the validator) and performs no authenticated git
+          # operations after checkout, so don't leave the workflow token on disk for it.
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+      # The validator is dependency-free, so no install step is required.
+      - name: Validate skills
+        run: node scripts/validate-skills.mjs

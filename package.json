@@ -1,0 +1,14 @@
+{
+  "name": "agentic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Operation manuals as installable Claude Code Agent Skills.",
+  "scripts": {
+    "validate": "node scripts/validate-skills.mjs",
+    "changeset": "npx -y @changesets/cli",
+    "version": "npx -y @changesets/cli version && node scripts/sync-plugin-version.mjs"
+  },
+  "author": "Jared Wray <me@jaredwray.com>",
+  "license": "MIT"
+}
