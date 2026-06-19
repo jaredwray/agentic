@@ -1,3 +1,9 @@
+---
+name: test
+description: Write tests that catch real production bugs — a failure-mode inventory, an explicit list of trivial or coverage-padding tests to drop, and the new tests as runnable code. Use when asked to write tests, add test coverage, or improve a test suite for a function, module, or feature. Targets real failure modes over type-system restatement, and recommends deletions as well as additions.
+user-invocable: true
+---
+
 # Test What Actually Matters
 
 Operation manual for **writing tests that catch real production bugs** — not coverage-padding, not type-system restatement, not the tests that pass when the bug ships anyway. The deliverable is a test plan plus the tests themselves (real code, runnable) for a defined target, posted in chat. One target per invocation; **the trivial tests are dropped, not silently included**.

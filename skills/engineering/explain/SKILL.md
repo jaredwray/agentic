@@ -1,3 +1,9 @@
+---
+name: explain
+description: Explain a concept, library, pattern, or technology in three depth layers — a 30-second product version, a 5-minute engineer version with code, and a deep dive with trade-offs, gotchas, and when NOT to use it. Use when the user asks to explain X, how does X work, what is X, or wants to understand a tool well enough to ship with it tomorrow. Skips textbook history; leads with production gotchas.
+user-invocable: true
+---
+
 # Explain in Three Layers
 
 Operation manual for **explaining a concept, library, pattern, or technology in three depth layers** — a 30-second version a PM would understand, a 5-minute engineer version with code, and a deep dive with trade-offs, gotchas, and when **not** to use it. The deliverable is a single chat message containing all three layers, optimized for someone who is shipping with this thing tomorrow.

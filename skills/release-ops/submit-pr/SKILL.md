@@ -1,3 +1,11 @@
+---
+name: submit-pr
+description: Open or update exactly one GitHub pull request from an already-committed branch — a Conventional-Commit title, a body a reviewer reads in 30 seconds (Summary, Changes, Verification, Test plan), driven to green CI, then subscribed to respond to reviewer code-change comments until merged. Use when asked to open a PR, submit a PR, raise a pull request, or push a branch for review. Stops for title and body approval; never merges or approves.
+disable-model-invocation: true
+user-invocable: true
+argument-hint: "[base branch]"
+---
+
 # Submit a Pull Request to GitHub
 
 Operation manual for **opening (or updating) a single pull request on GitHub** from a branch that is already committed locally. The deliverable is a PR URL with a Conventional-Commit-compliant title, a structured body the reviewer can read in 30 seconds, green CI, and a PR that stays responsive to reviewer code-change suggestions until it's merged or closed. One PR per invocation.
@@ -24,8 +32,8 @@ Operation manual for **opening (or updating) a single pull request on GitHub** f
 **Out of scope:**
 
 - **Writing the underlying commits before the PR is open.** This document assumes the branch is committed when the workflow starts. If the working tree is dirty, stop and ask the user to commit or stash first — do not commit on their behalf. (Fixes pushed in response to CI failures or to agreed-with review suggestions are in scope; they are this primitive's job.)
-- **Reviewing this PR's own diff.** Critiquing the agent's own change for bugs, security, or architecture is a different job — defer to [`code-review.md`](./code-review.md). This primitive only reacts to reviews left by others.
-- **Release cuts.** Version bumps, `CHANGELOG.md` updates, and release notes are owned by [`../release-cut.md`](../release-cut.md). Do not run that workflow from here.
+- **Reviewing this PR's own diff.** Critiquing the agent's own change for bugs, security, or architecture is a different job — defer to the `code-review` skill. This primitive only reacts to reviews left by others.
+- **Release cuts.** Version bumps, `CHANGELOG.md` updates, and release notes are owned by the `release-cut` skill. Do not run that workflow from here.
 - **Approving, merging, enabling auto-merge, requesting reviewers, or setting labels.** These are maintainer actions, not agent actions.
 
 ## Workflow
@@ -87,7 +95,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 
    1. Read the failure (job logs, failed test names, error output).
    2. Decide: is this **a real failure** (introduced by this PR) or **flaky on `main` too** (intermittent, unrelated)? Confirm flakes by checking the same check on the latest `main` SHA.
-   3. If real: fix it locally (the same way you would for any bug — see [`debug.md`](./debug.md) if needed), commit with a focused message (`fix: <what>` or `test: <what>`), push, and re-poll.
+   3. If real: fix it locally (the same way you would for any bug — see the `debug` skill if needed), commit with a focused message (`fix: <what>` or `test: <what>`), push, and re-poll.
    4. If flake: leave a one-line PR comment via `mcp__github__add_issue_comment` calling out the flake (with a link to the `main` failure), and treat the check as passing for the purpose of this workflow.
 
    Cap the fix-and-push loop at **3 iterations**. If CI is still red after 3 attempts, stop and report the remaining failures with diagnosis — the user decides whether to keep going.
@@ -172,7 +180,7 @@ Pick **one** type. When the PR contains commits spanning multiple types, pick th
 | `ci` | Changes to CI configuration (`.github/workflows/`, CI scripts, release pipelines). | 10 |
 | `revert` | A revert of a previous commit. The body must reference the reverted SHA. | matches the reverted commit's type (inherits its impact number) |
 
-**Breaking changes override everything.** Any commit that removes, renames, or incompatibly changes a public API is a breaking change. Mark the title with `!` (e.g. `feat(api)!: rename listSessions to listActiveSessions`) **and** include a `BREAKING CHANGE:` paragraph in the body's Summary describing the break and the migration. See [`../release-cut.md`](../release-cut.md) § 1 for how breaking changes flow through semver — this primitive only needs to flag them; the release-cut workflow handles the version bump.
+**Breaking changes override everything.** Any commit that removes, renames, or incompatibly changes a public API is a breaking change. Mark the title with `!` (e.g. `feat(api)!: rename listSessions to listActiveSessions`) **and** include a `BREAKING CHANGE:` paragraph in the body's Summary describing the break and the migration. See the `release-cut` skill § 1 for how breaking changes flow through semver — this primitive only needs to flag them; the release-cut workflow handles the version bump.
 
 **Decision rule for mixed-type PRs:** walk every commit, classify it, then pick the lowest-numbered type on the table above. A PR with one `feat:` commit and ten `chore:` commits is a `feat:` PR. A PR that adds a feature and fixes an unrelated bug should usually be **split** into two PRs — but if it isn't, the title is `feat:` and the body's `Changes` section calls out the bug fix as a second bullet.
 
@@ -275,7 +283,7 @@ When the suggested change is wrong, would regress observable behavior, conflicts
 
 ### Non-actionable comments
 
-Pleasantries, broad approvals, status-echo bot comments, and questions that don't propose a change do **not** trigger the agree/disagree rule — that path is reserved for code-change suggestions. Replying to non-actionable comments creates pleasantry loops (see [`../dependency-management-node.md`](../dependency-management-node.md) § Pull request rules for the same rule on dep PRs). Reply only when the comment introduces a new question, finding, or action item.
+Pleasantries, broad approvals, status-echo bot comments, and questions that don't propose a change do **not** trigger the agree/disagree rule — that path is reserved for code-change suggestions. Replying to non-actionable comments creates pleasantry loops (see the `dependency-management-node` skill's pull-request rules for the same rule on dep PRs). Reply only when the comment introduces a new question, finding, or action item.
 
 ### Loop discipline
 

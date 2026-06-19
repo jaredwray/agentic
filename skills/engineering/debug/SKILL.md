@@ -1,3 +1,9 @@
+---
+name: debug
+description: Diagnose a bug before fixing it — five-plus ranked hypotheses, the evidence that confirms or falsifies each, an instrumentation plan, an assumptions audit, and a minimal isolating test. Use when the user reports a bug, something is broken, failing, or crashing, behavior is wrong, or they ask why something is happening and the cause is not yet proven. Produces a diagnosis; fixing is a separate follow-up.
+user-invocable: true
+---
+
 # Debug
 
 Operation manual for **diagnosing a bug before fixing it**. The deliverable is a written diagnosis — five-plus ranked hypotheses, the evidence that confirms or falsifies each, the instrumentation plan, the assumptions audit, and the minimal isolating test — posted in chat. One bug per invocation; the fix is a **separate** request that comes after the diagnosis lands.

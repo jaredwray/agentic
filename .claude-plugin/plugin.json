@@ -5,5 +5,10 @@
   "author": { "name": "Jared Wray", "email": "me@jaredwray.com" },
   "homepage": "https://github.com/jaredwray/agentic",
   "repository": "https://github.com/jaredwray/agentic",
-  "license": "MIT"
+  "license": "MIT",
+  "skills": [
+    "./skills/engineering/",
+    "./skills/release-ops/",
+    "./skills/shared/"
+  ]
 }

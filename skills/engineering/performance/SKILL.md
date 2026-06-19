@@ -1,3 +1,9 @@
+---
+name: performance
+description: Diagnose a performance problem before optimizing — a performance card, bottleneck classification, complexity analysis, allocation profile, N+1 and repeated-work findings, a profile prediction, and a ranked win list (cheapest, biggest, recommended). Use when something is slow, when latency, throughput, or memory is a concern, or the user asks to make code faster. Measures first; optimizing is a separate follow-up.
+user-invocable: true
+---
+
 # Performance Detective
 
 Operation manual for **diagnosing a performance problem before optimizing it**. The deliverable is a written diagnosis — performance card, bottleneck classification, complexity analysis, allocation profile, N+1 / repeated-work findings, profile prediction, and a ranked win list (cheapest, biggest, recommended) — posted in chat. One slow path per invocation; **no optimization in this turn** unless the user explicitly asks after reading the diagnosis. **Diagnose before you prescribe.**

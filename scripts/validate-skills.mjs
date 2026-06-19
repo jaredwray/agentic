@@ -161,6 +161,15 @@ function validateSkill(file, seenNames) {
       if (!content.includes(s)) warn(join(scriptsDir, s), 'script exists but SKILL.md never references it');
     }
   }
+
+  // 6b. Bundled-script references. A pointer to the skill's own helper is written `./scripts/<file>`
+  // (with the leading `./`), and must resolve to a committed file even if no scripts/ dir exists.
+  // Bare `scripts/<file>` is intentionally not checked: the ops skills use it to mean a script in the
+  // TARGET repo, not a bundled one. (See writing-great-skills for this convention.)
+  for (const m of content.matchAll(/\.\/scripts\/[A-Za-z0-9._\-/]+/g)) {
+    const p = m[0].replace(/[.,;:)\]]+$/, '');
+    if (!existsSync(resolve(folder, p))) err(file, `references bundled script that does not exist: ${m[0]}`);
+  }
 }
 
 function validateManifests() {
@@ -194,11 +203,47 @@ function validateManifests() {
   }
 }
 
+// Build the set of SKILL.md files Claude Code would actually discover, using the same rule as
+// plugin loading: the default `skills/` scan plus any directories listed in plugin.json's `skills`
+// field, each scanned one level deep for `<name>/SKILL.md` (or a SKILL.md directly inside a listed
+// dir). A SKILL.md that exists on disk but isn't in this set would pass every other check yet never
+// appear as /agentic:<name> after install — so category-nested skills must be enumerated.
+function discoverableSkillFiles() {
+  const found = new Set();
+  const scanDir = (d) => {
+    if (!existsSync(d)) return;
+    if (existsSync(join(d, 'SKILL.md'))) found.add(resolve(d, 'SKILL.md'));
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory() && existsSync(join(d, e.name, 'SKILL.md'))) found.add(resolve(d, e.name, 'SKILL.md'));
+    }
+  };
+  scanDir(join(ROOT, 'skills')); // default scan (one level under skills/)
+  try {
+    const plugin = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
+    const listed = typeof plugin.skills === 'string' ? [plugin.skills] : Array.isArray(plugin.skills) ? plugin.skills : [];
+    for (const p of listed) {
+      const d = resolve(ROOT, p);
+      if (!existsSync(d)) err(join(ROOT, '.claude-plugin', 'plugin.json'), `skills entry does not exist: ${p}`);
+      else scanDir(d);
+    }
+  } catch {
+    /* manifest parse errors are reported in validateManifests */
+  }
+  return found;
+}
+
 // --- run ---
 const skillFiles = walk(join(ROOT, 'skills')).filter((f) => basename(f) === 'SKILL.md');
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validateManifests();
+
+const discoverable = discoverableSkillFiles();
+for (const file of skillFiles) {
+  if (!discoverable.has(resolve(file))) {
+    err(file, 'skill is not discoverable — add its parent category directory to plugin.json "skills"');
+  }
+}
 
 if (warnings.length) {
   console.log(`\n⚠️  ${warnings.length} warning(s):`);

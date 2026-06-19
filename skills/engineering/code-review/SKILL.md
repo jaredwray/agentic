@@ -1,3 +1,9 @@
+---
+name: code-review
+description: Staff-engineer-grade review of a diff (uncommitted changes, a branch, or a PR) for hidden bugs, performance bottlenecks, security holes, and architectural smells — each finding cites file and line with a severity and the smallest correct fix. Use when asked to review code, review a PR, critique a diff, or check a change before merge. Read-only; it does not fix.
+user-invocable: true
+---
+
 # Code Review
 
 Operation manual for a **staff-engineer-grade code review** of pending changes — local diffs, a feature branch, or a pull request. One review per invocation; the deliverable is a written critique posted in chat (and, when reviewing a PR, optionally as a PR review).
