@@ -1,0 +1,9 @@
+{
+  "name": "agentic",
+  "description": "Operation manuals as Agent Skills for shipping, hardening, releasing, and reviewing OSS software — engineering disciplines plus one-PR-at-a-time release, security, and ops workflows.",
+  "version": "0.1.0",
+  "author": { "name": "Jared Wray", "email": "me@jaredwray.com" },
+  "homepage": "https://github.com/jaredwray/agentic",
+  "repository": "https://github.com/jaredwray/agentic",
+  "license": "MIT"
+}
