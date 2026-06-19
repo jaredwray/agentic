@@ -7,17 +7,74 @@ one deliverable per invocation.
 
 ## Install
 
+Pick the method that matches what you're doing. After any of them, skills appear in the `/` menu
+namespaced as `/agentic:<name>`.
+
+### 1. From GitHub — recommended for everyday use
+
 ```bash
 # In Claude Code:
 /plugin marketplace add jaredwray/agentic
 /plugin install agentic@jaredwray
 ```
 
-Skills then appear in the `/` menu, namespaced as `/agentic:<name>`. The **engineering** and
-**shared** skills are *model-invoked* — the agent reaches for them automatically when a task fits. The
-**release, security, growth, and project-setup** skills are *manual-only* (`disable-model-invocation`)
-so a money-moving or repo-mutating workflow never fires on a vague prompt; run them with the slash
-command.
+Or from your shell:
+
+```bash
+claude plugin marketplace add jaredwray/agentic
+claude plugin install agentic@jaredwray --scope user   # user (default) | project | local
+```
+
+Scopes: **`user`** enables it across all your projects; **`project`** writes to the repo's
+`.claude/settings.json` so everyone who clones the repo gets it; **`local`** is this project only and
+gitignored.
+
+### 2. From a local clone — to test your own edits before publishing
+
+```bash
+git clone https://github.com/jaredwray/agentic
+# In Claude Code, point the marketplace at the clone (the dir containing .claude-plugin/):
+/plugin marketplace add ./agentic
+/plugin install agentic@jaredwray
+```
+
+Marketplace installs are **copied into a cache**, so edits to the clone are *not* live — re-sync with
+`/plugin marketplace update jaredwray` then `/plugin update agentic@jaredwray`.
+
+### 3. As a live skills directory — for active development
+
+Clone (or symlink) the repo into a skills directory:
+
+```bash
+git clone https://github.com/jaredwray/agentic ~/.claude/skills/agentic         # personal: all projects
+# or project-scoped, shared via the repo:  <your-project>/.claude/skills/agentic
+```
+
+On the next session it loads in place as `agentic@skills-dir` — no install step, and **edits to any
+`SKILL.md` take effect immediately**. Run `/reload-plugins` (or restart) after changing non-skill
+files. Remove it with `claude plugin disable agentic@skills-dir` or by deleting the folder.
+
+### Model-invoked vs. manual
+
+The **engineering** and **shared** skills are *model-invoked* — the agent reaches for them
+automatically when a task fits. The **release, security, growth, and project-setup** skills are
+*manual-only* (`disable-model-invocation`) so a money-moving or repo-mutating workflow never fires on a
+vague prompt; run those with the slash command.
+
+## Updating — will installs pull my changes?
+
+It depends on how it was installed:
+
+| Install method | Picks up new commits when… |
+|---|---|
+| GitHub / local-path **marketplace** (methods 1–2) | **Not automatically.** Installs are cached, and `plugin.json` pins a `version`, so installers update **only when you bump that version**, then run `/plugin marketplace update jaredwray` + `/plugin update agentic@jaredwray`. Bump it with `npx @changesets/cli version` (runs `scripts/sync-plugin-version.mjs`). |
+| **Skills directory** clone (method 3) | **Immediately.** It's read in place — `git pull` (or your own edit) is live for any `SKILL.md`; run `/reload-plugins` for other components. |
+
+> **Want every pushed commit to be an update for marketplace installs, with no version bumps?** Remove
+> the `version` field from `.claude-plugin/plugin.json`. Claude Code then keys updates off the git
+> commit SHA, so `/plugin update` always pulls the latest commit. The trade-off is you lose controlled,
+> semver'd releases — which is why `version` is set by default here.
+
 
 ## The four failure modes
 
