@@ -84,10 +84,11 @@ status tracking (`security-status-tracking`).
 
 **Cross-references.** Refer to *another* skill by its name in backticks (e.g. "defer to the
 `code-review` skill"), not by a relative file path — paths are fragile across the category tree and
-break during migration. Point at a skill's *own* supporting files with real links so CI can verify
-them: `[reference.md](./reference.md)` for the reference, and `./scripts/<file>` (with the leading
-`./`) for a bundled helper — CI requires those to exist. A bare `scripts/<file>` is treated as a path
-in the *target* repo (what the ops skills create), so it is not checked.
+break during migration. Point at a skill's *own* supporting files with real markdown links so CI can
+verify them — a link whose target is `./reference.md` for the reference, and a `./scripts/<file>`
+path (with the leading `./`) for a bundled helper. CI requires those targets to exist. A bare
+`scripts/<file>` is treated as a path in the *target* repo (what the ops skills create), so it is not
+checked.
 
 **Discoverability.** Every category directory under `skills/` must be listed in
 `.claude-plugin/plugin.json`'s `skills` array, or its skills won't load. CI enforces this.
