@@ -1,3 +1,10 @@
+---
+name: viral-launch
+description: Build a viral product launch via a fixed 21-agent pipeline — market research, positioning, hook, body, line-by-line adversarial rewrite, and a paper trail — producing an editable launch package, not a one-shot post. Use when asked to write a product launch, a Show HN, Product Hunt, or Twitter launch, or viral launch copy. Manual; runs an expensive multi-agent pipeline to completion.
+disable-model-invocation: true
+user-invocable: true
+---
+
 # Viral Launch
 
 Operation manual for building a **viral product launch** — research, positioning, hook, body, and final script — via a 21-agent pipeline that researches the market, writes the launch, attacks every line, and ships a paper trail. The deliverable is a launch package the human can edit in the final 5%, not a "write me a launch post" one-shot.

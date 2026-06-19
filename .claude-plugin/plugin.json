@@ -9,6 +9,9 @@
   "skills": [
     "./skills/engineering/",
     "./skills/release-ops/",
+    "./skills/security/",
+    "./skills/growth/",
+    "./skills/project-setup/",
     "./skills/shared/"
   ]
 }

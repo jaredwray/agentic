@@ -1,3 +1,10 @@
+---
+name: project-templates
+description: Set up or audit an OSS project's governance baseline — LICENSE, SECURITY.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md, and .github PR and issue templates — copying from bundled canonical templates, resolving every placeholder, one file (or logical group) per PR. Use when asked to set up a new OSS repo, add a LICENSE, code of conduct, or contributing guide, or audit a project's governance files. Manual and resumable.
+disable-model-invocation: true
+user-invocable: true
+---
+
 # Project Templates
 
 Operation manual for setting up a new OSS project with the standard governance, license, and GitHub templates — or auditing an existing project to make sure the same files are present, current, and correctly customized. One file (or one logical group) per pull request.
@@ -7,16 +14,18 @@ Operation manual for setting up a new OSS project with the standard governance, 
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next template PR`, or similar. Never open a second template PR while one is already in flight.
 >
 > **Templates need customization.** Several files contain `{{PROJECT_NAME}}` placeholders or project-specific values (contact email, copyright holder, install commands). Resolve every placeholder during the copy — never push a template with `{{...}}` still in it.
+>
+> This skill follows the shared `shipping-conventions` loop and `pr-conventions`.
 
 ## Scope
 
 **Scope:** baseline OSS governance files for Node.js/TypeScript packages — `LICENSE`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/ISSUE_TEMPLATE/feature_request.md`.
 
-**Out of scope:** workflow files (`.github/workflows/**`), CODEOWNERS, release-policy files, and agent instruction files (`AGENTS.md`, `CLAUDE.md`). Workflows and CODEOWNERS are covered by [`defense-in-depth-nodejs.md`](./defense-in-depth-nodejs.md) and release-policy files by [`release-management-nodejs.md`](./release-management-nodejs.md). Agent instruction files are repo-specific by design.
+**Out of scope:** workflow files (`.github/workflows/**`), CODEOWNERS, release-policy files, and agent instruction files (`AGENTS.md`, `CLAUDE.md`). Workflows and CODEOWNERS are covered by the `defense-in-depth-nodejs` skill and release-policy files by the `release-management-nodejs` skill. Agent instruction files are repo-specific by design.
 
 ## Catalog
 
-All templates live under `templates/` in this repo. The mapping below shows where each template lands in the target repo and what to customize during the copy.
+All templates live in this skill's `templates/` directory. The mapping below shows where each template lands in the target repo and what to customize during the copy.
 
 | Source (this repo)                                        | Target path (in the project)                       | Customization                                                                                                                          |
 | --------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -195,9 +204,9 @@ Each template was sourced from a working project and may need light edits for th
 
 These templates are the baseline. Most projects layer additional governance on top — that work is covered by other manuals in this repo:
 
-- **CI workflows, action pinning, CODEOWNERS, pnpm policy** → [`defense-in-depth-nodejs.md`](./defense-in-depth-nodejs.md).
-- **Release pipeline, signer policy, trusted publishing, release-intent signing** → [`release-management-nodejs.md`](./release-management-nodejs.md).
-- **Dependency upgrades** → [`dependency-management-node.md`](./dependency-management-node.md) (or [`dependency-management-rust.md`](./dependency-management-rust.md) for Rust projects).
+- **CI workflows, action pinning, CODEOWNERS, pnpm policy** → the `defense-in-depth-nodejs` skill.
+- **Release pipeline, signer policy, trusted publishing, release-intent signing** → the `release-management-nodejs` skill.
+- **Dependency upgrades** → the `dependency-management-node` skill (or the `dependency-management-rust` skill for Rust projects).
 - **Agent instruction files (`AGENTS.md`, `CLAUDE.md`)** — repo-specific by design; not templated.
 
 After the template baseline is in place, point the maintainer to those manuals for the next layer of hardening.

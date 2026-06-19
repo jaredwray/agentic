@@ -1,3 +1,11 @@
+---
+name: release-management-nodejs
+description: Roll out a hardened npm release pipeline — signer policy, signed release intent, npm trusted publishing, verification gates — one improvement per PR across a strict 4-phase rollout, with status tracked in the target repo's SECURITY.md. Use when asked to harden npm publishing, set up trusted publishing or release signing, or secure the release pipeline for high-impact packages. Manual, resumable, one PR at a time.
+disable-model-invocation: true
+user-invocable: true
+allowed-tools: [Bash, Read, Edit, Write]
+---
+
 # Release Management (Node.js)
 
 Operation manual for rolling out a hardened npm release pipeline (signer policy, release intent, trusted publishing, verification gates) on Node.js OSS projects (Keyv, Cacheable, flat-cache, file-entry-cache, and similar). One controllable improvement per PR; status tracked in the target repo's `SECURITY.md`.
@@ -7,6 +15,8 @@ Operation manual for rolling out a hardened npm release pipeline (signer policy,
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next release PR`, or similar. Never open a second release-management PR while one is already in flight.
 >
 > **Phase order is strict.** Phase 1 must be complete before any Phase 2 item begins; Phase 2 before Phase 3; Phase 3 before Phase 4. Within a phase, pick items top-to-bottom from the catalog. Manual / external items are tracked in `SECURITY.md` so the maintainer can tick them off; the agent never opens a PR for those, but a phase is not "complete" until all items including manual ones are checked.
+>
+> This skill follows the shared `shipping-conventions` loop and `pr-conventions`; the `SECURITY.md` status-block format and reconciliation rules live in `security-status-tracking`.
 
 ## Scope and summary
 
@@ -33,7 +43,7 @@ Block template (the agent scaffolds this on first run):
 ```md
 ## Release Management status
 
-Tracking against https://github.com/jaredwray/agentic/blob/main/release-management-nodejs.md.
+Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-ops/release-management-nodejs/SKILL.md.
 
 ### Phase 1: Baseline hardening
 - [ ] CI installs use `pnpm install --frozen-lockfile`

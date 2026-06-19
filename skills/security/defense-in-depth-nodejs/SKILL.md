@@ -1,3 +1,10 @@
+---
+name: defense-in-depth-nodejs
+description: Harden a high-download npm package against supply-chain compromise one PR at a time — pnpm 11 controls (minimumReleaseAge, allowBuilds), GitHub Actions hardening (read-only permissions, SHA-pinned actions, CODEOWNERS), dependency policy, security tooling, and SECURITY.md transparency — tracked in the target repo's SECURITY.md. Use when asked to harden a repo, improve supply-chain security, or pin and lock down CI. Manual, resumable, one item per PR.
+disable-model-invocation: true
+user-invocable: true
+---
+
 # Defense in Depth (Node.js)
 
 Operation manual for hardening high-download npm packages and adjacent OSS projects (Keyv, Cacheable, flat-cache, file-entry-cache, and similar) against supply-chain compromise. One controllable improvement per PR; status tracked in the target repo's `SECURITY.md`.
@@ -7,6 +14,8 @@ Operation manual for hardening high-download npm packages and adjacent OSS proje
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next defense PR`, or similar. Never open a second defense-in-depth PR while one is already in flight.
 >
 > **Track status in `SECURITY.md` in the target repo.** Every item from the [Reference](#reference) catalog maps to a checkbox in the `Defense in Depth status` block. Check an item off only after the PR that implements it is merged. Manual / external items are tracked in the same block so the maintainer can tick them off; the agent never opens a PR for those.
+>
+> This skill follows the shared `shipping-conventions` loop and `pr-conventions`; the `SECURITY.md` status-block format and reconciliation rules live in `security-status-tracking`.
 
 ## Scope and goal
 
@@ -40,7 +49,7 @@ Block template (the agent scaffolds this on first run; section list mirrors the 
 ```md
 ## Defense in Depth status
 
-Tracking against https://github.com/jaredwray/agentic/blob/main/defense-in-depth-nodejs.md.
+Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md.
 
 ### 3. Dependency Policy
 - [ ] Committed lockfile present

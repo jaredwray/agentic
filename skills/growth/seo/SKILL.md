@@ -1,3 +1,10 @@
+---
+name: seo
+description: Audit and improve a website's search and AI-search visibility one PR at a time — crawlability, indexing, structured data, content, and performance gaps — foundations before refinements, deferring to Google's AI-optimization guide. Use when asked to improve SEO, fix search ranking, audit a site for discoverability, or optimize for AI Overviews. Manual, resumable, one PR per group.
+disable-model-invocation: true
+user-invocable: true
+---
+
 # SEO
 
 Operation manual for auditing and improving the search-engine and AI-search visibility of a website — finding crawlability, indexing, structured-data, content, and performance gaps, then shipping fixes one pull request at a time.
@@ -9,6 +16,8 @@ Operation manual for auditing and improving the search-engine and AI-search visi
 > **Foundations before refinements.** Crawlability and indexing fixes ship before content and structured-data work — a page that can't be crawled won't benefit from any other change. Finish every foundation group before moving to refinement groups.
 >
 > **Google's AI optimization guide is the source of truth.** When a recommendation here conflicts with [Google's "Optimizing your website for generative AI features on Google Search"](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), defer to Google. The AI features (AI Overviews, AI Mode) reuse Search's index — a page must be indexed and eligible for a snippet to be eligible for AI surfacing, with no additional technical requirements.
+>
+> This skill follows the shared `shipping-conventions` loop and `pr-conventions`.
 
 ## Scope and summary
 

@@ -46,6 +46,30 @@ function stripQuotes(s) {
   return s;
 }
 
+// Return content with fenced code blocks removed, so prose-only checks don't match inside example
+// snippets (e.g. a workflow YAML that runs `./scripts/x.sh` in a TARGET repo). Tracks the opening
+// fence length so a 4-backtick wrapper around 3-backtick inner fences closes correctly.
+function stripCodeFences(content) {
+  const out = [];
+  let open = null;
+  for (const line of content.split('\n')) {
+    const m = line.match(/^\s*(`{3,}|~{3,})/);
+    if (m) {
+      const f = m[1];
+      if (!open) {
+        open = { char: f[0], len: f.length };
+        continue;
+      }
+      if (f[0] === open.char && f.length >= open.len) {
+        open = null;
+        continue;
+      }
+    }
+    if (!open) out.push(line);
+  }
+  return out.join('\n');
+}
+
 // Minimal YAML-frontmatter parser: top-level `key: value` pairs, folded multi-line scalars
 // (indented continuation lines joined with spaces), flow arrays `[a, b]`, block sequences (`- x`),
 // and `true`/`false` booleans. Sufficient for the SKILL.md frontmatter shape this repo uses.
@@ -162,11 +186,13 @@ function validateSkill(file, seenNames) {
     }
   }
 
-  // 6b. Bundled-script references. A pointer to the skill's own helper is written `./scripts/<file>`
-  // (with the leading `./`), and must resolve to a committed file even if no scripts/ dir exists.
-  // Bare `scripts/<file>` is intentionally not checked: the ops skills use it to mean a script in the
-  // TARGET repo, not a bundled one. (See writing-great-skills for this convention.)
-  for (const m of content.matchAll(/\.\/scripts\/[A-Za-z0-9._\-/]+/g)) {
+  // 6b. Bundled-script references. A prose pointer to the skill's own helper is written
+  // `./scripts/<file>` (with the leading `./`) and must resolve to a committed file even if no
+  // scripts/ dir exists. Bare `scripts/<file>` is intentionally not checked: the ops skills use it
+  // to mean a script in the TARGET repo. We scan prose only — `./scripts/x.sh` inside a fenced code
+  // block (e.g. a workflow YAML `run:` step) is a target-repo example, not a bundled pointer.
+  // (See writing-great-skills for this convention.)
+  for (const m of stripCodeFences(content).matchAll(/\.\/scripts\/[A-Za-z0-9._\-/]+/g)) {
     const p = m[0].replace(/[.,;:)\]]+$/, '');
     if (!existsSync(resolve(folder, p))) err(file, `references bundled script that does not exist: ${m[0]}`);
   }
