@@ -155,7 +155,7 @@ The agent picks the highest-priority section with unchecked auto-implementable i
 
 **Out of scope here:**
 
-- **Section 6 — Release Management** — covered by `release-management-nodejs.md`. Run that doc for release pipeline work; the SECURITY.md block for release work lives there.
+- **Section 6 — Release Management** — covered by the `release-management-nodejs` skill. Run it for release pipeline work; the SECURITY.md block for release work lives there.
 
 ## Workflow
 
@@ -202,7 +202,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-Match the style in `dependency-management-node.md`:
+Match the prefix scheme in `pr-conventions`:
 
 | Scope                                       | Prefix                          |
 | ------------------------------------------- | ------------------------------- |
@@ -234,7 +234,7 @@ Keep PR bodies short:
 - [x] `pnpm build` passes (if applicable)
 
 ## Reference
-defense-in-depth-nodejs.md § <section number>
+defense-in-depth-nodejs § <section number>
 ```
 
 When the user merges, the next `continue` invocation reconciles the audit in Step 2 and marks the item `[x]` in `SECURITY.md` as part of the next item's PR.
@@ -367,7 +367,7 @@ Checklist:
 
 ## 6. Release Management
 
-Covered by `release-management-nodejs.md`. Status for release pipeline work lives in the `Release Management status` block in `SECURITY.md`, not in this manual's block.
+Covered by the `release-management-nodejs` skill. Status for release pipeline work lives in the `Release Management status` block in `SECURITY.md`, not in this manual's block.
 
 ## 7. npm Package Settings
 

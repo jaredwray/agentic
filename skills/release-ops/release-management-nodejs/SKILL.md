@@ -93,7 +93,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 
 Phase 1 → 2 → 3 → 4 in strict order. A phase is complete only when every item — auto and manual — is checked. Within a phase, the agent picks the first unchecked auto-implementable item top-to-bottom.
 
-**Phase 1 — Baseline hardening.** Pure CI and config hygiene. All auto-implementable. Several items overlap with `defense-in-depth-nodejs.md` § 4–5; that's intentional. Both blocks track the same change.
+**Phase 1 — Baseline hardening.** Pure CI and config hygiene. All auto-implementable. Several items overlap with the `defense-in-depth-nodejs` skill § 4–5; that's intentional. Both blocks track the same change.
 
 **Phase 2 — Signing policy.** Mostly auto (policy file, signed policy bundle, verification scripts, dry-run workflow). Two manual items at the top: creating the release identity and enforcing 2SV. The agent records these and stops if it reaches them without them being checked.
 
@@ -154,7 +154,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-Match the style in `dependency-management-node.md`:
+Match the prefix scheme in `pr-conventions`:
 
 | Scope                                       | Prefix                          |
 | ------------------------------------------- | ------------------------------- |
@@ -185,7 +185,7 @@ Examples:
 - [x] Any negative tests run locally (Phase 3 onward)
 
 ## Reference
-release-management-nodejs.md § <section number>
+release-management-nodejs § <section number>
 ```
 
 When the user merges, the next `continue` invocation reconciles the audit in Step 2 and marks the item `[x]` in `SECURITY.md` as part of the next PR.

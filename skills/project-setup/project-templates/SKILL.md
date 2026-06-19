@@ -102,7 +102,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-Match the style in `dependency-management-node.md`:
+Match the prefix scheme in `pr-conventions`:
 
 | Scope                                       | Prefix                            |
 | ------------------------------------------- | --------------------------------- |
@@ -133,7 +133,7 @@ Examples:
 - <e.g. preserved existing `Defense in Depth status` block in SECURITY.md>
 
 ## Reference
-project-templates.md § <catalog row>
+project-templates § <catalog row>
 ```
 
 ## Auditing an existing project
@@ -175,7 +175,7 @@ Each template was sourced from a working project and may need light edits for th
 ### `SECURITY.md`
 
 - Confirm the reporting email (`me@jaredwray.com`) is the right contact for the project owner.
-- If the repo already has a `Defense in Depth status` block (from `defense-in-depth-nodejs.md`) or a `Release Management status` block (from `release-management-nodejs.md`), **keep them**. The template boilerplate goes at the top; the status blocks live below.
+- If the repo already has a `Defense in Depth status` block (from the `defense-in-depth-nodejs` skill) or a `Release Management status` block (from the `release-management-nodejs` skill), **keep them**. The template boilerplate goes at the top; the status blocks live below.
 
 ### `CODE_OF_CONDUCT.md`
 
