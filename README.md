@@ -10,7 +10,7 @@ one deliverable per invocation.
 ```bash
 # In Claude Code:
 /plugin marketplace add jaredwray/agentic
-/plugin install agentic@agentic
+/plugin install agentic@jaredwray
 ```
 
 Skills then appear in the `/` menu, namespaced as `/agentic:<name>`. The **engineering** and
