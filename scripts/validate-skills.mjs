@@ -147,10 +147,12 @@ function validateSkill(file, seenNames) {
     if (!existsSync(resolved)) err(file, `broken link target: ${match[1]}`);
   }
 
-  // 6. supporting-file orphan checks (both directions)
+  // 6. supporting-file orphan check.
+  // Pointers to a skill's own reference.md should be written as markdown links, so a missing target
+  // is already caught by the broken-link check above. Here we only warn the other direction: a
+  // reference.md that exists but is never pointed at from SKILL.md.
   const mentionsReference = /reference\.md/.test(content);
   const hasReference = existsSync(join(folder, 'reference.md'));
-  if (mentionsReference && !hasReference) err(file, 'references `reference.md` but no reference.md exists in the skill folder');
   if (hasReference && !mentionsReference) warn(file, 'reference.md exists but SKILL.md never points to it');
 
   const scriptsDir = join(folder, 'scripts');
