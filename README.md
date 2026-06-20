@@ -108,6 +108,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | Skill | Does |
 |---|---|
 | `whats-new` | Scaffold an in-app "What's New" feed — markdown release notes rendered to sanitized HTML at build time, with a quiet "New" indicator that clears on view (localStorage default, optional per-user server variant). |
+| `social-pipeline` | Scaffold an AI-assisted social-posting back office — sources → AI-drafted platform posts → a human approval inbox → a scheduling calendar with posting windows → a publishing provider, with idempotent dedup, timezone-correct window scheduling, and a sync-first publishing adapter that keeps the local store and the provider in lockstep. |
 
 ### release-ops/ — manual shipping workflows (`/agentic:<name>`)
 
