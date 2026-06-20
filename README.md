@@ -57,9 +57,9 @@ files. Remove it with `claude plugin disable agentic@skills-dir` or by deleting 
 ### Model-invoked vs. manual
 
 The **engineering** and **shared** skills are *model-invoked* — the agent reaches for them
-automatically when a task fits. The **release, security, growth, and project-setup** skills are
-*manual-only* (`disable-model-invocation`) so a money-moving or repo-mutating workflow never fires on a
-vague prompt; run those with the slash command.
+automatically when a task fits. The **features, release, security, growth, and project-setup** skills
+are *manual-only* (`disable-model-invocation`) so a money-moving or repo-mutating workflow never fires
+on a vague prompt; run those with the slash command.
 
 ## Updating — will installs pull my changes?
 
@@ -102,6 +102,12 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `codebase-archaeology` | Map an unfamiliar codebase — entry points, main flow, safe first changes, risky areas. |
 | `codebase-design` | Shared design vocabulary (deep vs shallow, coupling, seams) other skills reach for. |
 | `explain` | Explain a concept in three layers — 30-second, 5-minute, and a deep dive. |
+
+### features/ — manual product-feature recipes (`/agentic:<name>`)
+
+| Skill | Does |
+|---|---|
+| `whats-new` | Scaffold an in-app "What's New" feed — markdown release notes rendered to sanitized HTML at build time, with a quiet "New" indicator that clears on view (localStorage default, optional per-user server variant). |
 
 ### release-ops/ — manual shipping workflows (`/agentic:<name>`)
 
