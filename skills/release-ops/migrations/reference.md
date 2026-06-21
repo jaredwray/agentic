@@ -67,6 +67,7 @@ type Migration = {
   up: (ctx: Ctx) => Promise<void>;
   down: (ctx: Ctx) => Promise<void>;
   irreversible?: boolean;
+  transactional?: boolean; // default true; false = no BEGIN/COMMIT (e.g. CREATE INDEX CONCURRENTLY)
 };
 // Ctx is what each migration receives: a query fn plus the dry-run flag so a
 // migration can branch (e.g. skip a slow count) when only planning.
@@ -105,7 +106,7 @@ async function loadMigrations(): Promise<Migration[]> {
     out.push({
       version, slug: file.slice(16).replace(/\.(ts|js)$/, ''), file,
       checksum: createHash('sha256').update(body).digest('hex'),
-      up: mod.up, down: mod.down, irreversible: mod.irreversible,
+      up: mod.up, down: mod.down, irreversible: mod.irreversible, transactional: mod.transactional,
     });
   }
   return out; // already sorted ascending by version
@@ -118,6 +119,30 @@ async function ensureLedger(sql: Ctx['sql']) {
     checksum    TEXT NOT NULL,
     applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
+}
+
+async function readApplied(sql: Ctx['sql']): Promise<Map<string, string>> {
+  const rows = (await sql(`SELECT version, checksum FROM _migrations ORDER BY version`)).rows;
+  return new Map(rows.map((r) => [r.version, r.checksum]));
+}
+
+// Returns the pending migrations in order, after enforcing two invariants:
+// no applied migration's file changed (drift), and no pending version sorts
+// *before* the highest applied version (out-of-order — would break ordering).
+function plan(migrations: Migration[], applied: Map<string, string>): Migration[] {
+  for (const m of migrations) {
+    const prev = applied.get(m.version);
+    if (prev && prev !== m.checksum) {
+      throw new Error(`Drift: ${m.file} changed after being applied (checksum mismatch). Never edit an applied migration; add a new one.`);
+    }
+  }
+  const maxApplied = [...applied.keys()].sort().at(-1);
+  const pending = migrations.filter((m) => !applied.has(m.version));
+  const stray = pending.find((m) => maxApplied !== undefined && m.version < maxApplied);
+  if (stray) {
+    throw new Error(`Out-of-order migration ${stray.version}: ${maxApplied} is already applied. Migrations must run in strict version order — renumber it after the latest applied version (see § 11).`);
+  }
+  return pending;
 }
 
 async function main() {
@@ -142,51 +167,78 @@ async function main() {
   const sql: Ctx['sql'] = (q, params) => client.query(q, params as any[]);
 
   try {
-    await ensureLedger(sql);
-    // Single-writer: block until we hold the lock; never force it (see § 7).
+    // Single-writer: take the lock without blocking; if another run holds it,
+    // stop with a clear error rather than hang (see § 7). Never force past it.
     log('acquiring advisory lock…');
-    await sql(`SELECT pg_advisory_lock($1)`, [LOCK_KEY]);
+    const locked = (await sql(`SELECT pg_try_advisory_lock($1) AS ok`, [LOCK_KEY])).rows[0].ok;
+    if (!locked) throw new Error('Another migration run holds the advisory lock — wait for it to finish and retry; never force past it (see § 7).');
 
     const migrations = await loadMigrations();
-    const applied = new Map<string, string>(
-      (await sql(`SELECT version, checksum FROM _migrations ORDER BY version`)).rows.map((r) => [r.version, r.checksum]),
-    );
-
-    // Drift check: an applied migration whose file changed is a hard error.
-    for (const m of migrations) {
-      const prev = applied.get(m.version);
-      if (prev && prev !== m.checksum) {
-        throw new Error(`Drift: ${m.file} changed after being applied (checksum mismatch). Never edit an applied migration; add a new one.`);
-      }
-    }
 
     if (command === 'status') {
+      await ensureLedger(sql);
+      const applied = await readApplied(sql);
       for (const m of migrations) log(`${applied.has(m.version) ? 'applied ' : 'pending '} ${m.version} ${m.slug}`);
       log(`${applied.size} applied, ${migrations.length - applied.size} pending`);
       return;
     }
 
+    if (command === 'up' && DRY_RUN) {
+      // One rolled-back scope: the rehearsal sees cumulative state across all
+      // pending migrations AND persists nothing — not even the ledger table,
+      // which is created inside this transaction and rolled back with it.
+      await sql('BEGIN');
+      try {
+        await ensureLedger(sql);
+        const pending = plan(migrations, await readApplied(sql));
+        if (pending.length === 0) { log('nothing to apply'); return; }
+        log(`${pending.length} migration(s) would apply: ${pending.map((m) => m.version).join(', ')}`);
+        for (const m of pending) {
+          if (m.transactional === false) {
+            // A non-transactional op (e.g. CREATE INDEX CONCURRENTLY) can't run
+            // inside this scope — log the plan without executing it (see § 6).
+            log(`▶ ${m.version} ${m.slug} (non-transactional — planned, not executed)`);
+            continue;
+          }
+          log(`▶ up ${m.version} ${m.slug}`);
+          await m.up({ sql, dryRun: true, log });
+        }
+      } finally {
+        await sql('ROLLBACK');
+      }
+      log('dry-run complete — rolled back, nothing recorded');
+      return;
+    }
+
     if (command === 'up') {
-      const pending = migrations.filter((m) => !applied.has(m.version));
+      await ensureLedger(sql);
+      const pending = plan(migrations, await readApplied(sql));
       if (pending.length === 0) { log('nothing to apply'); return; }
-      if (ENV === 'production' && !DRY_RUN && !flag('yes')) {
+      if (ENV === 'production' && !flag('yes')) {
         throw new Error('Refusing to apply to production without --yes. Run the dry-run first, then re-run with --yes.');
       }
       log(`${pending.length} migration(s) to apply: ${pending.map((m) => m.version).join(', ')}`);
       for (const m of pending) {
         const t0 = Date.now();
         log(`▶ up ${m.version} ${m.slug}`);
+        if (m.transactional === false) {
+          // No surrounding transaction. The body MUST be idempotent because a
+          // failure here cannot be auto-rolled-back (see § 6 and § 11).
+          try {
+            await m.up({ sql, dryRun: false, log });
+            await sql(`INSERT INTO _migrations (version, slug, checksum) VALUES ($1,$2,$3)`, [m.version, m.slug, m.checksum]);
+            log(`✓ applied ${m.version} (non-transactional, ${Date.now() - t0}ms)`);
+          } catch (e) {
+            throw new Error(`Non-transactional migration ${m.version} failed and cannot be auto-rolled-back — inspect and clean up manually before re-running. Cause: ${(e as Error).message}`);
+          }
+          continue;
+        }
         await sql('BEGIN');
         try {
-          await m.up({ sql, dryRun: DRY_RUN, log });
-          if (DRY_RUN) {
-            await sql('ROLLBACK'); // dry-run NEVER commits and NEVER records
-            log(`✓ would apply ${m.version} (rolled back, ${Date.now() - t0}ms)`);
-          } else {
-            await sql(`INSERT INTO _migrations (version, slug, checksum) VALUES ($1,$2,$3)`, [m.version, m.slug, m.checksum]);
-            await sql('COMMIT');
-            log(`✓ applied ${m.version} (${Date.now() - t0}ms)`);
-          }
+          await m.up({ sql, dryRun: false, log });
+          await sql(`INSERT INTO _migrations (version, slug, checksum) VALUES ($1,$2,$3)`, [m.version, m.slug, m.checksum]);
+          await sql('COMMIT');
+          log(`✓ applied ${m.version} (${Date.now() - t0}ms)`);
         } catch (e) {
           await sql('ROLLBACK');
           throw new Error(`Migration ${m.version} failed and was rolled back. Earlier migrations are committed. Fix and re-run. Cause: ${(e as Error).message}`);
@@ -196,17 +248,21 @@ async function main() {
     }
 
     if (command === 'down') {
-      const last = [...migrations].reverse().find((m) => applied.has(m.version));
-      if (!last) { log('nothing to roll back'); return; }
-      if (last.irreversible) throw new Error(`${last.version} is marked irreversible — cannot roll back automatically.`);
-      if (ENV === 'production' && !DRY_RUN && !flag('yes')) {
-        throw new Error('Refusing to roll back production without --yes.');
-      }
-      log(`▶ down ${last.version} ${last.slug}`);
+      // Roll back the *highest applied* version, and only if its file is in this
+      // checkout — otherwise we'd roll back an older one out of order (see § 11).
       await sql('BEGIN');
       try {
+        await ensureLedger(sql);
+        const applied = await readApplied(sql);
+        const lastVersion = [...applied.keys()].sort().at(-1);
+        if (!lastVersion) { log('nothing to roll back'); await sql('ROLLBACK'); return; }
+        const last = migrations.find((m) => m.version === lastVersion);
+        if (!last) throw new Error(`Applied migration ${lastVersion} has no file in this checkout — refusing to roll back out of order. Align the checkout to the deployed code first (see § 11).`);
+        if (last.irreversible) throw new Error(`${last.version} is marked irreversible — cannot roll back automatically.`);
+        if (ENV === 'production' && !DRY_RUN && !flag('yes')) throw new Error('Refusing to roll back production without --yes.');
+        log(`▶ down ${last.version} ${last.slug}`);
         await last.down({ sql, dryRun: DRY_RUN, log });
-        if (DRY_RUN) { await sql('ROLLBACK'); log(`✓ would roll back ${last.version} (rolled back)`); }
+        if (DRY_RUN) { await sql('ROLLBACK'); log(`✓ would roll back ${last.version} — rolled back, nothing recorded`); }
         else { await sql(`DELETE FROM _migrations WHERE version = $1`, [last.version]); await sql('COMMIT'); log(`✓ rolled back ${last.version}`); }
       } catch (e) { await sql('ROLLBACK'); throw e; }
       return;
@@ -295,21 +351,21 @@ Columns: `version` (PK), `slug`, `checksum` (sha256 of the migration body at app
 
 ## 6. Transactions and the non-transactional escape hatch
 
-Each migration runs inside `BEGIN … COMMIT`. On any error the runner issues `ROLLBACK`, so a failed migration leaves **no** partial state and the ledger row is only written on success. This is also what makes the dry-run meaningful:
+Each migration runs inside `BEGIN … COMMIT` by default (unless it opts out with `transactional = false`, below). On any error the runner issues `ROLLBACK`, so a failed transactional migration leaves **no** partial state and its ledger row is only written on success. This is also what makes the dry-run meaningful:
 
-**Dry-run semantics.** `--dry-run` runs the real `up`/`down` body inside the transaction, logs every operation, then **always `ROLLBACK`s** and records nothing. It proves the migration *executes* against the actual schema (catches a typo'd column, a missing table) without persisting — strictly stronger than printing SQL. A migration can read `ctx.dryRun` to skip genuinely expensive steps (a full-table backfill) while still validating the DDL. Run it before every production apply.
+**Dry-run semantics.** `--dry-run` runs the **whole pending sequence inside one transaction that is always `ROLLBACK`ed** — so a later migration sees the schema changes an earlier pending one would make (a real apply would), and nothing is persisted. The ledger table itself is created *inside* that rolled-back scope, so a dry-run on a fresh database leaves zero side effects — the production dry-run is genuinely read-only. It proves the migrations *execute* against the actual schema (catches a typo'd column, a missing table), strictly stronger than printing SQL. A migration can read `ctx.dryRun` to skip genuinely expensive steps (a full-table backfill) while still validating the DDL. Run it before every production apply.
 
 **Non-transactional escape hatch.** A few operations can't run inside a transaction — notably Postgres `CREATE INDEX CONCURRENTLY` (used to add an index without locking writes on a live table) and some `ALTER TYPE … ADD VALUE`. For those, export `export const transactional = false;` from the migration and have the runner skip `BEGIN`/`COMMIT` for it (run the body directly, then record the ledger row in its own statement). Such a migration **cannot** be dry-run by rollback — instead its dry-run logs the planned statements without executing. Keep these migrations tiny and idempotent (`CREATE INDEX CONCURRENTLY IF NOT EXISTS`), because a failure can't be auto-rolled-back and may leave an invalid index to drop and recreate.
 
 ## 7. Concurrency lock
 
-Two deploys or CI jobs applying migrations at once corrupts the ledger and can deadlock the schema. The runner takes a **single-writer advisory lock** before reading state and applying:
+Two deploys or CI jobs applying migrations at once corrupts the ledger and can deadlock the schema. The runner takes a **single-writer advisory lock** before reading state and applying, using a **non-blocking try-lock** so a contended run fails fast with an actionable error instead of hanging before it can even show a plan:
 
-- Postgres: `pg_advisory_lock(key)` / `pg_advisory_unlock(key)` — a session-level lock, released automatically if the connection drops.
-- MySQL: `GET_LOCK('migrate', timeout)` / `RELEASE_LOCK('migrate')`.
+- Postgres: `pg_try_advisory_lock(key)` (returns `false` if held) / `pg_advisory_unlock(key)` — a session-level lock, released automatically if the connection drops. Prefer this over the blocking `pg_advisory_lock`, which would hang indefinitely.
+- MySQL: `GET_LOCK('migrate', 0)` (zero timeout → returns immediately) / `RELEASE_LOCK('migrate')`.
 - SQLite: no advisory lock needed; it is single-writer by file.
 
-If the lock is held, **wait or stop — never force it**. A held lock means another migration run is in progress; forcing past it is how you get two writers.
+If the lock is held, the runner **stops and reports** — a held lock means another migration run is in progress, and forcing past it is how you get two writers. Wait for the other run to finish, then retry.
 
 ## 8. Zero-downtime: expand/contract
 
@@ -365,7 +421,7 @@ Add a CI job that proves migrations are sound on every PR — this is what makes
 2. **Round-trip the newest migration:** `pnpm migrate:down` then `pnpm migrate:development` again → proves `down` is correct and `up` is re-appliable.
 3. **No duplicate versions / filename-version match:** the runner's load step already throws on these; a `pnpm migrate:status` invocation in CI surfaces them.
 4. **Dry-run is clean:** `pnpm migrate:development:dry-run` exits 0.
-5. **Drift guard:** because the checksum lives in the ledger, an edited already-applied migration fails step 1 with the drift error — CI catches anyone editing history.
+5. **Drift guard — and its limit.** The runner's checksum drift check only fires against a database whose ledger already recorded the *old* checksum (i.e. staging/production, or a CI job that restores a populated baseline). A fresh-DB CI job has an empty ledger, so it will happily apply an edited historical migration with the new checksum — it does **not** catch drift on its own. To catch "someone edited an applied migration" in CI on a fresh DB, commit a `migrations/.checksums` manifest (version → sha256) and add a CI step that recomputes each file's checksum and fails on any mismatch with the manifest; regenerate the manifest only when adding a *new* migration. (Where CI can restore a production/staging snapshot, step 1 against that baseline catches drift directly.)
 
 Wire `DATABASE_URL_DEVELOPMENT` to the CI service DB. Keep the job separate from unit tests so a migration failure is unambiguous in the checks list.
 
