@@ -116,6 +116,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 |---|---|
 | `submit-pr` | Open/update one PR — Conventional-Commit title, readable body, driven to green CI, then watch reviews. |
 | `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. |
+| `migrations` | Set up a versioned, idempotent DB/data migration system (applied-migrations ledger, transactional apply, dry-run, `migrate:development`/`migrate:production` scripts) or conform to an existing tool, then author migrations one PR at a time. |
 | `release-management-nodejs` | Roll out a hardened npm publish pipeline (signing, trusted publishing) one PR at a time. |
 | `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time, dev phase before runtime. |
 | `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time, respecting the toolchain pin. |
