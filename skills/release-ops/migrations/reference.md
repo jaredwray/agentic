@@ -1,434 +1,256 @@
-# Migrations — reference
+# Migrations (MongoDB) — reference
 
 Reference material for the `migrations` skill. The workflow points here at the steps that need it. Section numbers below are referenced from the SKILL.md workflow.
 
-The concrete templates use **PostgreSQL via `pg`** as the default example because it is the most common case and supports transactional DDL and advisory locks cleanly. Notes for MySQL (`mysql2`) and SQLite (`better-sqlite3`) appear where the behavior differs. Adapt the driver calls; the structure (ledger, transaction, lock, dry-run) is the same.
+The default tool is **migrate-mongo**: it provides the changelog ledger, a single-writer lock, file-hash change detection, ordering, and `up`/`down`/`status`, so this skill *configures* it rather than reinventing a runner. The templates use the native MongoDB driver (`mongodb`); for Mongoose projects see the Mongoose-specific tools in § 1.
 
-## 1. Adopt an existing tool
+## 1. Choose or conform to a tool
 
-Run this detection **before** scaffolding. If any of these is present, conform to it — wire the pnpm scripts around its CLI, put migrations in its directory, use its ledger — and do **not** add a second runner.
+Run this detection **before** scaffolding. If any is present, conform to it — wire the pnpm scripts around its CLI, use its directory and changelog — and do not add a second tool.
 
-| Signal in the repo | Tool | Migrations live in | Apply / create commands to wrap |
+| Signal in the repo | Tool | Migrations live in | Notes |
 |---|---|---|---|
-| `prisma/schema.prisma`, `@prisma/client` | **Prisma Migrate** | `prisma/migrations/` | `prisma migrate deploy` (prod), `prisma migrate dev` (local), `prisma migrate diff` (dry-run plan) |
-| `drizzle.config.*`, `drizzle-orm` | **Drizzle** | `drizzle/` (configured) | `drizzle-kit generate`, `drizzle-kit migrate` |
-| `knexfile.*`, `knex` | **Knex** | `migrations/` (configured) | `knex migrate:latest`, `knex migrate:make`, `knex migrate:rollback` |
-| `node-pg-migrate` dep, `migrations/` with `pgm` files | **node-pg-migrate** | `migrations/` | `node-pg-migrate up`/`down`/`create` (`--dry-run` supported) |
-| `typeorm` + `data-source.*`, `migration:*` scripts | **TypeORM** | configured dir | `typeorm migration:run`/`generate`/`revert` |
-| `umzug` dep | **Umzug** | configured | programmatic `up`/`down` |
-| `sequelize-cli`, `.sequelizerc` | **Sequelize** | `migrations/` | `sequelize-cli db:migrate` / `db:migrate:undo` |
-| `kysely` + a `kysely`-based migrator script | **Kysely** | configured | programmatic `Migrator.migrateToLatest()` |
-| `flyway`/`dbmate`/`atlas` config | **Flyway / dbmate / Atlas** | tool dir | tool's `migrate` / `up` / `apply` |
+| `migrate-mongo` dep, `migrate-mongo-config.*` | **migrate-mongo** (default) | `migrationsDir` (default `migrations/`) | Native driver. Changelog ledger, lock, `useFileHash`, `up`/`down`/`status`/`create`. The default choice when nothing exists. |
+| `mongo-migrate-ts` dep | **mongo-migrate-ts** | configured | TypeScript-native alternative; class-based migrations, `up`/`down`, built-in CLI. Use if the repo prefers TS-first ergonomics over wiring migrate-mongo for `.ts`. |
+| `mongoose` + `ts-migrate-mongoose` / `migrate-mongoose` | **ts-migrate-mongoose** | configured | For Mongoose apps — runs migrations with models loaded; keeps a migrations collection. |
+| `mongock` config (JVM/Spring) | **Mongock** | — | Java/Spring ecosystem; out of scope for a Node skill — report and stop. |
 
-**Conforming still means delivering the user's five requirements:** the version prefix is the tool's own (timestamp/sequence — keep it), `migrate:development` / `migrate:production` become thin wrappers around the tool's apply command with the right env, dry-run maps to the tool's plan/diff or `--dry-run`, and you ensure each migration logs what it does (most tools log; add a wrapper line if not). When the tool lacks a true dry-run (some only generate SQL), document `migrate:*:dry-run` as "generate and print the SQL without applying."
+**Conforming still delivers the five requirements:** the version prefix is the tool's timestamp, `migrate:development` / `migrate:production` wrap the tool's apply command with the right env, dry-run maps to the tool's `status`/plan, and each migration logs what it does. If a tool is detected, **stop and report it** before changing anything; scaffold migrate-mongo below only when none exists.
 
-If a tool is detected, **stop and report it** before changing anything — propose conforming and proceed on the user's go-ahead. Scaffold the minimal runner below only when no tool exists.
+## 2. Set up migrate-mongo
 
-## 2. The minimal runner
+```bash
+pnpm add -D migrate-mongo
+# TypeScript repos also need a loader if one isn't present:
+pnpm add -D tsx           # or use the repo's existing ts-node / build step
+```
 
-Use this when the repo has no migration tool. It is dependency-light (only the DB driver the repo already uses, plus the repo's existing TS runner if TS).
+### Config — `migrate-mongo-config.cjs`
 
-### Language detection
+One config that resolves the URI from the environment by `MIGRATE_ENV`, so dev and prod differ only by which secret is read. CommonJS (`.cjs`) loads everywhere; keep it JS even in TS repos.
 
-TypeScript if any of: `tsconfig.json` exists, `typescript` is a dependency, or sources are `.ts`. In a TS repo, run migrations through the runner the repo already uses — `tsx`, `ts-node --esm`, or compile-then-run — don't introduce a new one. Otherwise emit `.js`, matching `package.json` `"type"` (`module` → ESM `import`, else CJS `require`). The templates below are ESM TypeScript; for CJS swap `import`/`export` for `require`/`module.exports`.
+```js
+// migrate-mongo-config.cjs
+const ENV = process.env.MIGRATE_ENV ?? 'development';
+
+// Connection strings come from the environment ONLY — never hardcoded.
+const url =
+  ENV === 'production'
+    ? process.env.MONGODB_URI_PRODUCTION
+    : process.env.MONGODB_URI_DEVELOPMENT ?? process.env.MONGODB_URI;
+if (!url) throw new Error(`Missing Mongo URI for MIGRATE_ENV=${ENV}`);
+
+module.exports = {
+  mongodb: {
+    url,
+    // databaseName can be omitted if the URI includes the db.
+    databaseName: process.env.MONGODB_DB,
+    options: {},
+  },
+  migrationsDir: 'migrations',
+  changelogCollectionName: 'changelog',     // the applied-migrations ledger (§ 4)
+  lockCollectionName: 'changelog_lock',     // single-writer lock (§ 4)
+  lockTtl: 90,                              // seconds; >0 enables the lock + auto-expires a stale one
+  migrationFileExtension: '.js',            // '.ts' in a TS repo (see below)
+  useFileHash: true,                        // store a hash per file for change detection (§ 4)
+  moduleSystem: 'commonjs',                 // 'esm' if package.json "type": "module"
+};
+```
+
+### TypeScript
+
+Two options, pick one:
+
+- **migrate-mongo with `.ts`** — set `migrationFileExtension: ".ts"` and `moduleSystem` to match the repo, then run the CLI under a TS loader. In `package.json` scripts, invoke `node --import tsx ./node_modules/migrate-mongo/bin/migrate-mongo.js <cmd>` (or the repo's `ts-node` equivalent) instead of the bare `migrate-mongo` binary.
+- **mongo-migrate-ts** — a TS-native tool; use it if you'd rather not wire a loader. It has its own config and CLI; the rest of this skill (env scripts, idempotency, expand/contract, backup) applies unchanged.
 
 ### Layout
 
 ```text
 migrations/
-  20260621120000__create_users.ts
-  20260621131500__add_users_email_index.ts
+  20260622120000-create_users_indexes.ts
+  20260622131500-backfill_display_name.ts
+migrate-mongo-config.cjs
 scripts/
-  migrate.ts            # the runner (CLI entrypoint)
-  migrate-template.ts   # the file migrate:create copies
+  migrate-confirm.mjs   # production guard (§ 6)
 ```
 
-### Runner — `scripts/migrate.ts`
-
-A single CLI: `migrate <up|down|status|create> [--env development|production] [--dry-run] [--yes] [slug]`. The pnpm scripts in [§ 4](#4-pnpm-scripts-and-environment-resolution) call it with the env baked in.
-
-```ts
-import { readdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
-import { Client } from 'pg';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const MIGRATIONS_DIR = join(HERE, '..', 'migrations');
-const LOCK_KEY = 4242424242; // any stable bigint; one lock namespace for this project
-
-type Direction = 'up' | 'down';
-type Migration = {
-  version: string;
-  slug: string;
-  file: string;
-  checksum: string;
-  up: (ctx: Ctx) => Promise<void>;
-  down: (ctx: Ctx) => Promise<void>;
-  irreversible?: boolean;
-  transactional?: boolean; // default true; false = no BEGIN/COMMIT (e.g. CREATE INDEX CONCURRENTLY)
-};
-// Ctx is what each migration receives: a query fn plus the dry-run flag so a
-// migration can branch (e.g. skip a slow count) when only planning.
-export type Ctx = { sql: (q: string, params?: unknown[]) => Promise<{ rows: any[] }>; dryRun: boolean; log: (m: string) => void };
-
-const args = process.argv.slice(2);
-const command = args[0] as Direction | 'status' | 'create';
-const flag = (n: string) => args.includes(`--${n}`);
-const opt = (n: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : undefined; };
-const ENV = (opt('env') ?? process.env.MIGRATE_ENV ?? 'development') as 'development' | 'production';
-const DRY_RUN = flag('dry-run');
-
-function redact(url: string) { return url.replace(/\/\/([^:]+):[^@]+@/, '//$1:***@'); }
-
-function dbUrl(): string {
-  // Connection strings come from the environment ONLY — never hardcoded.
-  const key = ENV === 'production' ? 'DATABASE_URL_PRODUCTION' : 'DATABASE_URL_DEVELOPMENT';
-  const url = process.env[key] ?? (ENV === 'development' ? process.env.DATABASE_URL : undefined);
-  if (!url) throw new Error(`Missing ${key} (or DATABASE_URL for development) in the environment`);
-  return url;
-}
-
-async function loadMigrations(): Promise<Migration[]> {
-  const files = readdirSync(MIGRATIONS_DIR).filter((f) => /^\d{14}__.+\.(ts|js)$/.test(f)).sort();
-  const seen = new Set<string>();
-  const out: Migration[] = [];
-  for (const file of files) {
-    const version = file.slice(0, 14);
-    if (seen.has(version)) throw new Error(`Duplicate migration version ${version} (${file})`);
-    seen.add(version);
-    const body = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
-    const mod = await import(join(MIGRATIONS_DIR, file));
-    if (mod.version !== version) {
-      throw new Error(`${file}: exported version "${mod.version}" != filename version "${version}"`);
-    }
-    out.push({
-      version, slug: file.slice(16).replace(/\.(ts|js)$/, ''), file,
-      checksum: createHash('sha256').update(body).digest('hex'),
-      up: mod.up, down: mod.down, irreversible: mod.irreversible, transactional: mod.transactional,
-    });
-  }
-  return out; // already sorted ascending by version
-}
-
-async function ensureLedger(sql: Ctx['sql']) {
-  await sql(`CREATE TABLE IF NOT EXISTS _migrations (
-    version     TEXT PRIMARY KEY,
-    slug        TEXT NOT NULL,
-    checksum    TEXT NOT NULL,
-    applied_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
-}
-
-async function readApplied(sql: Ctx['sql']): Promise<Map<string, string>> {
-  const rows = (await sql(`SELECT version, checksum FROM _migrations ORDER BY version`)).rows;
-  return new Map(rows.map((r) => [r.version, r.checksum]));
-}
-
-// Returns the pending migrations in order, after enforcing two invariants:
-// no applied migration's file changed (drift), and no pending version sorts
-// *before* the highest applied version (out-of-order — would break ordering).
-function plan(migrations: Migration[], applied: Map<string, string>): Migration[] {
-  for (const m of migrations) {
-    const prev = applied.get(m.version);
-    if (prev && prev !== m.checksum) {
-      throw new Error(`Drift: ${m.file} changed after being applied (checksum mismatch). Never edit an applied migration; add a new one.`);
-    }
-  }
-  const maxApplied = [...applied.keys()].sort().at(-1);
-  const pending = migrations.filter((m) => !applied.has(m.version));
-  const stray = pending.find((m) => maxApplied !== undefined && m.version < maxApplied);
-  if (stray) {
-    throw new Error(`Out-of-order migration ${stray.version}: ${maxApplied} is already applied. Migrations must run in strict version order — renumber it after the latest applied version (see § 11).`);
-  }
-  return pending;
-}
-
-async function main() {
-  const log = (m: string) => console.log(`[migrate:${ENV}]${DRY_RUN ? ' [dry-run]' : ''} ${m}`);
-
-  if (command === 'create') {
-    const slug = (opt('slug') ?? args[1] ?? '').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
-    if (!slug) throw new Error('Usage: migrate create <slug>');
-    const version = new Date().toISOString().replace(/\D/g, '').slice(0, 14); // UTC YYYYMMDDHHmmss
-    const tpl = readFileSync(join(HERE, 'migrate-template.ts'), 'utf8')
-      .replace(/__VERSION__/g, version).replace(/__SLUG__/g, slug);
-    const file = join(MIGRATIONS_DIR, `${version}__${slug}.ts`);
-    writeFileSync(file, tpl);
-    log(`created ${file}`);
-    return;
-  }
-
-  const url = dbUrl();
-  log(`connecting to ${redact(url)}`);
-  const client = new Client({ connectionString: url });
-  await client.connect();
-  const sql: Ctx['sql'] = (q, params) => client.query(q, params as any[]);
-
-  try {
-    // Single-writer: take the lock without blocking; if another run holds it,
-    // stop with a clear error rather than hang (see § 7). Never force past it.
-    log('acquiring advisory lock…');
-    const locked = (await sql(`SELECT pg_try_advisory_lock($1) AS ok`, [LOCK_KEY])).rows[0].ok;
-    if (!locked) throw new Error('Another migration run holds the advisory lock — wait for it to finish and retry; never force past it (see § 7).');
-
-    const migrations = await loadMigrations();
-
-    if (command === 'status') {
-      await ensureLedger(sql);
-      const applied = await readApplied(sql);
-      for (const m of migrations) log(`${applied.has(m.version) ? 'applied ' : 'pending '} ${m.version} ${m.slug}`);
-      log(`${applied.size} applied, ${migrations.length - applied.size} pending`);
-      return;
-    }
-
-    if (command === 'up' && DRY_RUN) {
-      // One rolled-back scope: the rehearsal sees cumulative state across all
-      // pending migrations AND persists nothing — not even the ledger table,
-      // which is created inside this transaction and rolled back with it.
-      await sql('BEGIN');
-      try {
-        await ensureLedger(sql);
-        const pending = plan(migrations, await readApplied(sql));
-        if (pending.length === 0) { log('nothing to apply'); return; }
-        log(`${pending.length} migration(s) would apply: ${pending.map((m) => m.version).join(', ')}`);
-        for (const m of pending) {
-          if (m.transactional === false) {
-            // A non-transactional op (e.g. CREATE INDEX CONCURRENTLY) can't run
-            // inside this scope — log the plan without executing it (see § 6).
-            log(`▶ ${m.version} ${m.slug} (non-transactional — planned, not executed)`);
-            continue;
-          }
-          log(`▶ up ${m.version} ${m.slug}`);
-          await m.up({ sql, dryRun: true, log });
-        }
-      } finally {
-        await sql('ROLLBACK');
-      }
-      log('dry-run complete — rolled back, nothing recorded');
-      return;
-    }
-
-    if (command === 'up') {
-      await ensureLedger(sql);
-      const pending = plan(migrations, await readApplied(sql));
-      if (pending.length === 0) { log('nothing to apply'); return; }
-      if (ENV === 'production' && !flag('yes')) {
-        throw new Error('Refusing to apply to production without --yes. Run the dry-run first, then re-run with --yes.');
-      }
-      log(`${pending.length} migration(s) to apply: ${pending.map((m) => m.version).join(', ')}`);
-      for (const m of pending) {
-        const t0 = Date.now();
-        log(`▶ up ${m.version} ${m.slug}`);
-        if (m.transactional === false) {
-          // No surrounding transaction. The body MUST be idempotent because a
-          // failure here cannot be auto-rolled-back (see § 6 and § 11).
-          try {
-            await m.up({ sql, dryRun: false, log });
-            await sql(`INSERT INTO _migrations (version, slug, checksum) VALUES ($1,$2,$3)`, [m.version, m.slug, m.checksum]);
-            log(`✓ applied ${m.version} (non-transactional, ${Date.now() - t0}ms)`);
-          } catch (e) {
-            throw new Error(`Non-transactional migration ${m.version} failed and cannot be auto-rolled-back — inspect and clean up manually before re-running. Cause: ${(e as Error).message}`);
-          }
-          continue;
-        }
-        await sql('BEGIN');
-        try {
-          await m.up({ sql, dryRun: false, log });
-          await sql(`INSERT INTO _migrations (version, slug, checksum) VALUES ($1,$2,$3)`, [m.version, m.slug, m.checksum]);
-          await sql('COMMIT');
-          log(`✓ applied ${m.version} (${Date.now() - t0}ms)`);
-        } catch (e) {
-          await sql('ROLLBACK');
-          throw new Error(`Migration ${m.version} failed and was rolled back. Earlier migrations are committed. Fix and re-run. Cause: ${(e as Error).message}`);
-        }
-      }
-      return;
-    }
-
-    if (command === 'down') {
-      // Roll back the *highest applied* version, and only if its file is in this
-      // checkout — otherwise we'd roll back an older one out of order (see § 11).
-      await sql('BEGIN');
-      try {
-        await ensureLedger(sql);
-        const applied = await readApplied(sql);
-        const lastVersion = [...applied.keys()].sort().at(-1);
-        if (!lastVersion) { log('nothing to roll back'); await sql('ROLLBACK'); return; }
-        const last = migrations.find((m) => m.version === lastVersion);
-        if (!last) throw new Error(`Applied migration ${lastVersion} has no file in this checkout — refusing to roll back out of order. Align the checkout to the deployed code first (see § 11).`);
-        if (last.irreversible) throw new Error(`${last.version} is marked irreversible — cannot roll back automatically.`);
-        if (ENV === 'production' && !DRY_RUN && !flag('yes')) throw new Error('Refusing to roll back production without --yes.');
-        log(`▶ down ${last.version} ${last.slug}`);
-        await last.down({ sql, dryRun: DRY_RUN, log });
-        if (DRY_RUN) { await sql('ROLLBACK'); log(`✓ would roll back ${last.version} — rolled back, nothing recorded`); }
-        else { await sql(`DELETE FROM _migrations WHERE version = $1`, [last.version]); await sql('COMMIT'); log(`✓ rolled back ${last.version}`); }
-      } catch (e) { await sql('ROLLBACK'); throw e; }
-      return;
-    }
-
-    throw new Error(`Unknown command "${command}". Use up | down | status | create.`);
-  } finally {
-    await client.query(`SELECT pg_advisory_unlock($1)`, [LOCK_KEY]).catch(() => {});
-    await client.end().catch(() => {});
-  }
-}
-
-main().catch((e) => { console.error(`[migrate] ✗ ${e.message}`); process.exitCode = 1; });
-```
-
-**Driver notes.** MySQL (`mysql2`): DDL is **not** transactional in MySQL — a failed multi-statement migration can leave partial DDL, so keep each MySQL migration to a single DDL statement and rely on the ledger to track progress; use `GET_LOCK()`/`RELEASE_LOCK()` for the advisory lock. SQLite (`better-sqlite3`): synchronous API (drop the `await`s), DDL is transactional, and there is no advisory lock — SQLite is single-writer already, so a file-based lock or nothing is fine.
+`pnpm migrate:create <desc>` generates `migrations/<YYYYMMDDHHmmss>-<desc>.<ext>` — the timestamp prefix is the version and the apply order.
 
 ## 3. Migration file template
 
-`scripts/migrate-template.ts` — `migrate:create` copies it, substituting the version and slug. The **version appears twice**: in the filename prefix and as the exported `version` constant the runner asserts against, so the file states which migration it is.
+migrate-mongo migrations export `up(db, client)` and `down(db, client)`, both receiving the driver `Db` and the `MongoClient`. The version is the filename's timestamp prefix; migrate-mongo records it in the changelog by `fileName`.
 
 ```ts
-import type { Ctx } from '../scripts/migrate.js';
+import type { Db, MongoClient } from 'mongodb';
 
-// Version is the UTC timestamp prefix of this file's name. The runner asserts
-// this matches the filename so a file always declares which migration it is.
-export const version = '__VERSION__';
+export const up = async (db: Db, _client: MongoClient): Promise<void> => {
+  console.log('[migrate] up: ensuring unique index users.email');
+  // createIndex is idempotent — a no-op if the index already exists, so the
+  // whole migration is safe to re-run (the primary safety net in Mongo).
+  await db.collection('users').createIndex(
+    { email: 1 },
+    { unique: true, name: 'users_email_unique' },
+  );
+};
 
-// Set to true ONLY when the change genuinely cannot be undone (e.g. an
-// irrecoverable data drop). Then `down` must throw. Never leave `down` empty.
-export const irreversible = false;
-
-export async function up({ sql, dryRun, log }: Ctx) {
-  log('creating table __SLUG__');
-  // Guard with IF NOT EXISTS so the operation is re-runnable / idempotent.
-  await sql(`CREATE TABLE IF NOT EXISTS example (
-    id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    name TEXT NOT NULL
-  )`);
-  // For a data backfill, branch on dryRun to avoid heavy work while planning,
-  // and batch large updates — see reference § 8.
-  if (!dryRun) {
-    // await backfillInBatches(sql, log);
-  }
-}
-
-export async function down({ sql, log }: Ctx) {
-  log('dropping table __SLUG__');
-  await sql(`DROP TABLE IF EXISTS example`);
-}
+export const down = async (db: Db, _client: MongoClient): Promise<void> => {
+  console.log('[migrate] down: dropping index users_email_unique');
+  await db.collection('users').dropIndex('users_email_unique').catch(() => {});
+};
 ```
 
-For JS repos, emit the same with `module.exports` / `require` (CJS) or `export`/`import` (ESM) to match `package.json` `"type"`, and drop the type import.
+For JS repos, emit `module.exports.up = async (db, client) => {…}` (CJS) or the `export` form (ESM) to match `package.json` `"type"`, and drop the type import.
 
-## 4. pnpm scripts and environment resolution
+**Irreversible migrations.** When `up` loses information (e.g. unsetting a field, collapsing values), a true `down` is impossible. Make `down` throw rather than lie:
 
-Add to `package.json`. In a TS repo, `RUN` is the repo's TS runner (`tsx` shown); in a JS repo it's just `node`.
+```ts
+export const down = async (): Promise<void> => {
+  throw new Error('Irreversible: this migration discarded the original values. Restore from backup to undo.');
+};
+```
+
+Note it in the PR body so the maintainer knows the rollback move is "restore from backup."
+
+## 4. The changelog ledger and change detection
+
+migrate-mongo's `changelogCollectionName` collection (default `changelog`) is the source of truth for what's applied. Each document holds `fileName`, `appliedAt`, and — with `useFileHash: true` — a hash of the file. It drives:
+
+- **Idempotency / pending detection** — a file in `migrationsDir` not in the changelog is PENDING; applied ones are skipped. `migrate-mongo status` lists both.
+- **Change detection (`useFileHash: true`).** The changelog stores each file's hash. If an applied file's content changes, migrate-mongo treats it as **new** and **re-runs it**. This is a double-edged tool: it catches edits, but a re-run of a non-idempotent body double-applies it. The rule stands: **never edit an applied migration; add a new one.** `useFileHash` is a safety aid, not a license to edit history.
+- **Single-writer lock.** With `lockCollectionName` set and `lockTtl > 0`, migrate-mongo acquires a lock document before applying so two concurrent runs can't migrate at once; the TTL index auto-expires a stale lock if a run crashes mid-flight. Set `lockTtl` comfortably above your longest migration (e.g. 90s, or higher for big backfills — but prefer to keep long backfills out of the migration path; see § 7). **Never delete the lock document to force past a held lock** — that's how you get two writers.
+
+## 5. Transactions and dry-run
+
+**Transactions require a replica set.** MongoDB multi-document transactions work only on a replica set or sharded cluster (Mongo 4.0+); a standalone `mongod` has none. Where available, wrap multi-step writes so a failure rolls back cleanly:
+
+```ts
+export const up = async (db: Db, client: MongoClient): Promise<void> => {
+  const session = client.startSession();
+  try {
+    await session.withTransaction(async () => {
+      console.log('[migrate] up: moving orders.legacyTotal → orders.total');
+      await db.collection('orders').updateMany(
+        { total: { $exists: false }, legacyTotal: { $exists: true } },
+        [{ $set: { total: '$legacyTotal' } }],
+        { session },
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+```
+
+Transactions have limits (~60s runtime, 16MB oplog per transaction), so **do not wrap a large backfill in one** — batch it without a transaction and rely on idempotency (§ 7). On a standalone server, drop the session and make the body idempotent and resumable; a partial failure is recovered by re-running.
+
+**Dry-run / plan.** migrate-mongo has **no built-in dry-run**. Map `migrate:*:dry-run` to `migrate-mongo status` — it prints every migration as `APPLIED <date>` or `PENDING`, i.e. exactly what a run *would* apply and in what order. That is the plan you review before every production apply. For a deeper *execution* rehearsal, in order of preference:
+
+1. **Restore a recent snapshot into a scratch database and run `migrate-mongo up` against it.** The gold standard — it exercises the real data with zero risk to production.
+2. **Abort-transaction rehearsal (replica set only).** Load each PENDING file, run its `up` inside `session.withTransaction(...)`, then throw at the end of the callback so the transaction aborts and nothing commits — and do not touch the changelog. Useful for catching a bad query against real-shaped data without persisting. It cannot rehearse a migration that itself can't run in a transaction (e.g. an index build), so fall back to option 1 for those.
+
+Don't claim a clean in-place dry-run that migrate-mongo can't provide — `status` plus a snapshot rehearsal is the honest, safe combination.
+
+## 6. pnpm scripts and environment resolution
 
 ```jsonc
 {
   "scripts": {
-    "migrate:development":          "tsx scripts/migrate.ts up --env development",
-    "migrate:development:dry-run":  "tsx scripts/migrate.ts up --env development --dry-run",
-    "migrate:production":           "tsx scripts/migrate.ts up --env production",
-    "migrate:production:dry-run":   "tsx scripts/migrate.ts up --env production --dry-run",
-    "migrate:status":              "tsx scripts/migrate.ts status --env development",
-    "migrate:create":              "tsx scripts/migrate.ts create",
-    "migrate:down":                "tsx scripts/migrate.ts down --env development"
+    "migrate:development":         "cross-env MIGRATE_ENV=development migrate-mongo up",
+    "migrate:development:dry-run": "cross-env MIGRATE_ENV=development migrate-mongo status",
+    "migrate:production":         "node scripts/migrate-confirm.mjs && cross-env MIGRATE_ENV=production migrate-mongo up",
+    "migrate:production:dry-run":  "cross-env MIGRATE_ENV=production migrate-mongo status",
+    "migrate:status":             "cross-env MIGRATE_ENV=development migrate-mongo status",
+    "migrate:create":             "cross-env MIGRATE_ENV=development migrate-mongo create",
+    "migrate:down":               "cross-env MIGRATE_ENV=development migrate-mongo down"
   }
 }
 ```
 
-Usage: `pnpm migrate:create add_users_email_index`; `pnpm migrate:development:dry-run`; `pnpm migrate:development`; production is `pnpm migrate:production:dry-run` **then** `pnpm migrate:production --yes` (the `--yes` reaches the runner via pnpm's `--` passthrough: `pnpm migrate:production -- --yes`, or add a dedicated `migrate:production:apply` script that includes `--yes`).
+`cross-env` keeps the env var portable across shells (`pnpm add -D cross-env`); drop it if you only target POSIX. In a TS repo, replace `migrate-mongo` with `node --import tsx ./node_modules/migrate-mongo/bin/migrate-mongo.js` (see § 2). Usage: `pnpm migrate:create add_users_email_index`; `pnpm migrate:status` (plan); `pnpm migrate:development`; production is `pnpm migrate:production:dry-run`, then `MIGRATE_CONFIRM=production pnpm migrate:production`.
 
-**Environment resolution.** The runner reads `DATABASE_URL_DEVELOPMENT` / `DATABASE_URL_PRODUCTION` (falling back to `DATABASE_URL` for development) from the environment. In development these come from a gitignored `.env` (loaded by the repo's existing mechanism, e.g. `dotenv` / `--env-file`); in production from the deploy platform's secret store. **Never** commit a production URL, and never print it (the runner redacts the password). If the repo already centralizes config, source the URL from there instead of new env vars.
+**Production guard — `scripts/migrate-confirm.mjs`.** migrate-mongo has no confirm flag, so a tiny guard makes `migrate:production` refuse to run unless the operator opts in explicitly:
 
-## 5. The applied-migrations ledger
+```js
+// scripts/migrate-confirm.mjs
+if (process.env.MIGRATE_CONFIRM !== 'production') {
+  console.error(
+    'Refusing to run production migrations.\n' +
+    'Run `pnpm migrate:production:dry-run` first, review the plan, then re-run with MIGRATE_CONFIRM=production.',
+  );
+  process.exit(1);
+}
+console.log('[migrate] production apply confirmed (MIGRATE_CONFIRM=production)');
+```
 
-The ledger is the source of truth for what has been applied. For a SQL DB it's the `_migrations` table (DDL in the runner's `ensureLedger`); for a non-DB target it's a committed/sidecar JSON state file with the same fields.
+**Environment resolution.** The config (§ 2) reads `MONGODB_URI_PRODUCTION` for production and `MONGODB_URI_DEVELOPMENT` (falling back to `MONGODB_URI`) otherwise. In development these come from a gitignored `.env` (loaded by the repo's mechanism, e.g. `dotenv` / `--env-file`); in production from the deploy platform's secret store. **Never** commit a production URI, and never print one (it contains credentials). If the repo already centralizes config, source the URI from there.
 
-Columns: `version` (PK), `slug`, `checksum` (sha256 of the migration body at apply time), `applied_at`. The runner uses it three ways:
+## 7. Zero-downtime: expand/contract for documents
 
-- **Idempotency** — pending = on disk but not in the ledger; applied migrations are skipped.
-- **Ordering integrity** — combined with the duplicate-version check at load time.
-- **Drift detection** — if an applied migration's current checksum differs from the recorded one, someone edited a migration after it ran. That's a hard error: **never edit an applied migration; add a new one.** (Editing already-run migrations means dev, CI, and prod silently diverge.)
+In production the old application code keeps running during a rolling deploy, so a change must be **backward-compatible with the code already deployed**. Mongo being schemaless makes additive changes easy — but it also means old-shaped documents linger until backfilled, so tolerant reads matter. Use **expand → migrate → contract**, split across releases:
 
-## 6. Transactions and the non-transactional escape hatch
+1. **Expand** (release N): additive only — add a new field, a new collection, or a new index. Old code ignores it; new code can start writing it. Deploy code that writes **both** old and new fields (dual-write) if you're moving data.
+2. **Migrate / backfill** (release N): populate the new field on existing documents in batches.
+3. **Contract** (release N+1, after every instance runs the new code): stop writing the old field, then a later migration `$unset`s it / drops the old index.
 
-Each migration runs inside `BEGIN … COMMIT` by default (unless it opts out with `transactional = false`, below). On any error the runner issues `ROLLBACK`, so a failed transactional migration leaves **no** partial state and its ledger row is only written on success. This is also what makes the dry-run meaningful:
+**Never** remove or rename a field the currently-deployed app still reads. Adding a **JSON-Schema validator** (`db.command({ collMod, validator, validationLevel: 'moderate' })`) should start at `moderate`/`warn` so existing documents aren't rejected, then tighten to `strict` only after a backfill makes every document conform.
 
-**Dry-run semantics.** `--dry-run` runs the **whole pending sequence inside one transaction that is always `ROLLBACK`ed** — so a later migration sees the schema changes an earlier pending one would make (a real apply would), and nothing is persisted. The ledger table itself is created *inside* that rolled-back scope, so a dry-run on a fresh database leaves zero side effects — the production dry-run is genuinely read-only. It proves the migrations *execute* against the actual schema (catches a typo'd column, a missing table), strictly stronger than printing SQL. A migration can read `ctx.dryRun` to skip genuinely expensive steps (a full-table backfill) while still validating the DDL. Run it before every production apply.
-
-**Non-transactional escape hatch.** A few operations can't run inside a transaction — notably Postgres `CREATE INDEX CONCURRENTLY` (used to add an index without locking writes on a live table) and some `ALTER TYPE … ADD VALUE`. For those, export `export const transactional = false;` from the migration and have the runner skip `BEGIN`/`COMMIT` for it (run the body directly, then record the ledger row in its own statement). Such a migration **cannot** be dry-run by rollback — instead its dry-run logs the planned statements without executing. Keep these migrations tiny and idempotent (`CREATE INDEX CONCURRENTLY IF NOT EXISTS`), because a failure can't be auto-rolled-back and may leave an invalid index to drop and recreate.
-
-## 7. Concurrency lock
-
-Two deploys or CI jobs applying migrations at once corrupts the ledger and can deadlock the schema. The runner takes a **single-writer advisory lock** before reading state and applying, using a **non-blocking try-lock** so a contended run fails fast with an actionable error instead of hanging before it can even show a plan:
-
-- Postgres: `pg_try_advisory_lock(key)` (returns `false` if held) / `pg_advisory_unlock(key)` — a session-level lock, released automatically if the connection drops. Prefer this over the blocking `pg_advisory_lock`, which would hang indefinitely.
-- MySQL: `GET_LOCK('migrate', 0)` (zero timeout → returns immediately) / `RELEASE_LOCK('migrate')`.
-- SQLite: no advisory lock needed; it is single-writer by file.
-
-If the lock is held, the runner **stops and reports** — a held lock means another migration run is in progress, and forcing past it is how you get two writers. Wait for the other run to finish, then retry.
-
-## 8. Zero-downtime: expand/contract
-
-In production the old application code keeps running during a rolling deploy, so a schema change must be **backward-compatible with the code already in production**. Use **expand → migrate → contract**, split across releases:
-
-1. **Expand** (release N): make additive, backward-compatible changes only — add a nullable column, add a new table, add an index `CONCURRENTLY`. Old code ignores them; new code can start writing.
-2. **Migrate / backfill** (release N): populate new structures from old ones in batches; deploy code that writes both old and new (dual-write) if you're moving data.
-3. **Contract** (release N+1, after all instances run the new code): remove the old column/table, add the `NOT NULL`/constraint now that every row is populated.
-
-**Never** drop or rename a column the currently-deployed app still reads, and never add a `NOT NULL` column without a default in the same step as the backfill — split them.
-
-**Batch large backfills.** A single `UPDATE` over millions of rows locks the table and can time out. Loop in bounded batches, committing each, so the migration doesn't hold one long transaction:
+**Batch large backfills** — don't wrap millions of docs in one `updateMany`/transaction. Loop in bounded batches with `bulkWrite`; the filter only touches not-yet-migrated docs, so it's idempotent and resumable:
 
 ```ts
-export const transactional = false; // we commit per batch ourselves
-export async function up({ sql, dryRun, log }: Ctx) {
-  if (dryRun) { log('would backfill users.display_name in batches of 1000'); return; }
+import type { Db } from 'mongodb';
+
+export const up = async (db: Db): Promise<void> => {
+  const users = db.collection('users');
   let moved = 0;
   for (;;) {
-    const { rows } = await sql(
-      `WITH batch AS (
-         SELECT id FROM users WHERE display_name IS NULL LIMIT 1000 FOR UPDATE SKIP LOCKED
-       )
-       UPDATE users u SET display_name = u.name FROM batch WHERE u.id = batch.id RETURNING u.id`,
-    );
-    if (rows.length === 0) break;
-    moved += rows.length;
-    log(`backfilled ${moved} rows…`);
+    const batch = await users.find({ displayName: { $exists: false } }).limit(1000).toArray();
+    if (batch.length === 0) break;
+    const ops = batch.map((d) => ({
+      updateOne: { filter: { _id: d._id }, update: { $set: { displayName: d.name ?? '' } } },
+    }));
+    const res = await users.bulkWrite(ops, { ordered: false });
+    moved += res.modifiedCount;
+    console.log(`[migrate] backfilled ${moved} users…`);
   }
-  log(`backfill complete: ${moved} rows`);
-}
+  console.log(`[migrate] backfill complete: ${moved} users`);
+};
+
+export const down = async (): Promise<void> => {
+  throw new Error('Irreversible backfill — the prior absent-field state is not recoverable.');
+};
 ```
 
-A backfill like this is a `chore:` migration and is safe to re-run (it only touches rows still `NULL`), which also makes it resumable after an interruption.
+A backfill like this is a `chore:` migration, safe to re-run, and resumable after an interruption (it only touches documents still missing the field). For very large collections, prefer iterating by `_id` ranges over a growing `skip`.
 
-## 9. Production safety checklist
+## 8. CI verification
 
-Before `migrate:production --yes` (mirrors the SKILL's Production safety section; this is the operator's pre-flight):
+Add a CI job that proves migrations are sound on every PR. Run a MongoDB **single-node replica set** as a service (a plain standalone can't exercise transaction-using migrations) — e.g. start `mongod --replSet rs0` and `rs.initiate()`, or use `mongodb-memory-server` in replica-set mode:
 
-- [ ] Dry-run (`migrate:production:dry-run`) ran clean and the operator saw the plan + the exact versions that will apply.
-- [ ] A recent backup exists, or point-in-time recovery covers now.
-- [ ] The DB URL comes from the deploy platform's secret store, not a file in the repo.
-- [ ] The change is expand/contract-safe for the code currently running (no drop/rename of a column the live app reads; no `NOT NULL` without default alongside its backfill).
-- [ ] Large backfills are batched (§ 8), not one giant `UPDATE`.
-- [ ] Only one migration run will execute (advisory lock; no other deploy in flight).
-- [ ] There's a known rollback move: the migration's `down`, or a documented manual step if `irreversible`.
+1. **Apply forward on a fresh DB:** `pnpm migrate:development` against the empty service DB → must succeed.
+2. **Round-trip the newest migration:** `pnpm migrate:down` then `pnpm migrate:development` again → proves `down` is correct (or correctly throws for irreversible) and `up` is re-appliable.
+3. **Plan is clean:** `pnpm migrate:status` exits 0 and lists the expected order.
+4. **Change-detection guard — and its limit.** `useFileHash` only detects an edited migration against a changelog that recorded the *old* hash; a fresh-DB CI job has an empty changelog, so it will **not** catch drift on its own (it just applies the edited file). To catch "someone edited an applied migration" in CI, commit a `migrations/.checksums` manifest (fileName → sha256) and add a step that recomputes each file's hash and fails on any mismatch, regenerating the manifest only when adding a *new* migration. Where CI can restore a production/staging snapshot, step 1 against that baseline catches an edited applied file directly (migrate-mongo re-runs it, surfacing non-idempotent breakage).
 
-## 10. CI verification
+Wire `MONGODB_URI_DEVELOPMENT` to the CI service. Keep the job separate from unit tests so a migration failure is unambiguous in the checks list.
 
-Add a CI job that proves migrations are sound on every PR — this is what makes the system trustworthy. Against an ephemeral database service (e.g. a `postgres` service container):
+## Production safety checklist
 
-1. **Apply forward on a fresh DB:** `pnpm migrate:development` from empty → must succeed.
-2. **Round-trip the newest migration:** `pnpm migrate:down` then `pnpm migrate:development` again → proves `down` is correct and `up` is re-appliable.
-3. **No duplicate versions / filename-version match:** the runner's load step already throws on these; a `pnpm migrate:status` invocation in CI surfaces them.
-4. **Dry-run is clean:** `pnpm migrate:development:dry-run` exits 0.
-5. **Drift guard — and its limit.** The runner's checksum drift check only fires against a database whose ledger already recorded the *old* checksum (i.e. staging/production, or a CI job that restores a populated baseline). A fresh-DB CI job has an empty ledger, so it will happily apply an edited historical migration with the new checksum — it does **not** catch drift on its own. To catch "someone edited an applied migration" in CI on a fresh DB, commit a `migrations/.checksums` manifest (version → sha256) and add a CI step that recomputes each file's checksum and fails on any mismatch with the manifest; regenerate the manifest only when adding a *new* migration. (Where CI can restore a production/staging snapshot, step 1 against that baseline catches drift directly.)
+Before `MIGRATE_CONFIRM=production pnpm migrate:production` (mirrors the SKILL's Production safety section; the operator's pre-flight):
 
-Wire `DATABASE_URL_DEVELOPMENT` to the CI service DB. Keep the job separate from unit tests so a migration failure is unambiguous in the checks list.
+- [ ] `pnpm migrate:production:dry-run` (status) ran and the operator saw the plan + the exact PENDING migrations.
+- [ ] A recent `mongodump` exists, or Atlas continuous backup / PITR covers now.
+- [ ] The URI comes from the deploy platform's secret store, not a file in the repo.
+- [ ] The change is expand/contract-safe for the code currently running (no removal/rename of a field the live app reads; validators start `moderate`, tighten only after backfill).
+- [ ] Large backfills are batched (§ 7), not one giant `updateMany`/transaction.
+- [ ] Only one migration run will execute (the migrate-mongo lock is enabled; no other deploy in flight).
+- [ ] There's a known rollback move: the migration's `down`, or "restore from backup" if it's irreversible.
 
-## 11. Failure and recovery
+## 9. Failure and recovery
 
-- **A migration failed mid-run.** It was rolled back (transactional case), so the database matches the state *before* that migration and earlier migrations are committed and recorded. Fix the failing migration **file** (it was never recorded, so editing it is not drift) and re-run — the runner resumes from the first pending version. Do **not** hand-edit the database to "get past" it.
-- **A non-transactional migration failed** (§ 6). It may have left partial state (e.g. an invalid index). Inspect, clean up manually per the migration's own notes (drop the invalid index), then re-run. This is why non-transactional migrations must be tiny and idempotent.
-- **Drift error on apply.** An applied migration's file changed. Do not "fix" by deleting ledger rows. Restore the original migration content; put the intended change in a **new** migration. If dev and prod genuinely diverged, reconcile deliberately with the maintainer — never silently re-checksum.
-- **Lock held / can't acquire.** Another run is in progress (or a previous run's connection didn't release). Wait; if you're certain no run is active, the session lock auto-releases when that connection ends — find and end it rather than forcing.
-- **Wrong environment.** If a migration was applied to the wrong DB, use its `down` to reverse it (if reversible) and re-apply to the correct one. Irreversible mistakes are why production requires a dry-run, `--yes`, and a backup.
+- **A migration failed mid-run.**
+  - *With a session transaction (replica set):* it rolled back, so the data matches the state before that migration and its changelog row was not written. Fix the migration **file** (it was never recorded, so editing it isn't drift) and re-run — migrate-mongo resumes from the first PENDING file.
+  - *Without a transaction (standalone, or a batched backfill):* it may be **partially applied**. Because the body is idempotent and resumable, re-running completes it (it skips already-done documents). The changelog row is written only on success, so the file stays PENDING and re-runs cleanly. Do **not** hand-edit data to "get past" it.
+- **An applied migration's file was edited.** With `useFileHash`, migrate-mongo will re-run it on the next `up` — double-applying a non-idempotent body. Restore the original content and put the intended change in a **new** migration. If dev and prod genuinely diverged, reconcile deliberately with the maintainer.
+- **Lock held / stale.** Another run is in progress; wait. A crashed run's lock auto-expires after `lockTtl`. Never delete the lock document to force past it.
+- **Wrong environment.** If a migration was applied to the wrong cluster, use its `down` to reverse it (if reversible) and apply to the correct one. Irreversible mistakes are why production requires the confirm flag, a prior plan, and a backup.
