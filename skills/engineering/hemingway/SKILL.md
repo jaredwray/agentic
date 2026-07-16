@@ -62,7 +62,7 @@ When the honest answers favor cutting, the response to the reviewer is a deletio
 
 ## Workflow
 
-Run these steps on the first invocation, and again when the user says `another pass`, `apply it`, or names a new target.
+Run these steps on the first invocation, and again when the user says `another pass` or names a new target. `apply it` after a reviewing-mode report is **not** a new pass: apply the report's entries as approved (including any narrowings the user accepted), verify per Step 5, and confirm what changed — do not re-propose.
 
 1. **Fix the target and the behavior contract.** Identify the code under edit — in order: what this conversation is already editing; a PR / diff / function the user named; the uncommitted working tree; else stop and ask. Record the **mode** (drafting vs. reviewing) and write the **behavior contract**: the observable behavior that must survive — user-visible outcomes, caller-visible APIs and error shapes, data-safety properties, shipped wire formats. The contract is the meaning; a cut is safe exactly when the contract still holds.
 
@@ -72,9 +72,9 @@ Run these steps on the first invocation, and again when the user says `another p
 
 4. **Justify the survivors.** For each piece of complexity still standing — every abstraction, branch, fallback, and config point — apply the [§ 2 worth-it test](#2-when-more-code-is-worth-it). It stays only if it protects a named product property with evidence. Failures move to Cut; survivors become Keep entries with the property named.
 
-5. **Apply and verify.** In drafting mode, make the edits (if not already made along the way), then run the tests that cover the behavior contract — or re-check the observable behavior by hand when there are none, and say so in the report. A cut that changes contract behavior is reverted or downgraded to a proposed narrowing. In reviewing mode, make no edits; still verify each claim cheaply where possible (the caller search, the existing test run).
+5. **Apply and verify.** In drafting mode, make the edits (if not already made along the way), then run the tests that cover the behavior contract — or re-check the observable behavior by hand when there are none, and say so in the report. A cut that changes contract behavior is reverted or downgraded to a proposed narrowing. In reviewing mode, make no edits yet — application waits for approval per the resume rule above; still verify each claim cheaply where possible (the caller search, the existing test run).
 
-6. **Render the report and stop.** Format per [§ 3](#3-report-format), posted in chat. One pass per invocation — resume only when the user says `another pass`, `apply it` (reviewing mode), or names a new target.
+6. **Render the report and stop.** Format per [§ 3](#3-report-format), posted in chat. One pass per invocation — stop and wait for `another pass`, `apply it`, or a new target.
 
 ---
 
