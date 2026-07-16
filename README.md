@@ -96,6 +96,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `debug` | Diagnose a bug before fixing — ranked hypotheses, evidence, a minimal isolating test. |
 | `performance` | Diagnose a slow path before optimizing — bottleneck classification and a ranked win list. |
 | `refactor` | Surgical refactor analysis for deployed code — call graph, risks, a safe migration path. |
+| `hemingway` | Editing-first pass on a growing change — delete, inline, narrow before adding; a Cut / Simplify / Keep / Smallest Change report. |
 | `production-function` | Write one function at a fintech bar — typed, validated, logged, tested, idempotent. |
 | `test` | Tests that catch real bugs — a failure-mode inventory, plus which trivial tests to drop. |
 | `adr` | An Architecture Decision Record — options, 10x stress test, recommendation, 2-year regret check. |
