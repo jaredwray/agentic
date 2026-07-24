@@ -1,6 +1,6 @@
 ---
 name: shipping-conventions
-description: The shared loop discipline for one-PR-at-a-time agent workflows — sync main, work a single item, drive CI to green (never stop on red), check for already-merged, stop and wait, then resume on "continue"/"next", with only one open PR at a time. Background discipline referenced by the release, dependency-management, defense-in-depth, SEO, and project-templates skills so each doesn't restate the loop. Use when running any iterative "open one PR, stop, resume" workflow.
+description: The shared loop discipline for one-PR-at-a-time agent workflows — sync main, resolve the branch mode, work a single item, drive CI to green (never stop on red), check for already-merged, stop and wait, then resume on "continue"/"next", with only one open PR at a time. Defines designated-branch mode for harnesses that pin the session to one branch (Claude Code on the web, GitHub Actions). Background discipline referenced by the release, dependency-management, defense-in-depth, SEO, and project-templates skills so each doesn't restate the loop. Use when running any iterative "open one PR, stop, resume" workflow.
 user-invocable: true
 ---
 
@@ -20,9 +20,12 @@ unit of work) and the **branch-naming scheme**; everything below is common.
 Run on the **first** invocation and again on **every resume** (`continue`, `next`, or a
 skill-specific variant like `next dep PR`).
 
-1. **Sync `main`.** Confirm the working tree is clean (`git status --short`). If there are
-   uncommitted changes, **stop and report** — never discard uncommitted work. Then
-   `git checkout main && git pull --ff-only origin main`.
+1. **Sync `main` and resolve the branch mode.** Confirm the working tree is clean
+   (`git status --short`). If there are uncommitted changes, **stop and report** — never discard
+   uncommitted work. Then `git checkout main && git pull --ff-only origin main`. Establish which
+   branch mode applies now, before any work — see
+   [Branch-constrained environments](#branch-constrained-environments). Discovering the constraint
+   at PR time means the work is already done in the wrong shape.
 
 2. **Audit / take stock.** Reconcile the consumer skill's source of truth (e.g. a `SECURITY.md`
    status block per `security-status-tracking`, or `pnpm outdated`) against actual repo state, and
@@ -54,7 +57,46 @@ skill-specific variant like `next dep PR`).
   needed, then stop and wait — do not open a second.
 - **One item per PR.** Even within the same category/section.
 - **Every PR branches from the latest `main`.**
-- **Single-branch / sandbox guard.** If the environment cannot create separate branches or PRs, stop
-  and report. Do not bundle items onto one branch as commits to work around it.
+- **Branch mode is resolved up front.** See
+  [Branch-constrained environments](#branch-constrained-environments). Never work around a branch
+  constraint by improvising at PR time.
 - **Only stop to ask when this discipline (or the consumer skill) says to**, or when the next item is
   genuinely ambiguous.
+
+## Branch-constrained environments
+
+Not every environment lets you open a branch per item. Two cases look similar and must not be
+conflated — resolve which one applies in step 1, before doing any work.
+
+### No PRs possible
+
+The environment can create neither branches nor pull requests (a read-only checkout, a CI job with no
+push credentials, a sandbox with no remote). **Stop and report.** There is nothing shippable, and
+piling commits onto the current branch produces work the user cannot review or merge.
+
+### Designated-branch mode
+
+The environment mandates one specific branch but pull requests work normally. This is the common
+case, not an exotic one — Claude Code on the web, GitHub Actions, and most hosted agent harnesses
+pin the session to a branch like `claude/<task>-<id>` and forbid pushing elsewhere. Under the old
+stop-and-report rule these environments could never run the workflow at all, which is the wrong
+outcome when a reviewable PR is plainly achievable.
+
+Degrade gracefully instead:
+
+- **Keep the item taxonomy intact.** One commit per item, in the consumer skill's priority order,
+  each with the commit message the item's PR title would have used. Never squash several items into
+  one undifferentiated commit — the grouping is the reviewable unit, and per-item commits keep it
+  bisectable and revertable.
+- **Verify per item, not once at the end.** Run the item's build/test verification after each
+  commit, exactly as you would before opening that item's PR. A green run at the end doesn't tell
+  you which item broke what.
+- **Open one PR** from the designated branch.
+- **Say so in the PR body.** Add a short section naming which items would normally have shipped as
+  separate PRs, and that the environment mandated a single branch. A reviewer must never have to
+  guess why a multi-group PR arrived.
+- **The one-open-PR invariant still holds.** Push follow-up items as additional commits to the same
+  PR; do not open a second.
+
+Deviating this way is allowed *only* because the environment forced it. When branches are available,
+one item per PR remains the rule — designated-branch mode is a fallback, never a preference.
