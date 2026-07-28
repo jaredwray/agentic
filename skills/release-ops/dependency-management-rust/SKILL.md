@@ -27,7 +27,7 @@ Determine the repo shape first:
 ## Environment
 
 - **`local`** — developer machine with a working `git` remote and Docker available. Sync `main` before each branch; start test services with the project's documented command (e.g. `make test-services-up`, `docker compose up -d`, or a `cargo xtask` recipe) if one exists.
-- **`sandbox`** — anything else (CI, hosted agent session, no Docker). Resolve the branch mode before starting, per `shipping-conventions` → Branch-constrained environments: if no PR can be opened at all, stop and report; if the environment pins you to a designated branch but PRs work, use designated-branch mode.
+- **`sandbox`** — anything else (CI, hosted agent session, no Docker). Resolve branch capability before starting, per `shipping-conventions` → Branch-constrained environments: one group per branch per PR is the only shape this workflow ships. If no PR can be opened at all, stop and report; if the environment pins you to a single designated branch, stop and ask for permission to push one `chore/<group-key>` branch per group before doing any work.
 
 ## Phases
 
@@ -195,7 +195,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 - **One PR per logical group — always.** Don't combine unrelated groups. Don't fragment a clear group across multiple PRs.
 - **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 8.
 - Every PR uses a unique branch from latest `main`.
-- **Branch-constrained environments** — follow `shipping-conventions` → Branch-constrained environments. If no PR can be opened at all, stop and report. If a designated branch is mandated but PRs work (Claude Code on the web, GitHub Actions, most hosted agent harnesses), use designated-branch mode: one commit per group on that branch, verified per group, one PR, and a PR-body section naming the groups that would normally have been separate PRs. Never squash groups into one undifferentiated commit, and never improvise this at PR time — resolve it in Step 1.
+- **Branch-constrained environments** — follow `shipping-conventions` → Branch-constrained environments. If no PR can be opened at all, stop and report. If a designated branch is mandated, never bundle groups into one PR on it — stop and ask for permission to push one `chore/<group-key>` branch per group before doing any work. Resolve this in Step 1, never at PR time.
 - **You must respond to every comment that is not you on what you did.** Reply to each PR comment, review, and review-thread comment authored by someone other than yourself — bots included (Codecov, dependency-bot, GitHub Advisory, clippy review bots, etc.). Reply inline on review-thread comments; for top-level reviews and PR-level bot comments, leave a top-level PR comment. State concretely what was done (or why no action is needed) and reference the commit SHA when applicable. Skip only comments you authored.
   - **Exception — don't engage in pleasantry loops.** Do not reply to comments (especially from bots) that are pure pleasantries (e.g. "You're welcome", "Glad I could help", "Good luck with the merge", "Thanks for the PR") that introduce no new question, finding, or action item. This applies both to initial acknowledgements *and* to follow-ups to substantive discussions. Replying to non-actionable acknowledgements just keeps the loop going. The rule above covers comments about *what you did*; a thank-you is not such a comment.
 
