@@ -24,8 +24,9 @@ skill-specific variant like `next dep PR`).
    (`git status --short`). If there are uncommitted changes, **stop and report** — never discard
    uncommitted work. Then `git checkout main && git pull --ff-only origin main`. Confirm now, before
    any work, that the environment can open one branch and one PR per item — see
-   [Branch-constrained environments](#branch-constrained-environments). Discovering a constraint
-   at PR time means the work is already done in the wrong shape.
+   [Branch-constrained environments](#branch-constrained-environments) for the two constrained
+   cases and when each resolves (the single-mandated-branch decision needs step 2's item count).
+   Discovering a constraint at PR time means the work is already done in the wrong shape.
 
 2. **Audit / take stock.** Reconcile the consumer skill's source of truth (e.g. a `SECURITY.md`
    status block per `security-status-tracking`, or `pnpm outdated`) against actual repo state, and
@@ -66,8 +67,10 @@ skill-specific variant like `next dep PR`).
 ## Branch-constrained environments
 
 Not every environment lets you open a branch per item. There is no degraded mode: **one item per
-branch per PR is the only shape this loop ships.** Two cases look similar and must not be conflated —
-resolve which one applies in step 1, before doing any work.
+branch per PR is the only shape this loop ships.** Two cases look similar and must not be conflated.
+**No PRs possible** resolves in step 1, before any work. **Single mandated branch** additionally
+needs to know how many items remain, so its decision completes immediately after step 2's read-only
+audit — always before an item is picked or anything is mutated.
 
 ### No PRs possible
 
@@ -83,10 +86,15 @@ Claude Code on the web, GitHub Actions, and most hosted agent harnesses do this 
 fallback: a multi-group PR defeats per-item review, per-item CI history, and clean revert, which are
 the point of the loop.
 
-- **More than one item of work remaining → stop and ask.** Before doing any work, ask the user for
-  explicit permission to push one branch per item using the consumer skill's naming scheme. With
-  permission granted, run the loop normally — the mandated branch simply goes unused. If permission
-  is declined or cannot be obtained, report what work remains and why it was not started, and do no
-  work.
-- **Exactly one item of work remaining →** the designated branch already satisfies one item, one
-  branch, one PR. Ship that single item on it, then stop as usual.
+Which path applies depends on how many items remain, which step 1 cannot know. Run step 2's audit
+first — it is read-only: sync, take stock, mutate nothing — then decide before picking an item:
+
+- **More than one item remaining → stop and ask.** Ask the user for explicit permission to push one
+  branch per item using the consumer skill's naming scheme. With permission granted, run the loop
+  normally — the mandated branch simply goes unused. If permission is declined or cannot be
+  obtained, report what work remains and why it was not started, and do no work.
+- **Exactly one item remaining →** the designated branch already satisfies one item, one branch,
+  one PR. Ship that item **on the designated branch**, overriding the loop's branch-from-`main`
+  step: point the designated branch at the latest `main` first (`git checkout -B <designated-branch>
+  origin/<default-branch>` — safe when it carries no unmerged commits; rebase them onto `main`
+  instead if it does), then work, verify, and open that item's PR from it as usual.
