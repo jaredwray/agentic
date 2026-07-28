@@ -1,6 +1,6 @@
 ---
 name: shipping-conventions
-description: The shared loop discipline for one-PR-at-a-time agent workflows — sync main, resolve the branch mode, work a single item, drive CI to green (never stop on red), check for already-merged, stop and wait, then resume on "continue"/"next", with only one open PR at a time. Defines designated-branch mode for harnesses that pin the session to one branch (Claude Code on the web, GitHub Actions). Background discipline referenced by the release, dependency-management, defense-in-depth, SEO, and project-templates skills so each doesn't restate the loop. Use when running any iterative "open one PR, stop, resume" workflow.
+description: The shared loop discipline for one-PR-at-a-time agent workflows — sync main, confirm per-item branches are possible, work a single item, drive CI to green (never stop on red), check for already-merged, stop and wait, then resume on "continue"/"next", with only one open PR at a time. One item per branch per PR is the only shape that ships — harnesses that pin the session to one branch (Claude Code on the web, GitHub Actions) must stop and ask for per-item branch permission instead of bundling items into one PR. Background discipline referenced by the release, dependency-management, defense-in-depth, SEO, and project-templates skills so each doesn't restate the loop. Use when running any iterative "open one PR, stop, resume" workflow.
 user-invocable: true
 ---
 
@@ -20,11 +20,11 @@ unit of work) and the **branch-naming scheme**; everything below is common.
 Run on the **first** invocation and again on **every resume** (`continue`, `next`, or a
 skill-specific variant like `next dep PR`).
 
-1. **Sync `main` and resolve the branch mode.** Confirm the working tree is clean
+1. **Sync `main` and confirm per-item branches are possible.** Confirm the working tree is clean
    (`git status --short`). If there are uncommitted changes, **stop and report** — never discard
-   uncommitted work. Then `git checkout main && git pull --ff-only origin main`. Establish which
-   branch mode applies now, before any work — see
-   [Branch-constrained environments](#branch-constrained-environments). Discovering the constraint
+   uncommitted work. Then `git checkout main && git pull --ff-only origin main`. Confirm now, before
+   any work, that the environment can open one branch and one PR per item — see
+   [Branch-constrained environments](#branch-constrained-environments). Discovering a constraint
    at PR time means the work is already done in the wrong shape.
 
 2. **Audit / take stock.** Reconcile the consumer skill's source of truth (e.g. a `SECURITY.md`
@@ -57,16 +57,17 @@ skill-specific variant like `next dep PR`).
   needed, then stop and wait — do not open a second.
 - **One item per PR.** Even within the same category/section.
 - **Every PR branches from the latest `main`.**
-- **Branch mode is resolved up front.** See
+- **Branch capability is resolved up front.** See
   [Branch-constrained environments](#branch-constrained-environments). Never work around a branch
-  constraint by improvising at PR time.
+  constraint by bundling items into one PR or improvising at PR time.
 - **Only stop to ask when this discipline (or the consumer skill) says to**, or when the next item is
   genuinely ambiguous.
 
 ## Branch-constrained environments
 
-Not every environment lets you open a branch per item. Two cases look similar and must not be
-conflated — resolve which one applies in step 1, before doing any work.
+Not every environment lets you open a branch per item. There is no degraded mode: **one item per
+branch per PR is the only shape this loop ships.** Two cases look similar and must not be conflated —
+resolve which one applies in step 1, before doing any work.
 
 ### No PRs possible
 
@@ -74,29 +75,18 @@ The environment can create neither branches nor pull requests (a read-only check
 push credentials, a sandbox with no remote). **Stop and report.** There is nothing shippable, and
 piling commits onto the current branch produces work the user cannot review or merge.
 
-### Designated-branch mode
+### Single mandated branch
 
-The environment mandates one specific branch but pull requests work normally. This is the common
-case, not an exotic one — Claude Code on the web, GitHub Actions, and most hosted agent harnesses
-pin the session to a branch like `claude/<task>-<id>` and forbid pushing elsewhere. Under the old
-stop-and-report rule these environments could never run the workflow at all, which is the wrong
-outcome when a reviewable PR is plainly achievable.
+The environment pins the session to one designated branch and forbids pushing others by default —
+Claude Code on the web, GitHub Actions, and most hosted agent harnesses do this with a branch like
+`claude/<task>-<id>`. Bundling several items into one PR on that branch is **not** an acceptable
+fallback: a multi-group PR defeats per-item review, per-item CI history, and clean revert, which are
+the point of the loop.
 
-Degrade gracefully instead:
-
-- **Keep the item taxonomy intact.** One commit per item, in the consumer skill's priority order,
-  each with the commit message the item's PR title would have used. Never squash several items into
-  one undifferentiated commit — the grouping is the reviewable unit, and per-item commits keep it
-  bisectable and revertable.
-- **Verify per item, not once at the end.** Run the item's build/test verification after each
-  commit, exactly as you would before opening that item's PR. A green run at the end doesn't tell
-  you which item broke what.
-- **Open one PR** from the designated branch.
-- **Say so in the PR body.** Add a short section naming which items would normally have shipped as
-  separate PRs, and that the environment mandated a single branch. A reviewer must never have to
-  guess why a multi-group PR arrived.
-- **The one-open-PR invariant still holds.** Push follow-up items as additional commits to the same
-  PR; do not open a second.
-
-Deviating this way is allowed *only* because the environment forced it. When branches are available,
-one item per PR remains the rule — designated-branch mode is a fallback, never a preference.
+- **More than one item of work remaining → stop and ask.** Before doing any work, ask the user for
+  explicit permission to push one branch per item using the consumer skill's naming scheme. With
+  permission granted, run the loop normally — the mandated branch simply goes unused. If permission
+  is declined or cannot be obtained, report what work remains and why it was not started, and do no
+  work.
+- **Exactly one item of work remaining →** the designated branch already satisfies one item, one
+  branch, one PR. Ship that single item on it, then stop as usual.

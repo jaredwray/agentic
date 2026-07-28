@@ -139,7 +139,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 - **One group per PR.** Don't combine unrelated groups. Don't fragment a clear group across multiple PRs unless [Standard groups](#standard-groups) splits it explicitly (e.g. per-template metadata, per-schema-type structured data, per-fix-area performance).
 - **Only one open SEO PR at a time.** If a previous SEO PR is still open, drive its CI to green if needed, then stop and wait.
 - Every PR uses a unique branch from latest `main`.
-- **Branch-constrained environments** — follow `shipping-conventions` → Branch-constrained environments. If no PR can be opened at all, stop and report. If a designated branch is mandated but PRs work (Claude Code on the web, GitHub Actions, most hosted agent harnesses), use designated-branch mode: one commit per group on that branch, verified per group, one PR, and a PR-body section naming the groups that would normally have been separate PRs. Never squash groups into one undifferentiated commit, and never improvise this at PR time — resolve it in Step 1.
+- **Branch-constrained environments** — follow `shipping-conventions` → Branch-constrained environments. If no PR can be opened at all, stop and report. If a designated branch is mandated, never bundle groups into one PR on it — stop and ask for permission to push one `seo/<group-key>` branch per group before doing any work. Resolve this in Step 1, never at PR time.
 
 ### Title prefixes
 
