@@ -9,7 +9,7 @@ user-invocable: true
 
 Workflow for upgrading both **dev/build dependencies** (with CI tooling) and **runtime dependencies**, one pull request at a time.
 
-> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow) Step 1. Only stop to ask the user when the document explicitly says to stop and report (e.g. uncommitted changes, Rust toolchain mismatch) or when a decision genuinely requires their input.
+> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow), which runs the `shipping-conventions` loop from its first step. Only stop to ask the user when that loop or this document says to stop and report (e.g. uncommitted changes, Rust toolchain mismatch) or when a decision genuinely requires their input.
 >
 > **One PR at a time.** Open a PR, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next dep PR`, or similar. Never open a second dep-management PR while one is already in flight.
 >
@@ -153,9 +153,10 @@ Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postg
 
 The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
 check for already-merged, stop and wait for `continue` — is `shipping-conventions`. Run it, with the
-**item taxonomy** and **branch naming** below (`chore/<group-key>`) and the ecosystem-specific steps
-this skill adds. When syncing, if `rust-toolchain.toml` or `rust-toolchain` is present, confirm
-`rustc --version` matches before continuing.
+**item taxonomy** and **branch naming** below (`chore/<group-key>`). Its first step syncs `main` and
+stops on a dirty working tree — do not skip ahead to the numbered steps here, which are additions
+*inside* that loop, not a replacement for it. When syncing, if `rust-toolchain.toml` or
+`rust-toolchain` is present, confirm `rustc --version` matches before continuing.
 
 1. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
 
@@ -166,8 +167,8 @@ this skill adds. When syncing, if `rust-toolchain.toml` or `rust-toolchain` is p
 
 3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
 
-4. **Apply the upgrade.** Branch naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
-   - Apply the upgrade — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
+4. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
+   - Bump it — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
    - Refresh the lockfile — run `cargo update -p <crate>` so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
    - Verify the upgrade. The minimum gate is `cargo build --workspace --all-targets && cargo test --workspace`; also run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` if MSRV is declared (see [MSRV rule](#msrv-rule)). These are the same checks CI will run.
    - **For Docker image groups**, the upgrade procedure differs:

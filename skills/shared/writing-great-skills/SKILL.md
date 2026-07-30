@@ -132,6 +132,10 @@ apply these when writing or revising a skill.
   which quietly guts a workflow built on breadth (five ranked hypotheses, a full call graph, a
   21-agent pipeline). Skills like those carry a one-line `**Effort.**` note in the preamble saying
   what they need and what goes shallow below it. Mechanical loops don't need the note.
+
+  The note addresses **whoever invokes the skill** — effort is per-request, so a running agent cannot
+  raise its own. What the agent owes is honesty: if you can tell you are below the level asked for,
+  label the deliverable thin rather than presenting it as complete.
 - **For UI work, require a concrete spec.** On an open-ended frontend brief a model settles into one
   house style, and generic direction ("cleaner", "not that color") just swaps it for a different fixed
   style. A skill that scaffolds UI asks for the real spec — the app's type scale, spacing, color
