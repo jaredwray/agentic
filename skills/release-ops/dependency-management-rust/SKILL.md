@@ -27,7 +27,7 @@ Determine the repo shape first:
 ## Environment
 
 - **`local`** — developer machine with a working `git` remote and Docker available. Sync `main` before each branch; start test services with the project's documented command (e.g. `make test-services-up`, `docker compose up -d`, or a `cargo xtask` recipe) if one exists.
-- **`sandbox`** — anything else (CI, hosted agent session, no Docker). Resolve branch capability before starting, per `shipping-conventions` → Branch-constrained environments: one group per branch per PR is the only shape this workflow ships. If no PR can be opened at all, stop and report. If the environment pins you to a single designated branch, run the read-only audit first: with more than one group remaining, stop and ask for permission to push one `chore/<group-key>` branch per group before doing any work; with exactly one group remaining, ship it on the designated branch per `shipping-conventions`.
+- **`sandbox`** — anything else (CI, hosted agent session, no Docker). Resolve branch capability before starting, per `shipping-conventions` → Branch-constrained environments. One group per branch per PR is the only shape this workflow ships.
 
 ## Phases
 
@@ -151,21 +151,22 @@ Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postg
 
 ## Workflow
 
-Run these steps on the **first** invocation, and again on **every resume** when the user says `continue`, `next`, `next dep PR`, or similar.
+The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
+check for already-merged, stop and wait for `continue` — is `shipping-conventions`. Run it, with the
+**item taxonomy** and **branch naming** below (`chore/<group-key>`) and the ecosystem-specific steps
+this skill adds. When syncing, if `rust-toolchain.toml` or `rust-toolchain` is present, confirm
+`rustc --version` matches before continuing.
 
-1. **Sync `main`.** Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work. Then `git checkout main && git pull --ff-only origin main`. If `rust-toolchain.toml` or `rust-toolchain` is present, confirm `rustc --version` matches before continuing.
+1. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
 
-2. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
-
-3. **Determine the active phase.**
+2. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time images are outdated, the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps or Docker runtime/service images are outdated, the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred") and stop.
 
-4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
+3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
 
-5. **Open the PR.**
-   - Branch from latest `main` (naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons).
+4. **Apply the upgrade.** Branch naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
    - Apply the upgrade — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
    - Refresh the lockfile — run `cargo update -p <crate>` so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
    - Verify the upgrade. The minimum gate is `cargo build --workspace --all-targets && cargo test --workspace`; also run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` if MSRV is declared (see [MSRV rule](#msrv-rule)). These are the same checks CI will run.
@@ -178,26 +179,14 @@ Run these steps on the **first** invocation, and again on **every resume** when 
      6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
-6. **Drive CI to green.** After opening the PR, watch CI with `gh pr checks --watch`. If any check fails, diagnose, fix, and push until every check is green. **Do not stop on a red PR.** Only after the PR is green do you proceed.
-
-7. **Check for already-merged.** Before stopping, run `gh pr view <pr-number> --json state,mergedAt` (or equivalent). If the PR is already merged — auto-merge was enabled, or the user merged during CI — treat that as an implicit `next` and **return to Step 1 immediately**. Do not wait, do not prompt. The same applies if the head branch is already gone from the remote.
-
-8. **Stop and wait.** Report to the user with exactly these four things:
-   - PR URL and group name
-   - Confirmation that CI is green
-   - What's still left in the active phase, and whether the runtime phase has remaining work
-   - **A literal prompt to resume**, e.g.: *"Merge the PR when you're ready, then reply `continue` (or `next`) and I'll open the next dep-management PR."*
-
-   Then **wait**. Do not open another PR. The workflow resumes only when the user says `continue`, `next`, `next dep PR`, or similar — at which point, return to Step 1.
+   Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
+   Report what's left in the active phase and whether the runtime phase still has work.
 
 ## Pull request rules
 
-- **One PR per logical group — always.** Don't combine unrelated groups. Don't fragment a clear group across multiple PRs.
-- **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 8.
-- Every PR uses a unique branch from latest `main`.
-- **Branch-constrained environments** — follow `shipping-conventions` → Branch-constrained environments. If no PR can be opened at all, stop and report. If a designated branch is mandated, never bundle groups into one PR on it — with more than one group remaining, stop and ask for permission to push one `chore/<group-key>` branch per group before doing any work; a single remaining group ships on the designated branch. Resolve this right after the read-only audit, never at PR time.
-- **You must respond to every comment that is not you on what you did.** Reply to each PR comment, review, and review-thread comment authored by someone other than yourself — bots included (Codecov, dependency-bot, GitHub Advisory, clippy review bots, etc.). Reply inline on review-thread comments; for top-level reviews and PR-level bot comments, leave a top-level PR comment. State concretely what was done (or why no action is needed) and reference the commit SHA when applicable. Skip only comments you authored.
-  - **Exception — don't engage in pleasantry loops.** Do not reply to comments (especially from bots) that are pure pleasantries (e.g. "You're welcome", "Glad I could help", "Good luck with the merge", "Thanks for the PR") that introduce no new question, finding, or action item. This applies both to initial acknowledgements *and* to follow-ups to substantive discussions. Replying to non-actionable acknowledgements just keeps the loop going. The rule above covers comments about *what you did*; a thank-you is not such a comment.
+Loop invariants (one group per PR, one open PR at a time, branch from latest `main`,
+branch-constrained environments) are `shipping-conventions`. Review replies and the pleasantry-loop
+exception are `pr-conventions`. What's specific to this workflow:
 
 ### Version targeting
 
@@ -207,115 +196,10 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-| Scope                                       | Prefix                  |
-| ------------------------------------------- | ----------------------- |
-| Workspace root                              | `workspace - chore: `   |
-| Cross-crate workspace change                | `workspace - chore: `   |
-| Specific crate (any repo)                   | `<crate name> - chore: ` |
-| Single-crate repo with no obvious name      | `root - chore: `        |
-
+Per `pr-conventions` → Prefix scheme for the automated ops loops.
 Examples:
 
 - `workspace - chore: upgrade code quality dependencies`
 - `api - chore: upgrade build tooling`
 - `root - chore: upgrade GitHub Actions`
 - `workspace - chore: upgrade tokio dependencies`
-- `workspace - chore: upgrade serde dependencies`
-- `api - chore: upgrade axum dependencies`
-- `worker - chore: upgrade sqlx dependencies`
-- `root - chore: upgrade aws-sdk dependencies`
-- `root - chore: upgrade reqwest`
-- `root - chore: upgrade Docker build-time images`
-- `root - chore: upgrade Docker Rust runtime image`
-- `root - chore: upgrade Docker postgres image`
-- `workspace - chore: upgrade Docker redis image`
-
-### PR body
-
-Keep PR bodies short. Use this skeleton, omitting sections that don't apply:
-
-```
-## Summary
-<one sentence: what's upgraded>
-
-## Versions
-- `<crate>` `<old>` → `<new>`
-
-## Checks
-- [x] `cargo build --workspace --all-targets` passes
-- [x] `cargo test --workspace` passes
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` passes (if used)
-- [x] `cargo fmt -- --check` passes (if used)
-- [x] MSRV build passes (if MSRV declared)
-
-## Breaking notes
-<only for (breaking) PRs — list code changes required and any deprecated APIs replaced>
-```
-
-Don't add commentary beyond the skeleton unless something genuinely surprising came up (e.g. a flaky test pre-existing on `main`, or a transitive feature-flag change).
-
-For Docker image PRs, use this skeleton instead:
-
-```
-## Summary
-<one sentence: what's upgraded>
-
-## Images
-- `<image>` `<old-tag>` → `<new-tag>` (`<old-digest-prefix>` → `<new-digest-prefix>`)
-
-## Locations
-- `Dockerfile:3` — builder stage
-- `compose.yml:12` — service `db`
-- `.github/workflows/ci.yml:15` — container
-
-## Checks
-- [x] `docker build` passes (or: syntax-only — no Docker daemon available)
-- [x] Version sources agree (`rust-toolchain.toml`, `Cargo.toml rust-version`, etc.)
-- [x] System package pins still resolve (if applicable)
-
-## Breaking notes
-<only for major version PRs — list required code/config changes>
-```
-
-### Major version upgrades
-
-- Research breaking changes before applying — read the crate's `CHANGELOG.md` or release notes on GitHub.
-- Update code as needed for the new version (API renames, removed features, new required features).
-- Append `(breaking)` to the PR title: `workspace - chore: upgrade tokio dependencies (breaking)`.
-- **Each major version upgrade gets its own PR.** Never combine two unrelated majors in one PR. The only exception is related majors within a single ecosystem that must move together (e.g. `serde` + `serde_derive`, `tonic` + `prost`, `axum` + the `tower` peers it requires) — those may share one PR.
-- Pre-1.0 minor bumps (`0.x` → `0.(x+1)`) are major for semver purposes — treat them the same way.
-- **Docker major version upgrades require asking first.** `ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17` — stop and ask the user before proceeding. If approved, each gets its own PR with `(breaking)` suffix. Rust image minor bumps (`rust:1.85` → `rust:1.86`) are not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule). When a Docker image version bump requires updating `rust-toolchain.toml` or `Cargo.toml rust-version`, all of those changes travel in the same PR.
-
-## MSRV rule
-
-If any crate in the repo declares `package.rust-version` (the Minimum Supported Rust Version), **no upgrade may raise the effective MSRV past the declared value.** Never upgrade a crate whose new minimum exceeds the project's MSRV.
-
-Determine the project's MSRV from the first available source, in order:
-
-1. `package.rust-version` in the workspace root `Cargo.toml`
-2. `package.rust-version` in any member crate's `Cargo.toml` (the highest wins as the effective floor)
-3. `rust-toolchain.toml` or `rust-toolchain` (the pinned toolchain)
-4. CI configuration (the lowest Rust version a CI job runs against)
-
-Pin upgrades within that floor. Example: `rust-version = "1.75"` → never upgrade to a crate that requires Rust 1.76, even if its "Latest" shows that version as available.
-
-If sources disagree, stop and report the mismatch — don't guess.
-
-When an upgrade would raise the MSRV, defer it: document it as a deferral and move on to the next group. Don't bump MSRV silently during a dep PR. If the project does not test MSRV in CI but declares `rust-version`, ask the user before bumping that field.
-
-## Container image version agreement
-
-The Rust version in Docker images must match `rust-toolchain.toml` — Docker follows `rust-toolchain.toml`, never the other way around.
-
-The canonical Rust version is determined from the same priority list as the [MSRV rule](#msrv-rule), with `rust-toolchain.toml` as the primary source. The `FROM rust:<version>` in every Dockerfile must be compatible with the declared MSRV and must match the toolchain pin. If a Dockerfile's Rust version disagrees with `rust-toolchain.toml`, stop and report — do not upgrade the Dockerfile independently.
-
-**Do not upgrade the Rust version in Docker past what `rust-toolchain.toml` declares.** If `rust-toolchain.toml` says `1.85`, every `FROM rust:*` line stays on `1.85.x`. A Rust toolchain bump is a project-wide decision that updates `rust-toolchain.toml` first; the Dockerfile follows. Minor bumps (`rust:1.85` → `rust:1.86`) are permitted only when `rust-toolchain.toml` is updated in the same PR (or already declares the newer version).
-
-For non-Rust images (e.g. `python`, `node`) referenced in Dockerfiles: apply the same principle using whatever version source the project declares (`.python-version`, `.nvmrc`, etc.). If no project-level version source exists, upgrade based on tag lineage from [Container image discovery](#container-image-discovery).
-
-## Digest pinning rule
-
-- If an image reference already has a digest pin (`FROM rust:1.85-slim@sha256:abc123...`), updating the tag without updating the digest is a no-op — the digest wins. Always update **both** tag and digest together.
-- If an image reference does not have a digest pin, do not introduce one during a dependency management PR. Introduction of digest pinning is defense-in-depth work.
-- To resolve a new digest: `crane digest <image>:<tag>` or `skopeo inspect --format '{{.Digest}}' docker://<registry>/<image>:<tag>`.
-- Always pin to the manifest list digest (multi-arch index), not a platform-specific manifest, unless the Dockerfile uses `--platform`.
