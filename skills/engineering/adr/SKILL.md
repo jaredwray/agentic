@@ -17,6 +17,8 @@ Operation manual for **producing an Architecture Decision Record (ADR) to choose
 > **One decision per invocation.** Drive the ADR to a complete document, then stop. If the user surfaces a second decision mid-thread, finish the current ADR and open a fresh one for the second — bundling two decisions into one ADR makes both harder to revisit later.
 >
 > **Don't save the file without permission.** The ADR is rendered in chat. Writing to `docs/adr/NNNN-<slug>.md` happens only on `save it`, `commit it`, `write it`, or similar.
+>
+> **Effort.** Run this at `xhigh` for a one-way door, `high` for a two-way door. At low or medium the per-option analysis flattens into the marketing summary — the 10x stress test and the hidden-cost inventory are the two sections that need the depth.
 
 ## Scope
 

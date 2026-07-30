@@ -20,8 +20,9 @@ adapted to its stack.
 >
 > **Persona.** Act as a product engineer shipping a small, polished feature. The bar is "feels native
 > to this app": match the app's existing routing, styling, data-access, and build conventions rather
-> than importing simple-tracker's. Taste matters — the indicator should be quiet, and the page should
-> read like the rest of the product.
+> than importing simple-tracker's. The indicator should be quiet and the page should read like the
+> rest of the product — and both of those are decided by the concrete spec Step 1 lifts out of the
+> repo, not by taste applied at render time.
 >
 > **One feature per invocation.** Scaffold the feature, drive its PR to green, then stop. Do not also
 > start writing a backlog of release notes — seed exactly one entry and hand authoring back to the user.
@@ -64,6 +65,21 @@ no notion of "a user viewing the app", stop and confirm the approach before scaf
    build runs (so the generator can hook in); and **whether the app has authentication and a per-user
    record** — this decides the seen-tracking strategy in Step 2. Confirm the page's route and where
    the nav entry/indicator belongs. Report what you found before scaffolding.
+
+   **Lift a concrete visual spec from the app — don't design one.** "Feels native" is not something to
+   infer from taste; it is copied from files that already exist. Before writing any markup, read the
+   two or three closest precedents in the repo — the nearest list-or-feed page for the page, and an
+   existing badge, dot, or unread marker for the indicator — and write down what you'll reuse:
+   - **Tokens** — the type scale, spacing scale, radii, and named colors the app actually uses (from
+     its Tailwind config, theme file, CSS custom properties, or design-system package), by name.
+   - **Components** — the existing card, page-heading, date, link, and badge components to compose,
+     rather than new ones styled to match.
+   - **States** — how this app renders empty, loading, hovered, focus-visible, and dark mode, and
+     whether it respects `prefers-reduced-motion`.
+
+   Put that list in the report from this step. If a precedent genuinely doesn't exist, say which one is
+   missing and ask before inventing it — an invented style that merely looks tidy is the failure mode
+   here, and it is much harder to spot in review than a missing feature.
 
 2. **Choose the seen-tracking strategy.** Default to the **localStorage** variant — no backend, works
    in any app. Use the **per-user server-side** variant only when the app already has auth + a user

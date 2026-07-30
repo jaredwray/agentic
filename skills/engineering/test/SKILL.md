@@ -15,6 +15,10 @@ Operation manual for **writing tests that catch real production bugs** — not c
 > **One target per invocation.** Drive the test plan to completion for one target — the failure-mode inventory, the explicit list of trivial tests dropped, the new tests as real code — then stop. Don't expand into adjacent code "while we're here"; expanding scope makes each test cheaper to write and harder to defend.
 >
 > **Skip-list is part of the deliverable.** When the user provides existing tests (or the test file already exists), the report explicitly lists tests that should be **removed** because they catch nothing real. "Add five and delete two" is a stronger deliverable than "add five." A coverage number that's propped up by useless tests is a worse signal than a smaller honest one.
+>
+> **Keep the prose tight; spend the length on the tests.** Every entry outside the code blocks is one line — one line per failure mode, one line per dropped test, one line per coverage-delta item. The runnable tests are the deliverable; the commentary is scaffolding.
+>
+> **Effort.** Run this at `high` or above; `xhigh` for money-adjacent or concurrency-heavy targets. At low or medium the failure-mode inventory shrinks toward the happy path and the six categories go unwalked.
 
 ## Scope
 

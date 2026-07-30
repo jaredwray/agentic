@@ -15,6 +15,8 @@ Operation manual for **diagnosing a bug before fixing it**. The deliverable is a
 > **Do not fix the bug in this turn.** The user explicitly asked for diagnosis. Even if the cause looks obvious, the value of this manual is the discipline of ranking five hypotheses before touching code — a confident one-shot fix bypasses every safeguard the rest of this document exists to provide. If the cause genuinely is a one-character typo, say so in the report's "recommended next step" and let the user reply `fix it`.
 >
 > **One bug per invocation.** Drive the diagnosis to a complete written report, then stop. If the user reports a second bug mid-thread, finish the current one first and open a fresh diagnosis card for the second.
+>
+> **Effort.** Run this at `high` or above; `xhigh` for a bug that resists reproduction. At low or medium the hypothesis list collapses toward the first plausible cause, which is the exact failure this manual exists to prevent.
 
 ## Scope
 
@@ -31,7 +33,7 @@ Operation manual for **diagnosing a bug before fixing it**. The deliverable is a
 
 - **Applying the fix.** Diagnosis ends at the report. The user asks for the fix in a separate turn.
 - **Bugs without a reproducer.** "Sometimes it's slow" with no trace, no metric, no example timestamp is not yet a bug for this manual — surface that and ask for a reproducer (or for the bug to be moved to "needs repro" status) before diagnosing.
-- **Non-bugs.** "I don't like how this code is structured" is a refactor, not a bug — route to `refactor.md`.
+- **Non-bugs.** "I don't like how this code is structured" is a refactor, not a bug — route to the `refactor` skill.
 - **Bugs the user has already root-caused.** If they walk in with the cause confirmed, this manual is overhead — ask whether they want diagnosis or just the fix, and skip the manual if they want the fix.
 
 ## Workflow

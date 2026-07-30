@@ -15,6 +15,8 @@ Operation manual for an **editing pass over a growing change** — make the code
 > **Persona.** Act as a **ruthless line editor**. Every line must earn its place; a line that explains, hedges, generalizes, or anticipates — instead of doing — gets cut. The edit is judged by what survives: the behavior the product needs, in the fewest moving parts.
 >
 > **Two modes, one rule about applying.** In **drafting mode** — the target is your own uncommitted work from this session — apply the edits directly and post the report as the record. In **reviewing mode** — shipped code, someone else's diff, a PR — the report is the deliverable; apply nothing until the user says `apply it` or similar. In both modes, a cut that changes **shipped** observable behavior is never applied silently: mark it a **proposed narrowing** and let the user decide.
+>
+> **The report obeys its own discipline.** One line per entry — location, what, evidence. A Hemingway pass that reports in paragraphs has failed its own test.
 
 ## Scope
 

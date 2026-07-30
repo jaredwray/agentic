@@ -1,6 +1,6 @@
 ---
 name: writing-great-skills
-description: How to author a great SKILL.md for this plugin — frontmatter fields, writing a description that triggers at the right time, the lean-body-plus-on-demand-reference structure, the model-invoked vs manual-only rule, and the checks CI enforces. Use when adding a new skill, editing an existing skill's frontmatter or structure, or reviewing a skill contribution.
+description: How to author a great SKILL.md for this plugin — frontmatter fields, writing a description that triggers at the right time, the lean-body-plus-on-demand-reference structure, the model-invoked vs manual-only rule, the Claude 5 authoring rules (no self-verification nudges, explicit output length, constrained scope, full-coverage-then-filter for reviews, effort notes), and the checks CI enforces. Use when adding a new skill, editing an existing skill's frontmatter or structure, or reviewing a skill contribution.
 user-invocable: true
 ---
 
@@ -92,6 +92,50 @@ checked.
 
 **Discoverability.** Every category directory under `skills/` must be listed in
 `.claude-plugin/plugin.json`'s `skills` array, or its skills won't load. CI enforces this.
+
+## Writing for Claude 5
+
+Skills written for older models hand-hold, and that hand-holding now *costs* quality: a Claude 5
+model reads instructions literally, already self-corrects, and defaults to longer output than its
+predecessors. Per [Anthropic's Claude 5 prompting
+guides](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5),
+apply these when writing or revising a skill.
+
+- **No self-verification nudges.** Never write "double-check", "verify your answer", "re-read your
+  work before responding", or "make sure you actually looked". The model already catches and fixes
+  its own mistakes; the instruction only burns tokens and can make it second-guess a correct result.
+  *Verifying a claim about the code* — running the test, searching for the caller — is different and
+  stays: that is evidence, not self-review.
+- **State the output length.** Turning effort down does not shorten a response; only asking does.
+  Every skill that renders a report says how long it should be — "keep prose tight, a finding is a
+  sentence not a paragraph", "≤ 5 sentences", "one line per entry". A skill with an output format but
+  no length rule ships a bloated deliverable.
+- **Constrain the scope explicitly.** Claude 5 will expand a task on its own — adding steps, fixing
+  what it noticed on the way, generalizing the ask. Every skill states its bound ("one review per
+  invocation", "make only the change this item requires — no opportunistic refactors") and what
+  belongs to a *different* skill.
+- **Full coverage first, filter second — for anything review-shaped.** Telling a model to "only flag
+  the serious issues" or "be conservative" makes it report *less*, and real problems slip through.
+  Structure review, audit, and inventory workflows as two passes: sweep every category and record
+  every candidate without judging importance, then cut and rank in a separate step. Never fold the
+  filter into the sweep.
+- **Say exactly what you mean.** The model will not infer the broader intent behind a hint. Name the
+  file, the command, the format. Refer to another skill by its name in backticks (`code-review`) —
+  never as a bare filename like `code-review.md`, which reads as a real path the agent will try to
+  open and fail to find.
+- **Don't over-instruct.** Repeating a rule in the preamble, the workflow step, the output rules, and
+  an anti-pattern list does not reinforce it — it dilutes all four. State each rule once, in the place
+  the agent needs it. When a new rule earns its place, check whether it is already written somewhere
+  else in the same file.
+- **Note the effort level when the work needs depth.** Effort is the main
+  intelligence/speed/cost control, and at low or medium a model scopes strictly to what was asked —
+  which quietly guts a workflow built on breadth (five ranked hypotheses, a full call graph, a
+  21-agent pipeline). Skills like those carry a one-line `**Effort.**` note in the preamble saying
+  what they need and what goes shallow below it. Mechanical loops don't need the note.
+- **For UI work, require a concrete spec.** On an open-ended frontend brief a model settles into one
+  house style, and generic direction ("cleaner", "not that color") just swaps it for a different fixed
+  style. A skill that scaffolds UI asks for the real spec — the app's type scale, spacing, color
+  tokens, component precedents, and interaction states — and builds against that.
 
 ## Before you open the PR
 

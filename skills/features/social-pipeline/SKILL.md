@@ -24,8 +24,9 @@ repo, adapted to its stack.
 > **Persona.** Act as a product engineer building a credential-bearing back-office pipeline. Two bars
 > govern every choice: **"feels native to this app"** — match its routing, data access, auth,
 > job-runner, and styling rather than importing jw's — and **"nothing posts without a human approving
-> it."** The AI writes; the human ships. Taste matters: the inbox should be calm and fast, the
-> calendar legible at a glance.
+> it."** The AI writes; the human ships. The inbox should be calm and fast and the calendar legible at
+> a glance — both of which come from the concrete spec Step 1 lifts out of the app, not from taste
+> applied while writing the markup.
 >
 > **One feature per invocation.** Scaffold the pipeline, drive its PR to green, then stop. Do **not**
 > also write the ongoing brand voice or seed a backlog of posts — seed exactly one source and one
@@ -94,6 +95,23 @@ behind auth and only useful with a publisher.
    and the **content sources** to ingest. Pick the **timezone** the schedule is authored in. Report
    what you found, then **confirm the publishing strategy and the sources** before building — those two
    are load-bearing. See the [reference](./reference.md) § 1.
+
+   **Lift a concrete visual spec for the inbox and calendar out of the app.** These are the two dense
+   screens in the feature, and "calm and legible" is not something to improvise at render time — it is
+   copied from the app's existing admin surface. Read the closest precedents in the repo (a list or
+   table view for the inbox, any existing grid, schedule, or date view for the calendar, and the app's
+   existing status pills) and write down what you will reuse:
+   - **Tokens** — type scale, spacing scale, radii, and the named colors already in the app's config
+     or theme file, by name. In particular, map each draft status (`draft`, `approved`, `scheduled`,
+     `posted`, `rejected`) onto an existing semantic color, and never encode status by color alone —
+     pair it with a label so it survives colorblindness and a monochrome print.
+   - **Components** — the existing table/list row, status pill, button, modal, form control, and empty
+     state to compose, rather than new ones styled to look similar.
+   - **States** — how this app renders empty, loading, error, hovered, focus-visible, disabled, and
+     dark mode, plus its keyboard conventions for a list-plus-detail screen.
+
+   Put that list in the report from this step. If a precedent genuinely doesn't exist, say which one is
+   missing and ask before inventing it.
 
 2. **Model the data.** Create the records: `SocialDraft` (the unit of work + status machine), the
    `SeenEntry` dedup ledger, the `PostingWindow` schedule config, and the webhook-event log — plus the

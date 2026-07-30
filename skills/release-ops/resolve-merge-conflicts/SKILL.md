@@ -20,6 +20,12 @@ side's change and shipping a regression that compiles.
 >
 > **Verify before continuing.** A resolution that isn't built and tested is a guess. Don't
 > `git rebase --continue` on hope.
+>
+> **Resolve the conflicts and nothing else.** The diff this produces contains resolutions only — no
+> opportunistic cleanup, no drive-by fix to code you read on the way, no reformatting of a conflicted
+> file. Anything you notice worth changing gets reported after the merge completes, as a separate
+> piece of work. A conflict resolution mixed with unrelated edits is unreviewable, because nobody can
+> tell which side's behavior you meant to keep.
 
 ## Scope
 

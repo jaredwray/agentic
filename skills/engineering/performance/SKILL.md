@@ -15,6 +15,10 @@ Operation manual for **diagnosing a performance problem before optimizing it**. 
 > **Don't optimize in this turn.** Even if the cause looks obvious. The diagnosis is the deliverable; the optimization is a separate request the user makes after seeing the diagnosis. If the cause genuinely is one line and the win is trivial, surface it in the "recommended win" section with the patch sketched, and let the user reply `apply it`.
 >
 > **One slow path per invocation.** Drive the diagnosis to a complete report — perf card, bottleneck class, complexity analysis, allocations, hot patterns, profile prediction, win list — then stop. If the user surfaces a second slow path mid-thread, finish the current diagnosis and open a fresh perf card for the second.
+>
+> **Keep the report tight.** Every section is lines, not paragraphs: a finding is one sentence, a win is one sentence plus its number. The value is in the locations and the numbers, not the prose around them.
+>
+> **Effort.** Run this at `high` or above; `xhigh` when the bottleneck class isn't obvious from the card. At low or medium the complexity and allocation passes get skimmed and the diagnosis degrades into the intuition-driven guess § 4 forbids.
 
 ## Scope
 
@@ -32,7 +36,7 @@ Operation manual for **diagnosing a performance problem before optimizing it**. 
 
 - **Applying the optimization.** Diagnosis ends at the report. The user asks for the fix in a separate turn.
 - **Slow paths without a measurement.** "It feels slow" is not a perf card. Ask for the measurement (request log timing, profile, benchmark, user-perceived metric with a number) before diagnosing. Without a measurement, the diagnosis has nothing to verify against.
-- **Architecture proposals.** "We should move to a different database" is a separate decision — route to `adr.md`. The perf diagnosis stays inside the existing system unless the user has explicitly opened the architecture question.
+- **Architecture proposals.** "We should move to a different database" is a separate decision — route to the `adr` skill. The perf diagnosis stays inside the existing system unless the user has explicitly opened the architecture question.
 - **Premature optimization.** If the code isn't actually slow against its budget, the procedure surfaces that and stops. Optimizing what's already within budget is how readability dies.
 
 ## Workflow
@@ -218,4 +222,4 @@ The recommended next move in the report is almost always **the cheapest win that
 - **The "optimize everything" report.** Five wins, all marked critical. Real performance work has a top win and a long tail. Rank them.
 - **The local-only measurement.** Reporting "p99 4.2s on my laptop." Local benchmarks lie at scale. State the environment and prefer production / staging measurements when available.
 - **The fix that wasn't measured.** Applying the cheapest win and not re-measuring. Without the post-fix measurement, the report's confidence in the analysis is decoupled from reality — and the team learns nothing about whether the diagnosis was correct.
-- **The architecture-by-stealth recommendation.** A "win" that is actually a multi-quarter rewrite of the system. If the recommendation is "rewrite this in Rust" or "move to a different database," that's an ADR, not a perf fix — route to `adr.md`.
+- **The architecture-by-stealth recommendation.** A "win" that is actually a multi-quarter rewrite of the system. If the recommendation is "rewrite this in Rust" or "move to a different database," that's an ADR, not a perf fix — route to the `adr` skill.
