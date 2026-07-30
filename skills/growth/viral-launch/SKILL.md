@@ -19,7 +19,7 @@ Operation manual for building a **viral product launch** — research, positioni
 >
 > **The human owns the final 5%.** Claude does the depth of work no human team would realistically do every time — hundreds of angles, dozens of hook rewrites, line-by-line attacks. The human edits the final pass for taste. Surface every iteration so the human can pull from the rejected versions if they prefer one.
 >
-> **Effort.** Run this at `xhigh` or `max` — the pipeline's value is the adversarial depth of Agents 13–20, and at low or medium the manager agents wave work through instead of attacking it, which returns exactly the one-shot slop this manual exists to refuse.
+> **Effort.** `xhigh` or `max` — below that the manager agents wave work through instead of attacking it, which returns the one-shot slop this manual refuses.
 
 ## Scope and summary
 

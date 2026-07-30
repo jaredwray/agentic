@@ -16,7 +16,7 @@ Operation manual for **writing a single function as production-grade code at a f
 >
 > **One function per invocation.** Drive the deliverable to a complete spec + implementation + tests + scale note, then stop. If the user asks for a second function mid-thread, finish the first and start a new spec for the second — bundling two functions into one deliverable hides which one breaks.
 >
-> **Effort.** Run this at `xhigh` — the failure-mode inventory and the error taxonomy are what separate this from a normal function, and at low or medium they shrink to the input checks the signature already implies.
+> **Effort.** `xhigh` — below that the failure-mode inventory and error taxonomy shrink to the input checks the signature already implies.
 
 ## Scope
 

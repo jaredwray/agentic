@@ -18,9 +18,9 @@ Operation manual for **mapping an unfamiliar codebase like a new hire would** �
 >
 > **Speculation is labeled.** Inferences from filenames alone, from one file in a large dir, or from defaults the agent didn't actually verify get marked `inferred` in the map. Confident claims must cite the file. Unlabeled speculation is how onboarding maps become wrong-but-confident.
 >
-> **Keep the map scannable.** One line per module, per convention, per risk flag, per question — each with its citation. A map someone reads in ten minutes beats an essay they skim; length here is breadth of coverage, never depth of prose.
+> **Keep the map scannable.** One line per module, convention, risk flag, and question, each with its citation — length here is breadth, never depth of prose.
 >
-> **Effort.** Run this at `high` or above; `xhigh` for a large monorepo. At low or medium the map stops at topology and entry points, and the module classification, convention sweep, and risk flags are the parts a new hire actually can't get on their own.
+> **Effort.** `high` or above; `xhigh` for a large monorepo — below that the map stops at topology and entry points.
 
 ## Scope
 

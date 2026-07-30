@@ -21,11 +21,9 @@ side's change and shipping a regression that compiles.
 > **Verify before continuing.** A resolution that isn't built and tested is a guess. Don't
 > `git rebase --continue` on hope.
 >
-> **Resolve the conflicts and nothing else.** The diff this produces contains resolutions only — no
-> opportunistic cleanup, no drive-by fix to code you read on the way, no reformatting of a conflicted
-> file. Anything you notice worth changing gets reported after the merge completes, as a separate
-> piece of work. A conflict resolution mixed with unrelated edits is unreviewable, because nobody can
-> tell which side's behavior you meant to keep.
+> **Resolve the conflicts and nothing else.** No opportunistic cleanup, no drive-by fix to code you
+> read on the way. A resolution mixed with unrelated edits is unreviewable — nobody can tell which
+> side's behavior you meant to keep. Report anything else you notice after the merge completes.
 
 ## Scope
 
@@ -80,10 +78,7 @@ resolving a genuine product contradiction — surface that to the user rather th
 
 ## Anti-patterns
 
-- **Blind `-X theirs` / `accept incoming`** to make the markers disappear — silently drops the other
-  side's work.
 - **Resolving to compile, not to behave.** Picking whichever combination type-checks without checking
   it's correct.
 - **Hand-merging a lockfile.** Always regenerate.
 - **`git rebase --skip`** to escape a stubborn conflict — it deletes the commit's changes.
-- **Continuing without building.** The conflict you mis-resolved is cheapest to catch now, not in CI.

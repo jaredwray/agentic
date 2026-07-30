@@ -16,9 +16,9 @@ Operation manual for a **surgical refactor of code that's already deployed**. Th
 >
 > **Don't refactor for taste.** Cleanliness is not a justification when the risk is non-zero. If the proposed refactor's only motivation is style and the call graph is wide, the verdict can be **don't ship** — and that's a valid answer. A senior engineer's job sometimes is to talk the team out of the refactor.
 >
-> **Keep the proposal tight.** Tables and one-line entries, not paragraphs: one line per callsite, one line per risk, one sentence per rejected alternative. The diff and the risk table carry the argument — prose around them does not.
+> **Keep the proposal tight.** One line per callsite, per risk, per rejected alternative — the diff and the risk table carry the argument.
 >
-> **Effort.** Run this at `xhigh` — the call-graph and side-effect passes are the whole deliverable, and at low or medium they return the callsites that a plain text search surfaces and stop, which is how a refactor lands with an unupdated caller.
+> **Effort.** `xhigh` — below that the call-graph pass returns what a plain text search surfaces and stops, which is how a refactor lands with an unupdated caller.
 
 ## Scope
 

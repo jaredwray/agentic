@@ -14,7 +14,7 @@ Operation manual for a **staff-engineer-grade code review** of pending changes �
 >
 > **One review per invocation.** Drive the review to a complete written verdict (`approve` / `request changes` / `block`), then stop. Resume only when the user says `re-review`, `next PR`, or similar. Do not fix what you find, and keep the **findings** scoped to this diff — a defect that predates it and that the diff doesn't touch is out of scope, however tempting. This bounds what you report, never what you read: Step 2 requires reading untouched context and every callsite, because that is where the diff's own bugs surface.
 >
-> **Effort.** Run this at `high` or above; `xhigh` for a large or security-sensitive diff. At low or medium the sweep scopes to the obvious lines and the later categories go shallow.
+> **Effort.** `high` or above; `xhigh` for a large or security-sensitive diff — below that the sweep stops at the obvious lines.
 
 ## Scope
 
@@ -122,14 +122,3 @@ When the review target was a PR and the user agrees to post:
 - `event`: `REQUEST_CHANGES` if any 🛑 or ⚠️, else `COMMENT`. Do not use `APPROVE` from this operation — the agent does not approve PRs.
 - `body`: the rendered review from [§ 1](#1-review-output-format), unchanged. Do not paraphrase it for GitHub.
 - Optional: file-anchored review comments for each finding (one comment per `path:line`), using `mcp__github__add_comment_to_pending_review`. Only do this if the user asks — for most reviews the single review body is enough and avoids notification spam.
-
-## 3. Anti-patterns the reviewer must avoid
-
-These are the failure modes of bad senior reviews. Catch yourself in them and rewrite.
-
-- **The drive-by nit pile.** Twelve formatting complaints, zero findings about correctness. If a formatter would catch it, it is not a finding.
-- **The architecture lecture.** A 400-word essay about how the module *should* have been designed, attached to a 20-line bug fix. Stay scoped to the diff.
-- **The "this is fine" rubber stamp.** Approving without naming what was checked. If the category sweep is empty, the review wasn't done.
-- **The hedged blocker.** Marking something 🛑 and then writing "but maybe this is fine, your call." A blocker is a blocker. If you'd let it merge, it isn't one.
-- **The unfalsifiable finding.** "This feels brittle." Name the input that breaks it, or drop the finding.
-- **Confusing taste for defect.** "I would have used a `Map` here." Not a finding unless the current choice has a concrete failure mode. Taste disagreements belong in design docs, not PR reviews.

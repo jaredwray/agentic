@@ -57,6 +57,8 @@ Rules for the rendered deliverable:
 - **Edge-case tests come from ≥ 4 categories.** Five tests all in the "boundary values" category is one category, not five edge cases.
 - **The code paste compiles / runs as-is.** No "you'll need to also define `User` somewhere" — define it, or import it from a clearly-named real module path.
 - **The performance section names specific numbers.** "It's fast" is not a performance note. If precise numbers aren't available, give the assumed envelope and label it as an estimate.
+- **The function knows nothing about HTTP.** It returns domain results and raises domain errors; translating those to 4xx / 5xx belongs at the API boundary. A function that reaches for status codes is untestable outside an HTTP harness and unreusable from a worker, job, or CLI.
+- **Tests assert on outcomes, not on which methods were called.** `mock.assert_called_with(...)` tests the mock; assert the value the function produced or the state it left behind.
 
 ## 2. Type discipline
 
@@ -141,16 +143,3 @@ The section is short (5–10 lines) and concrete. Vague answers are worse than n
 - **Latency budget** — observed or estimated. "Median ~3ms with a warm pool; p99 ~80ms dominated by the auth-service call. p99 will degrade to ~300ms if the auth cache misses."
 - **First bottleneck at 10x** — name the specific resource. "First bottleneck at 10x throughput: the per-call DB transaction holds a row lock on `accounts` for ~50ms; under 10x concurrent calls on hot accounts (~5% of traffic), expect lock-wait queueing."
 - **Back-pressure** — explicit shedding behavior. "On `DependencyError` from the payout rail, the function returns immediately rather than retrying inline; retries happen out-of-band via the `payouts.pending` queue with exponential backoff."
-
-## 7. Anti-patterns the function author must avoid
-
-- **The "happy path with a TODO for errors" implementation.** Throwing a generic `Exception('not yet handled')` for any case the author didn't think through. This manual exists to refuse that move.
-- **The `try / except Exception: pass` swallow.** Silent failures are how money disappears. Catch only what you can name and handle.
-- **The float for money.** `0.1 + 0.2 != 0.3` in IEEE 754. There is no clever rounding that saves a float-based ledger. Use Decimal / BigDecimal / integer minor units. Period.
-- **The unstructured log line.** `log.info(f'processed {x} for {y}')` is a string that future operators cannot query. Use structured fields.
-- **The secret in the log line.** Even at DEBUG. Even "just temporarily." The log goes somewhere; somewhere keeps it for 90 days; someone exfiltrates the log archive in 2027. Don't.
-- **The generic `ValueError` for every input problem.** Callers cannot pattern-match on a string message. Define specific error types from the start.
-- **The test that asserts the mock was called.** `mock.assert_called_with(...)` is a test of the mock, not the code. Assert on the outcome the function produces, not on which methods it called along the way (with rare exceptions for boundary contracts).
-- **The "we'll add idempotency later" state-changing function.** "Later" is after the first double-payment incident. Build it in from the first commit, or design the function not to change state.
-- **The performance section that says "should be fast."** Without numbers, it is taste. With numbers, it is a budget the future engineer can verify.
-- **The function that knows about HTTP.** A business function returns domain results and raises domain errors. The translation to HTTP 4xx / 5xx happens at the API boundary, in code dedicated to that boundary. Mixing the two makes the function untestable outside an HTTP harness and unreusable in the worker / job / CLI surface.

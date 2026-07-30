@@ -18,7 +18,7 @@ Operation manual for **producing an Architecture Decision Record (ADR) to choose
 >
 > **Don't save the file without permission.** The ADR is rendered in chat. Writing to `docs/adr/NNNN-<slug>.md` happens only on `save it`, `commit it`, `write it`, or similar.
 >
-> **Effort.** Run this at `xhigh` for a one-way door, `high` for a two-way door. At low or medium the per-option analysis flattens into the marketing summary — the 10x stress test and the hidden-cost inventory are the two sections that need the depth.
+> **Effort.** `xhigh` for a one-way door, `high` for a two-way door — below that the per-option analysis flattens into the marketing summary.
 
 ## Scope
 

@@ -96,22 +96,14 @@ behind auth and only useful with a publisher.
    what you found, then **confirm the publishing strategy and the sources** before building — those two
    are load-bearing. See the [reference](./reference.md) § 1.
 
-   **Lift a concrete visual spec for the inbox and calendar out of the app.** These are the two dense
-   screens in the feature, and "calm and legible" is not something to improvise at render time — it is
-   copied from the app's existing admin surface. Read the closest precedents in the repo (a list or
-   table view for the inbox, any existing grid, schedule, or date view for the calendar, and the app's
-   existing status pills) and write down what you will reuse:
-   - **Tokens** — type scale, spacing scale, radii, and the named colors already in the app's config
-     or theme file, by name. In particular, map each draft status (`draft`, `approved`, `scheduled`,
-     `posted`, `rejected`) onto an existing semantic color, and never encode status by color alone —
-     pair it with a label so it survives colorblindness and a monochrome print.
-   - **Components** — the existing table/list row, status pill, button, modal, form control, and empty
-     state to compose, rather than new ones styled to look similar.
-   - **States** — how this app renders empty, loading, error, hovered, focus-visible, disabled, and
-     dark mode, plus its keyboard conventions for a list-plus-detail screen.
-
-   Put that list in the report from this step. If a precedent genuinely doesn't exist, say which one is
-   missing and ask before inventing it.
+   **Lift the visual spec for the inbox and calendar, don't design one.** These are the two dense
+   screens; "calm and legible" is copied from the app's admin surface, not improvised at render time.
+   Read the closest precedents (a list/table view, any grid or date view, the existing status pills) and
+   record what you'll reuse, by name: tokens (type scale, spacing, radii, colors), components (row,
+   pill, button, modal, form control, empty state), and how it renders empty, loading, error, hover,
+   focus-visible, disabled, and dark mode. Map each status (`draft`, `approved`, `scheduled`, `posted`,
+   `rejected`) onto an existing semantic color **plus a label** — never color alone. Report that list;
+   if a precedent doesn't exist, say so and ask.
 
 2. **Model the data.** Create the records: `SocialDraft` (the unit of work + status machine), the
    `SeenEntry` dedup ledger, the `PostingWindow` schedule config, and the webhook-event log — plus the
