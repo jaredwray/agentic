@@ -85,6 +85,8 @@ Rules for the rendered proposal:
 - **Every risk has a blast radius and a detection signal.** A risk without those two is unfalsifiable and gets dropped.
 - **No silent categories in production risk.** If a category produced zero risks, say so and say why in one line. A senior reviewer does not get to be silent on a category they checked.
 - **The verdict matches the risks.** Restate verdict-vs-risks consistency before finalizing — if the analysis surfaces global blast radius with no detection, the verdict cannot be 🟢.
+- **Untested code gets characterization tests first.** A refactor lands safely because tests catch what the engineer missed; with no tests the safety story is "the engineer didn't miss anything." That's two PRs — tests, then refactor.
+- **A performance justification carries a measurement.** A benchmark, a profile, or a prod metric with the numbers in the proposal. Otherwise drop the performance claim and justify the refactor some other way.
 
 ## 2. Migration patterns
 
@@ -155,16 +157,3 @@ For changes to a public API with **external consumers you cannot enumerate**.
 **Verify between steps:** telemetry showing decayed usage, or — absent telemetry — the calendar window agreed at announcement.
 
 **Roll back:** until step 4, the old shape still works. After step 4, consumers must migrate or pin the old version.
-
-## 3. Anti-patterns the refactorer must avoid
-
-These are the failure modes of bad refactor proposals. Catch yourself and rewrite.
-
-- **The "while I'm in here" refactor.** Bundling a rename, a perf fix, and three style cleanups into one diff. Each survives or dies on its own merits — bundling means a real bug in one piece blocks the whole change, and a rollback rolls back the unrelated fixes too. Pull them apart, propose them separately.
-- **The "trust me, it's equivalent" claim.** Refactors that "preserve behavior" almost always have one or two cases where they don't — rounding, null handling, ordering, exception types, log lines, short-circuit evaluation, default values. **"Equivalent" is a hypothesis, not a fact.** Find the corner cases. Name them. Decide if they matter.
-- **The unbounded call graph that ships anyway.** "It's a public API but I think most callers do X." A refactor that depends on a guess about callers is a refactor that ships with an unknown blast radius. Either bound the call graph (deprecate + observe) or design the change so it doesn't matter what callers do.
-- **The migration plan that's actually land-and-pray.** "Step 1: deploy. Step 2: monitor." Monitoring is not a rollback. If the change cannot be reverted in one step from a fresh deploy of the previous version, the migration plan is incomplete — name the rollback explicitly, or admit the step is one-way and add dwell time before it.
-- **The performance refactor with no measurement.** "This is faster" without a benchmark, a profile, or a prod metric is taste, not fact. Either measure or drop the performance justification — and if you measure, include the numbers in the proposal.
-- **Refactoring code that has no tests.** A refactor lands safely because the tests catch what the engineer missed. No tests → the safety story is "the engineer didn't miss anything," which is the same story that broke production last time. **Add characterization tests first, refactor second.** That is two PRs, not one.
-- **The verdict that contradicts the analysis.** Surfacing five `Global` blast-radius risks and concluding 🟢 Ship it. If the risks justify red, write red. If you wrote green, the analysis above must support it — go back and reconcile.
-- **The proposal that quietly becomes an application.** The user asked for a proposal. Stop at the proposal. Applying the refactor is a separate user instruction, not a default next step.

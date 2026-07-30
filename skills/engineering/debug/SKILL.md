@@ -15,6 +15,8 @@ Operation manual for **diagnosing a bug before fixing it**. The deliverable is a
 > **Do not fix the bug in this turn.** The user explicitly asked for diagnosis. Even if the cause looks obvious, the value of this manual is the discipline of ranking five hypotheses before touching code — a confident one-shot fix bypasses every safeguard the rest of this document exists to provide. If the cause genuinely is a one-character typo, say so in the report's "recommended next step" and let the user reply `fix it`.
 >
 > **One bug per invocation.** Drive the diagnosis to a complete written report, then stop. If the user reports a second bug mid-thread, finish the current one first and open a fresh diagnosis card for the second.
+>
+> **Effort.** `high` or above; `xhigh` for a bug that resists reproduction — below that the hypothesis list collapses to the first plausible cause.
 
 ## Scope
 
@@ -31,7 +33,7 @@ Operation manual for **diagnosing a bug before fixing it**. The deliverable is a
 
 - **Applying the fix.** Diagnosis ends at the report. The user asks for the fix in a separate turn.
 - **Bugs without a reproducer.** "Sometimes it's slow" with no trace, no metric, no example timestamp is not yet a bug for this manual — surface that and ask for a reproducer (or for the bug to be moved to "needs repro" status) before diagnosing.
-- **Non-bugs.** "I don't like how this code is structured" is a refactor, not a bug — route to `refactor.md`.
+- **Non-bugs.** "I don't like how this code is structured" is a refactor, not a bug — route to the `refactor` skill.
 - **Bugs the user has already root-caused.** If they walk in with the cause confirmed, this manual is overhead — ask whether they want diagnosis or just the fix, and skip the manual if they want the fix.
 
 ## Workflow
@@ -183,6 +185,8 @@ Rules for the rendered report:
 - **Every instrumentation step has `path:line`.** "Add some logging" is not an instrumentation plan.
 - **No hedging.** Forbidden: *might be related*, *possibly*, *could potentially*, *I'm not sure if this matters but*. Either it's a hypothesis with evidence, or it's not in the list.
 - **Recommend exactly one next step.** A diagnosis that ends "you could try X or Y or Z" tells the user the detective has not actually narrowed the field. Pick one.
+- **A failure to reproduce is data, not a conclusion.** Never close a bug because you couldn't trigger it — propose how to capture evidence in the environment where it does reproduce.
+- **Read past the leaf frame.** The stack trace names the line that crashed, not the line that's wrong; the wrong one is usually a frame or two up.
 
 ## 2. Hypothesis cheat sheet
 
@@ -199,17 +203,3 @@ Walk every category in Step 3 — even briefly — to break the "I already know 
 - **Test / mock divergence.** "Works on my machine" because the mock doesn't behave like the real service; test pollution between cases; order-dependent tests passing in CI but failing in a specific local order; the test is verifying the mock, not the code under test.
 - **Observability gap.** The bug is not in the code — the metric, log, or dashboard is wrong. "The graph shows zero" can mean "there are zero events", "the metric stopped being emitted", or "the dashboard query is wrong". **Confirm the signal, not the graph**, before chasing the underlying cause.
 - **External / platform.** Library bug, runtime bug, compiler bug, kernel quirk. Rare. Drop unless the symptoms genuinely match this category — these hypotheses live near the bottom of the rank by default, and they only move up after every other category has been ruled out by evidence.
-
-## 3. Anti-patterns the diagnostician must avoid
-
-These are the failure modes of bad debugging. Catch yourself and rewrite.
-
-- **The premature fix.** Reading the bug card, spotting an obvious-looking line, and proposing a patch in the same response. The whole point of this manual is the discipline of listing five hypotheses **before** any patch. Even when the obvious fix is right, the missed hypotheses are bugs waiting to surface — diagnose first, fix second.
-- **The single-hypothesis report.** "I think it's a race condition. Add a lock." That's a guess, not a diagnosis. Where are the other four hypotheses? Where is the evidence that rules them out?
-- **The unfalsifiable hypothesis.** "It could be memory pressure." How would you know it isn't? If there's no observation that would rule it out, it doesn't belong in the diagnosis — it's vibes wearing a lab coat.
-- **The "add some logging" instrumentation plan.** Logging where, of what, read how, with what value meaning what? An instrumentation plan without `path:line` and a specific log statement is not a plan.
-- **The hypothesis list that mirrors the categories list.** Five hypotheses, one from each category, none of which actually match the symptoms. That's category theater, not detection. Drop hypotheses that don't predict the observed symptom — even at the cost of going below five.
-- **The "it works on my machine" closure.** Marking the bug solved because the diagnostician couldn't reproduce it. A failure to reproduce is data, not a conclusion — keep the diagnosis open and propose a way to capture evidence in the environment where the bug does reproduce.
-- **Confusing the metric with the bug.** Spending an hour on a hypothesis about why `events_processed_total` dropped, when the actual problem is that the metric stopped being emitted. Confirm the signal is real before diagnosing why it changed.
-- **The recommendation that says "try one of these five things."** A diagnosis narrows the field to one next experiment. Five suggestions means the field was not narrowed — the user can pick five things on their own.
-- **Reading the stack trace and stopping.** The stack trace points at the line that crashed, not the line that's wrong. The wrong line is often one or two frames up — read the callers, not just the leaf.

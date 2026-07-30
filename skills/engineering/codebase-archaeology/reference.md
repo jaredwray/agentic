@@ -77,7 +77,7 @@ Rules for the rendered map:
 - **No marketing.** Drop "modern", "clean", "well-architected", "elegant." Describe what it is, not how it makes you feel.
 - **No proposals.** "This should be refactored" is not a map finding — it's a follow-up ticket the user can open separately.
 - **Safe-first-change candidates are 2–3, not 10.** A list of ten candidates is the same as no recommendation.
-- **Risk flags carry severity.** A flat "be careful" list is noise; severity tells the new hire where to actually slow down.
+- **Risk flags carry severity, calibrated.** A flat "be careful" list is noise, and so is twenty 🔴 flags — a uniformly red list tells the new hire nothing about where to actually slow down.
 
 ## 2. Where to look first
 
@@ -137,15 +137,3 @@ Every onboarding 1:1 should produce questions from these categories. The map's "
 - **About tooling** — canonical local-dev command (the README is often wrong), how to run tests in the realistic way the team runs them, how to debug a failing CI job locally.
 - **About ownership** — who's the secondary reviewer for the single-author modules, who knows the deploy pipeline, who knows the auth system.
 - **About culture** — when is it OK to push back on a review, what's the etiquette around `WIP` PRs, how do disagreements about design get resolved.
-
-## 6. Anti-patterns the archaeologist must avoid
-
-- **The framework-pitch map.** Describing what the framework's docs claim instead of what the codebase actually does. "This is a Next.js app, so it uses the app router" — verify against `app/` vs. `pages/`. Read the artifacts.
-- **The unlabeled inference.** Calling a directory "the worker module" because the name says so, without opening a file. Either read a file and cite it, or label the claim `inferred`.
-- **The map without evidence columns.** A module classification table without an evidence column is opinion. The whole point of the dig is the evidence.
-- **The "everything is risky" risk list.** Twenty 🔴 flags is the same as zero — the new hire can't act on a uniform red list. Calibrate severity.
-- **The "fix what you find" instinct.** Surfacing a bug and quietly proposing the fix in the same response. The map is read-only — fixes are a separate ticket. Surface, don't fix.
-- **The first-PR list with 10 items.** One safe first PR, with 2 alternatives, beats ten candidates the user has to choose between. The map is the new hire's confidence, not their backlog.
-- **The "I think the deploy is" speculation.** If the deploy target isn't evident from a file in the repo, ask the user — don't guess `terraform` because the team feels like an AWS shop.
-- **The questions list that the code itself answers.** "What language is this in?" is not a team question — it's a `package.json` question. Save team time for questions the artifacts cannot answer.
-- **The map that's longer than the user will read.** A new hire wants orientation, not an encyclopedia. If the map is more than 2–3 screens, the breadth is right; if it's 10 screens, depth crept in and the map is now the user's second job.

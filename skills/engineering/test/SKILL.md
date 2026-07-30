@@ -15,6 +15,10 @@ Operation manual for **writing tests that catch real production bugs** — not c
 > **One target per invocation.** Drive the test plan to completion for one target — the failure-mode inventory, the explicit list of trivial tests dropped, the new tests as real code — then stop. Don't expand into adjacent code "while we're here"; expanding scope makes each test cheaper to write and harder to defend.
 >
 > **Skip-list is part of the deliverable.** When the user provides existing tests (or the test file already exists), the report explicitly lists tests that should be **removed** because they catch nothing real. "Add five and delete two" is a stronger deliverable than "add five." A coverage number that's propped up by useless tests is a worse signal than a smaller honest one.
+>
+> **Keep the prose tight; spend the length on the tests.** One line per failure mode, per dropped test, per coverage-delta item.
+>
+> **Effort.** `high` or above; `xhigh` for money-adjacent or concurrency-heavy targets — below that the inventory shrinks toward the happy path.
 
 ## Scope
 
@@ -180,16 +184,12 @@ Always drop these. They produce coverage numbers, not safety.
 - **Per-method getter / setter tests.** `expect(obj.getName()).toBe(name)` when the getter is one line that returns the field. Nothing to break.
 - **Coverage-hitting tests with no assertion.** `test('it runs', () => { foo(); });`. Coverage tools count this as covered; reality does not.
 
+Also drop, and say why:
+
+- **The mock that lies** — a hardcoded response the real dependency would never give (sync when the real one is async, never errors when the real one errors weekly). Write an integration test instead.
+- **The shared mutable fixture** — Test A mutates it, Test B passes or fails on ordering. Fresh fixture per test, or freeze it.
+- **The test that documents a bug** — `// FIXME: passes because of #42`. It locks the wrong behavior in. Assert the correct behavior and let it fail, or delete it.
+- **The skipped test** — `xit`, `test.skip`, `@Disabled`. Skipped tests rot and read as coverage. Fix now or delete.
+- **The five tests that are one edge** — `handles_null`, `handles_undefined`, `handles_empty_string`… One test of the empty-input contract covers them.
+
 The skip-list is the part this manual is most insistent on. If the test catches nothing real, dropping it is not negligence — it is honesty about what the suite actually protects.
-
-## 4. Anti-patterns the test author must avoid
-
-- **The coverage-percentage chase.** Writing tests until the percentage hits N, regardless of whether the new tests catch anything. Coverage is a leading indicator at best and a lie at worst. The procedure rejects coverage targets as the goal.
-- **The "test everything" reflex.** A test per public method, regardless of whether the method has failure modes worth testing. Modules with simple getters and one-line wrappers don't need a test per method — they need a test for the things that **can break**.
-- **The mock that lies.** A mock with a hardcoded response that doesn't match the real dependency's behavior (returns synchronously when the real thing is async; never errors when the real thing errors weekly). The test passes; production breaks anyway. If the mock can't match the real behavior at the boundaries that matter, write an integration test instead.
-- **The shared mutable fixture.** Test A mutates the fixture; Test B inherits the mutation and passes-or-fails based on order. Tests must be independent. Use a fresh fixture per test, or freeze it.
-- **The test that "documents" the bug.** `// FIXME: this test passes because of bug #42; should actually assert X`. A test that asserts the wrong thing is worse than no test — it locks the wrong behavior in place. Either assert the correct behavior (and watch it fail until the bug is fixed) or delete the test.
-- **The skipped test that never gets unskipped.** `xit(...)`, `test.skip(...)`, `// @Disabled`. Skipped tests rot. Either fix them now or delete them; leaving them in the file means future readers think they exist and pass when they neither exist nor pass.
-- **The "five edge cases" that are all the same edge.** `test_handles_null`, `test_handles_undefined`, `test_handles_empty_string`, `test_handles_empty_array`, `test_handles_zero`. One test of the empty-input contract suffices; the rest are decoration.
-- **The performance test with no contract.** `expect(duration).toBeLessThan(1000)`. Less than one second on whose machine, at what load, with what data? Performance tests state the input size and the budget explicitly.
-- **The regression test with no incident link.** A regression test without a comment naming the bug it regresses against. Future readers can't tell whether to keep it. Add the link or the incident number; this test exists to remember a story.

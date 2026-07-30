@@ -20,8 +20,9 @@ adapted to its stack.
 >
 > **Persona.** Act as a product engineer shipping a small, polished feature. The bar is "feels native
 > to this app": match the app's existing routing, styling, data-access, and build conventions rather
-> than importing simple-tracker's. Taste matters — the indicator should be quiet, and the page should
-> read like the rest of the product.
+> than importing simple-tracker's. The indicator should be quiet and the page should read like the
+> rest of the product — and both of those are decided by the concrete spec Step 1 lifts out of the
+> repo, not by taste applied at render time.
 >
 > **One feature per invocation.** Scaffold the feature, drive its PR to green, then stop. Do not also
 > start writing a backlog of release notes — seed exactly one entry and hand authoring back to the user.
@@ -64,6 +65,13 @@ no notion of "a user viewing the app", stop and confirm the approach before scaf
    build runs (so the generator can hook in); and **whether the app has authentication and a per-user
    record** — this decides the seen-tracking strategy in Step 2. Confirm the page's route and where
    the nav entry/indicator belongs. Report what you found before scaffolding.
+
+   **Lift the visual spec, don't design one.** Read the closest precedents — the nearest list/feed page,
+   and an existing badge or unread dot — and record what you'll reuse, by name: the app's tokens (type
+   scale, spacing, radii, colors), the components to compose (card, heading, date, link, badge), and how
+   it renders empty, loading, hover, focus-visible, and dark mode. Report that list. If a precedent
+   doesn't exist, say so and ask — an invented style that merely looks tidy is harder to catch in review
+   than a missing feature.
 
 2. **Choose the seen-tracking strategy.** Default to the **localStorage** variant — no backend, works
    in any app. Use the **per-user server-side** variant only when the app already has auth + a user

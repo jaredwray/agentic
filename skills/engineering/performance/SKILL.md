@@ -15,6 +15,10 @@ Operation manual for **diagnosing a performance problem before optimizing it**. 
 > **Don't optimize in this turn.** Even if the cause looks obvious. The diagnosis is the deliverable; the optimization is a separate request the user makes after seeing the diagnosis. If the cause genuinely is one line and the win is trivial, surface it in the "recommended win" section with the patch sketched, and let the user reply `apply it`.
 >
 > **One slow path per invocation.** Drive the diagnosis to a complete report — perf card, bottleneck class, complexity analysis, allocations, hot patterns, profile prediction, win list — then stop. If the user surfaces a second slow path mid-thread, finish the current diagnosis and open a fresh perf card for the second.
+>
+> **Keep the report tight.** Lines, not paragraphs — a finding is one sentence, a win is one sentence plus its number.
+>
+> **Effort.** `high` or above; `xhigh` when the bottleneck class isn't obvious from the card — below that the complexity and allocation passes get skimmed.
 
 ## Scope
 
@@ -32,7 +36,7 @@ Operation manual for **diagnosing a performance problem before optimizing it**. 
 
 - **Applying the optimization.** Diagnosis ends at the report. The user asks for the fix in a separate turn.
 - **Slow paths without a measurement.** "It feels slow" is not a perf card. Ask for the measurement (request log timing, profile, benchmark, user-perceived metric with a number) before diagnosing. Without a measurement, the diagnosis has nothing to verify against.
-- **Architecture proposals.** "We should move to a different database" is a separate decision — route to `adr.md`. The perf diagnosis stays inside the existing system unless the user has explicitly opened the architecture question.
+- **Architecture proposals.** "We should move to a different database" is a separate decision — route to the `adr` skill. The perf diagnosis stays inside the existing system unless the user has explicitly opened the architecture question.
 - **Premature optimization.** If the code isn't actually slow against its budget, the procedure surfaces that and stops. Optimizing what's already within budget is how readability dies.
 
 ## Workflow
@@ -181,6 +185,7 @@ Rules for the rendered diagnosis:
 - **Each win has effort and estimated speedup.** "Make it faster" is not a win. "Hoist regex out of loop, ~5 minutes, ~10% speedup on this path" is a win.
 - **The recommended next move is one move, not a menu.** Performance work is iterative — one move, re-measure, next move.
 - **No optimization is applied in this turn.** Even when the user asks "what should I do," the diagnosis ends at "here's the recommended move and what it costs."
+- **State the environment of every measurement.** Local benchmarks lie at scale; prefer production or staging numbers, and label a laptop number as one.
 
 ## 2. The bottleneck cheat sheet
 
@@ -207,15 +212,3 @@ Performance work has two failure modes: **fixing the wrong thing** (wasted effor
 The recommended next move in the report is almost always **the cheapest win that confirms the bottleneck class**. Exceptions:
 - When the cheapest win is risky (touches the auth path, money math, a concurrency primitive), prefer the second-cheapest or recommend a benchmark first.
 - When the biggest win is unambiguously the bottleneck (an obvious N+1, a missing index that `EXPLAIN ANALYZE` confirms), going straight to it is acceptable — but state that the bypass of the cheapest-first discipline is deliberate.
-
-## 4. Anti-patterns the performance detective must avoid
-
-- **The premature optimization.** Diagnosing a code path that is already within its budget. If the perf card's "current vs. target" is "ok vs. ok", the diagnosis is "no action needed" and the report stops there. Optimizing what doesn't need optimizing kills readability and wastes time.
-- **The intuition-driven fix.** Reading the code, declaring "this is obviously the bottleneck," and recommending a fix without measurement. **Intuition about performance is wrong more often than right.** The procedure exists to refuse this move.
-- **The hedge.** Naming three bottleneck classes "any of which could be the cause." That's a list, not a diagnosis. Either pick one with evidence, or name two with the experiment that distinguishes them — never three.
-- **The unfalsifiable profile prediction.** "The profile would show some hot functions." That's not a prediction; that's a tautology. A real prediction names the function or line.
-- **The win without a number.** "Cache this and it'll be faster." How much faster? Even a rough range (10x / 2x / 20% / barely) tells the user whether it's worth the effort.
-- **The "optimize everything" report.** Five wins, all marked critical. Real performance work has a top win and a long tail. Rank them.
-- **The local-only measurement.** Reporting "p99 4.2s on my laptop." Local benchmarks lie at scale. State the environment and prefer production / staging measurements when available.
-- **The fix that wasn't measured.** Applying the cheapest win and not re-measuring. Without the post-fix measurement, the report's confidence in the analysis is decoupled from reality — and the team learns nothing about whether the diagnosis was correct.
-- **The architecture-by-stealth recommendation.** A "win" that is actually a multi-quarter rewrite of the system. If the recommendation is "rewrite this in Rust" or "move to a different database," that's an ADR, not a perf fix — route to `adr.md`.

@@ -293,22 +293,10 @@ Pleasantries, broad approvals, status-echo bot comments, and questions that don'
 
 ## 7. Anti-patterns the submitter must avoid
 
-These are the failure modes of bad PR submissions. Catch yourself in them and back up.
+The title, body, and review-reply rules are in §§ 1–3 and § 6 and in `pr-conventions`; these are the
+failure modes those rules don't already name.
 
-- **The "misc fixes" title.** `chore: updates`, `fix: bug fix`, `wip`. The title is the permanent log entry — make it specific. If you can't name the change in 70 characters, the PR is too big.
-- **The wrong type for the optics.** Using `chore:` for a user-visible change because the diff is small (so it looks "safe"), or `feat:` for an internal refactor because the work felt big. The type describes the **observable effect**, not the effort.
-- **The conjoined title.** `feat+fix:`, `feat & docs:`, `feat: add X and fix Y`. One PR, one type. If the PR really does two things, split it or pick the dominant type and call out the second in `Changes`.
-- **The past-tense subject.** `added retry support`, `fixed the parser`. Imperative mood: `add retry support`, `fix the parser`. Test: "If applied, this commit will ___".
-- **The diff-paraphrase body.** A `Summary` that says "This PR changes file A and file B." The reviewer has the diff. Explain the **intent**, not the inventory.
-- **The lying checkbox.** A checked `Verification` box for a test that wasn't run. The reviewer trusts the checkboxes; a lie there is worse than no checkbox.
-- **The pre-approval push.** Pushing the branch or opening the PR before the user has approved the title. Step 6 is a hard gate, not a courtesy.
 - **The dodge-the-review draft.** Opening as `draft: true` so required-reviewer policies don't apply. Drafts are for actual WIP, not for sneaking changes past a review gate.
-- **The unauthorized merge.** Calling `mcp__github__merge_pull_request` or `mcp__github__enable_pr_auto_merge` because CI is green. Merging is the maintainer's call. The agent stops at green.
-- **The reviewer-spam.** Requesting three reviewers without being asked. The agent does not pick reviewers.
-- **The red-PR victory lap.** Reporting "PR opened" as success while CI is still red. Step 8 is part of the workflow, not a nice-to-have. A red PR is an unfinished PR.
-- **The silent skip on a review comment.** A code-change comment with no reply — neither a fix-and-acknowledge nor a reasoned disagreement — looks like the comment was missed. Every non-self code-change comment gets one of the two responses in [§ 6](#6-handling-code-change-review-comments).
-- **The vague "fixed" acknowledgment.** Replying `"fixed"` or `"good catch"` without naming what changed and the SHA forces the reviewer to dig through the diff. State what was done and reference the commit.
-- **The capitulating "disagreement".** Pushing the change anyway after writing a disagreement reply, or writing a wishy-washy "I see your point, but…" and then doing it. Pick a side: either fix-and-acknowledge or reason-and-hold.
 - **The self-resolved pushback.** Resolving a review thread on a comment the agent disagreed with. The agent only resolves threads it actually fixed; reviewers and maintainers resolve disagreements they accept.
 - **The force-push that buries the review.** `git push --force` (or `--force-with-lease`) on top of fixes for review comments — the reviewer's inline anchors detach and the conversation loses its line context. Use force-push only when an explicit rebase is the change being made.
 - **The poll-when-you-could-subscribe.** Calling `pull_request_read` in a `sleep` loop waiting for new comments instead of subscribing and ending the turn. Step 9 is the contract: subscribe, end the turn, wake on event.

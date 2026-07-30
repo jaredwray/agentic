@@ -9,7 +9,7 @@ user-invocable: true
 
 Workflow for upgrading both **devDependencies** (with CI tooling) and **runtime dependencies**, one pull request at a time.
 
-> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow) Step 1. Only stop to ask the user when the document explicitly says to stop and report (e.g. uncommitted changes, Node version mismatch) or when a decision genuinely requires their input.
+> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow), which runs the `shipping-conventions` loop from its first step. Only stop to ask the user when that loop or this document says to stop and report (e.g. uncommitted changes, Node version mismatch) or when a decision genuinely requires their input.
 >
 > **One PR at a time.** Open a PR, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next dep PR`, or similar. Never open a second dep-management PR while one is already in flight.
 >
@@ -27,7 +27,7 @@ Determine the repo shape first:
 ## Environment
 
 - **`local`** — developer machine with a working `git` remote and Docker available. Sync `main` before each branch; start test services with `pnpm test:services:start`.
-- **`sandbox`** — anything else (CI, hosted agent session, no Docker). Resolve branch capability before starting, per `shipping-conventions` → Branch-constrained environments: one group per branch per PR is the only shape this workflow ships. If no PR can be opened at all, stop and report. If the environment pins you to a single designated branch, run the read-only audit first: with more than one group remaining, stop and ask for permission to push one `chore/<group-key>` branch per group before doing any work; with exactly one group remaining, ship it on the designated branch per `shipping-conventions`.
+- **`sandbox`** — anything else (CI, hosted agent session, no Docker). Resolve branch capability before starting, per `shipping-conventions` → Branch-constrained environments. One group per branch per PR is the only shape this workflow ships.
 
 ## Phases
 
@@ -149,22 +149,23 @@ Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) a
 
 ## Workflow
 
-Run these steps on the **first** invocation, and again on **every resume** when the user says `continue`, `next`, `next dep PR`, or similar.
+The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
+check for already-merged, stop and wait for `continue` — is `shipping-conventions`. Run it, with the
+**item taxonomy** and **branch naming** below (`chore/<group-key>`). Its first step syncs `main` and
+stops on a dirty working tree — do not skip ahead to the numbered steps here, which are additions
+*inside* that loop, not a replacement for it:
 
-1. **Sync `main`.** Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work. Then `git checkout main && git pull --ff-only origin main`.
+1. **Start test services if `local`.** Run `pnpm test:services:start` — idempotent, safe to run on every resume. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
 
-2. **Start test services if `local`.** Run `pnpm test:services:start` — idempotent, safe to run on every resume. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
-
-3. **Determine the active phase.**
+2. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time images are outdated, the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps or Docker runtime/service images are outdated, the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred") and stop.
 
-4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
+3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
 
-5. **Open the PR.**
-   - Branch from latest `main` (naming: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons).
-   - Apply the upgrade — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the exact value from the "Latest" column of `pnpm outdated`. **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, or `pnpm up --latest` — they can bypass `minimumReleaseAge` and pull versions younger than the gate allows.
+4. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
+   - Bump it — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the exact value from the "Latest" column of `pnpm outdated`. **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, or `pnpm up --latest` — they can bypass `minimumReleaseAge` and pull versions younger than the gate allows.
    - Verify the upgrade. Check the relevant `package.json` `scripts` (root for single-package, the affected workspace for monorepos):
      - If a `build` script exists, run `pnpm build && pnpm test` — building first catches type and bundler regressions that tests alone won't.
      - Otherwise run `pnpm test`.
@@ -177,26 +178,14 @@ Run these steps on the **first** invocation, and again on **every resume** when 
      6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
-6. **Drive CI to green.** After opening the PR, watch CI with `gh pr checks --watch`. If any check fails, diagnose, fix, and push until every check is green. **Do not stop on a red PR.** Only after the PR is green do you proceed.
-
-7. **Check for already-merged.** Before stopping, run `gh pr view <pr-number> --json state,mergedAt` (or equivalent). If the PR is already merged — auto-merge was enabled, or the user merged during CI — treat that as an implicit `next` and **return to Step 1 immediately**. Do not wait, do not prompt. The same applies if the head branch is already gone from the remote.
-
-8. **Stop and wait.** Report to the user with exactly these four things:
-   - PR URL and group name
-   - Confirmation that CI is green
-   - What's still left in the active phase, and whether the runtime phase has remaining work
-   - **A literal prompt to resume**, e.g.: *"Merge the PR when you're ready, then reply `continue` (or `next`) and I'll open the next dep-management PR."*
-
-   Then **wait**. Do not open another PR. The workflow resumes only when the user says `continue`, `next`, `next dep PR`, or similar — at which point, return to Step 1.
+   Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
+   Report what's left in the active phase and whether the runtime phase still has work.
 
 ## Pull request rules
 
-- **One PR per logical group — always.** Don't combine unrelated groups. Don't fragment a clear group across multiple PRs.
-- **Only one open dep-management PR at a time.** If a previous dep-management PR is still open, do not open another — drive its CI to green if needed, then stop and wait per Step 8.
-- Every PR uses a unique branch from latest `main`.
-- **Branch-constrained environments** — follow `shipping-conventions` → Branch-constrained environments. If no PR can be opened at all, stop and report. If a designated branch is mandated, never bundle groups into one PR on it — with more than one group remaining, stop and ask for permission to push one `chore/<group-key>` branch per group before doing any work; a single remaining group ships on the designated branch. Resolve this right after the read-only audit, never at PR time.
-- **You must respond to every comment that is not you on what you did.** Reply to each PR comment, review, and review-thread comment authored by someone other than yourself — bots included (CodeQL, Codecov, Gemini, etc.). Reply inline on review-thread comments; for top-level reviews and PR-level bot comments, leave a top-level PR comment. State concretely what was done (or why no action is needed) and reference the commit SHA when applicable. Skip only comments you authored.
-  - **Exception — don't engage in pleasantry loops.** Do not reply to comments (especially from bots) that are pure pleasantries (e.g. "You're welcome", "Glad I could help", "Good luck with the merge", "Thanks for the PR") that introduce no new question, finding, or action item. This applies both to initial acknowledgements *and* to follow-ups to substantive discussions. Replying to non-actionable acknowledgements just keeps the loop going. The rule above covers comments about *what you did*; a thank-you is not such a comment.
+Loop invariants (one group per PR, one open PR at a time, branch from latest `main`,
+branch-constrained environments) are `shipping-conventions`. Review replies and the pleasantry-loop
+exception are `pr-conventions`. What's specific to this workflow:
 
 ### Version targeting
 
@@ -206,113 +195,10 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 ### Title prefixes
 
-| Scope                                       | Prefix                  |
-| ------------------------------------------- | ----------------------- |
-| Monorepo root                               | `mono - chore: `        |
-| Cross-package monorepo change               | `mono - chore: `        |
-| Specific package (any repo)                 | `<package name> - chore: ` |
-| Single-package repo with no package name    | `root - chore: `        |
-
+Per `pr-conventions` → Prefix scheme for the automated ops loops.
 Examples:
 
 - `mono - chore: upgrade code quality dependencies`
 - `web-app - chore: upgrade TypeScript and build tooling`
-- `root - chore: upgrade monorepo tooling`
-- `root - chore: upgrade GitHub Actions`
-- `mono - chore: upgrade React dependencies`
-- `web-app - chore: upgrade Next.js dependencies`
 - `api - chore: upgrade Prisma dependencies`
-- `root - chore: upgrade fastify dependencies`
-- `root - chore: upgrade mongodb`
-- `root - chore: upgrade Docker build-time images`
 - `root - chore: upgrade Docker Node.js runtime image`
-- `root - chore: upgrade Docker postgres image`
-- `mono - chore: upgrade Docker redis image`
-
-### PR body
-
-Keep PR bodies short. Use this skeleton, omitting sections that don't apply:
-
-```
-## Summary
-<one sentence: what's upgraded>
-
-## Versions
-- `<pkg>` `<old>` → `<new>`
-
-## Tests
-- [x] `pnpm test` passes
-- [x] `pnpm build` passes (if applicable)
-
-## Breaking notes
-<only for (breaking) PRs — list code changes required>
-```
-
-Don't add commentary beyond the skeleton unless something genuinely surprising came up (e.g. a flaky test pre-existing on `main`).
-
-For Docker image PRs, use this skeleton instead:
-
-```
-## Summary
-<one sentence: what's upgraded>
-
-## Images
-- `<image>` `<old-tag>` → `<new-tag>` (`<old-digest-prefix>` → `<new-digest-prefix>`)
-
-## Locations
-- `Dockerfile:3` — builder stage
-- `compose.yml:12` — service `db`
-- `.github/workflows/ci.yml:15` — container
-
-## Checks
-- [x] `docker build` passes (or: syntax-only — no Docker daemon available)
-- [x] Version sources agree (`.nvmrc`, `package.json engines.node`, etc.)
-- [x] System package pins still resolve (if applicable)
-
-## Breaking notes
-<only for major version PRs — list required code/config changes>
-```
-
-### Major version upgrades
-
-- Research breaking changes before applying.
-- Update code as needed for the new version.
-- Append `(breaking)` to the PR title: `mono - chore: upgrade code quality dependencies (breaking)`.
-- **Each major version upgrade gets its own PR.** Never combine two unrelated majors in one PR. The only exception is related majors within a single ecosystem that must move together (e.g. `react` + `react-dom`, or a framework and its required peer majors) — those may share one PR.
-- **Docker major version upgrades require asking first.** `node:20` → `node:22`, `ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17` — stop and ask the user before proceeding. If approved, each gets its own PR with `(breaking)` suffix. When a Docker image major bump requires updating project version sources (`.nvmrc`, `package.json engines.node`, `@types/node`), all of those changes travel in the same PR.
-
-## `@types/node` rule
-
-`@types/node` must never exceed the project's Node.js major version. Never use `@types/node@latest`.
-
-Determine the project's Node major from the first available source, in order:
-
-1. `.nvmrc`
-2. `.node-version`
-3. `package.json` → `engines.node`
-4. Volta config in `package.json`
-5. Docker files
-6. CI configuration
-
-Pin `@types/node` to that major. Example: `.nvmrc` says `24` → use `@types/node@24`, not `@types/node@latest` if latest resolves to `25.x`.
-
-If Node version sources disagree, stop and report the mismatch — don't guess.
-
-In monorepos, the root Node config governs `@types/node` unless a workspace package declares its own supported Node version, in which case compare them first before upgrading that package.
-
-## Container image version agreement
-
-The Node.js version in Docker images must match `.nvmrc` — Docker follows `.nvmrc`, never the other way around.
-
-The canonical Node version is determined from the first available source (same list as the [`@types/node` rule](#typesnode-rule), with `.nvmrc` as first priority). The `FROM node:<major>` in every Dockerfile must equal the canonical major, and patch-level upgrades must stay within that major. If a Dockerfile's Node version disagrees with `.nvmrc`, stop and report — do not upgrade the Dockerfile independently.
-
-**Do not upgrade the Node major in Docker as part of dependency management.** If `.nvmrc` says `20`, every `FROM node:*` line stays on `20.x`. A Node major bump is a project-wide decision that updates `.nvmrc` first; the Dockerfile follows. If a newer Node major is available and the Docker image is the only place you notice it, report it as a deferral — do not open a PR.
-
-For non-Node images (e.g. `python`, `golang`) referenced in Dockerfiles: apply the same principle using whatever version source the project declares (`.python-version`, `go.mod`, etc.). If no project-level version source exists, upgrade based on tag lineage from [Container image discovery](#container-image-discovery).
-
-## Digest pinning rule
-
-- If an image reference already has a digest pin (`FROM node:20-alpine@sha256:abc123...`), updating the tag without updating the digest is a no-op — the digest wins. Always update **both** tag and digest together.
-- If an image reference does not have a digest pin, do not introduce one during a dependency management PR. Introduction of digest pinning is defense-in-depth work.
-- To resolve a new digest: `crane digest <image>:<tag>` or `skopeo inspect --format '{{.Digest}}' docker://<registry>/<image>:<tag>`.
-- Always pin to the manifest list digest (multi-arch index), not a platform-specific manifest, unless the Dockerfile uses `--platform`.

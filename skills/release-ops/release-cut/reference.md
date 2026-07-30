@@ -22,7 +22,11 @@ When commit subjects follow the [Conventional Commits](https://www.conventionalc
 
 ### Non-conventional commits (fallback)
 
-When the repo doesn't use conventional commits, infer from subject keywords and diff content. Be conservative — when in doubt, pick the lower bump and let the maintainer override at the approval gate.
+When the repo doesn't use conventional commits, infer from subject keywords and diff content. Classify
+**every** unreleased commit — the bump is the highest one any commit forces, so a skipped commit is how
+a breaking change ships as a patch. Where a single commit's own signal is genuinely ambiguous, record
+the lower bump and name the ambiguity in the proposal; the maintainer overrides it at the approval
+gate.
 
 | Signal | Bump |
 |---|---|

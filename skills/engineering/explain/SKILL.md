@@ -138,6 +138,7 @@ Rules for the rendered explanation:
 - **Layer 3 gotchas are observed, not theoretical.** A gotcha that's never bitten anyone is a footnote, not a section.
 - **No "summary" or "conclusion".** The layers are the summary at three depths.
 - **No padding paragraphs.** Every sentence answers a question the user has; cut the rest.
+- **Nothing a reader could get from the docs in two minutes.** If a paragraph reads like the project's homepage, it added nothing — the value is the parts the docs don't tell you.
 
 ## 2. Layer 1 rules — PM version
 
@@ -176,15 +177,3 @@ The deep dive is for the engineer who has committed and is now hitting the rough
 - **"Don't use this when" list — 2–4 entries.** Each entry: the scenario, the reason, the alternative. The list is the most respected part of the deep dive because it's the part nobody else writes. Every tool has wrong use cases; the explainer who refuses to name them is selling, not explaining.
 - **No "best practices" section.** A best-practices section in this layer is the textbook content the procedure exists to skip. If a practice is load-bearing, it goes into a gotcha. If it's not, drop it.
 - **No prediction of future direction.** "The maintainers plan to..." is rumor by the time it ships. Either it's in the codebase or it isn't.
-
-## 5. Anti-patterns the explainer must avoid
-
-- **The textbook regurgitation.** Paragraphs that read like the project's homepage. If a reader could get this from the docs in two minutes, the explanation added nothing. Aim for the parts the docs don't tell you.
-- **The "everything is great" explainer.** Pros, no cons. The "Don't use this when" section exists because every tool has wrong cases — refusing to name them is a tell that the explainer is a fan, not an engineer.
-- **The Layer 1 that's actually Layer 2.** Five sentences full of jargon, with a code-shaped phrase or two. The test for Layer 1 is "would a non-engineer repeat this in a meeting?" If no, it's not Layer 1.
-- **The Layer 2 without code.** A 500-word prose explanation of how to use a library without showing any code is not a 5-minute engineer's read; it's a wall of text the engineer scrolls past.
-- **The Layer 3 with theoretical gotchas.** "If you misconfigure X, Y might happen." Every system has theoretical failure modes. The gotcha section is for the things that have actually bitten teams.
-- **The wrong-language code example.** Showing the user a Java example when their project is TypeScript. Either find the right-language example or say "the snippet below is in Python because that's where the library is canonical; the TypeScript binding mirrors the API."
-- **The comparison the user didn't ask for.** Padding Layer 3 with comparisons to five alternatives because it makes the section look thorough. Three named alternatives, each with a one-line trade-off, beats a five-table matrix nobody reads.
-- **The "conclusion" section.** "In summary, X is a powerful tool that..." The three layers already summarized at three depths. A conclusion just restates Layer 1 with extra adverbs.
-- **The "I don't actually know this" fabrication.** Explaining a library the agent has no real production exposure to, fluently and confidently. This produces explanations that sound right and waste the user's whole day. If only Layer 1 is grounded, stop, say so, and ask for source material before writing Layers 2-3.

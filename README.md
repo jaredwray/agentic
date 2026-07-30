@@ -76,6 +76,27 @@ It depends on how it was installed:
 > semver'd releases — which is why `version` is set by default here.
 
 
+## Written for Claude 5
+
+These skills follow [Anthropic's Claude 5 prompting
+guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5),
+which changes what a good skill looks like: a Claude 5 model reads instructions literally, already
+self-corrects, and defaults to longer output than its predecessors. So the skills here carry **no
+self-verification nudges** ("double-check your work" burns tokens on something the model already
+does), an **explicit output length** wherever they render a report, an **explicit scope bound** so the
+model doesn't expand the task on its own, and — for anything review-shaped — **full coverage first,
+filtering second**, because telling a model to flag only the serious issues makes it report less and
+lets real problems through.
+
+**Effort.** Effort level is the main intelligence/speed/cost control, and at low or medium a model
+scopes strictly to what was asked — which quietly guts a workflow built on breadth. Skills whose value
+*is* that breadth carry an `**Effort.**` line in their preamble stating what they need: `xhigh` for
+`refactor`, `production-function`, one-way-door `adr`, and `viral-launch`; `high` or above for
+`code-review`, `debug`, `performance`, `test`, and `codebase-archaeology`. The mechanical one-PR loops
+don't carry the note — they run fine at the default.
+
+The authoring rules behind all of this live in `skills/shared/writing-great-skills`.
+
 ## The four failure modes
 
 These skills exist to counter the recurring failure modes of AI-assisted engineering:

@@ -15,6 +15,8 @@ Operation manual for **writing a single function as production-grade code at a f
 > **Shippable as-is.** No `TODO`, no `FIXME`, no `# implement this`, no `pass` / `throw new Error('not implemented')`, no placeholder values like `42`, `'foo'`, `'YOUR_API_KEY'`. Every branch executes real code. Every error path returns a real error. Every test runs in a normal test harness. **Pretend the user is about to paste this into a PR.**
 >
 > **One function per invocation.** Drive the deliverable to a complete spec + implementation + tests + scale note, then stop. If the user asks for a second function mid-thread, finish the first and start a new spec for the second — bundling two functions into one deliverable hides which one breaks.
+>
+> **Effort.** `xhigh` — below that the failure-mode inventory and error taxonomy shrink to the input checks the signature already implies.
 
 ## Scope
 

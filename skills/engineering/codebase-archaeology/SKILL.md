@@ -17,6 +17,10 @@ Operation manual for **mapping an unfamiliar codebase like a new hire would** �
 > **One codebase per invocation.** Drive the map to a complete document, then stop. If the user asks for a second codebase mid-thread, finish the current one and open a new map for the second — they almost never share enough context to be one document.
 >
 > **Speculation is labeled.** Inferences from filenames alone, from one file in a large dir, or from defaults the agent didn't actually verify get marked `inferred` in the map. Confident claims must cite the file. Unlabeled speculation is how onboarding maps become wrong-but-confident.
+>
+> **Keep the map scannable.** One line per module, convention, risk flag, and question, each with its citation — length here is breadth, never depth of prose.
+>
+> **Effort.** `high` or above; `xhigh` for a large monorepo — below that the map stops at topology and entry points.
 
 ## Scope
 

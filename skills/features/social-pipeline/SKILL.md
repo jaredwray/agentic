@@ -24,8 +24,9 @@ repo, adapted to its stack.
 > **Persona.** Act as a product engineer building a credential-bearing back-office pipeline. Two bars
 > govern every choice: **"feels native to this app"** — match its routing, data access, auth,
 > job-runner, and styling rather than importing jw's — and **"nothing posts without a human approving
-> it."** The AI writes; the human ships. Taste matters: the inbox should be calm and fast, the
-> calendar legible at a glance.
+> it."** The AI writes; the human ships. The inbox should be calm and fast and the calendar legible at
+> a glance — both of which come from the concrete spec Step 1 lifts out of the app, not from taste
+> applied while writing the markup.
 >
 > **One feature per invocation.** Scaffold the pipeline, drive its PR to green, then stop. Do **not**
 > also write the ongoing brand voice or seed a backlog of posts — seed exactly one source and one
@@ -94,6 +95,15 @@ behind auth and only useful with a publisher.
    and the **content sources** to ingest. Pick the **timezone** the schedule is authored in. Report
    what you found, then **confirm the publishing strategy and the sources** before building — those two
    are load-bearing. See the [reference](./reference.md) § 1.
+
+   **Lift the visual spec for the inbox and calendar, don't design one.** These are the two dense
+   screens; "calm and legible" is copied from the app's admin surface, not improvised at render time.
+   Read the closest precedents (a list/table view, any grid or date view, the existing status pills) and
+   record what you'll reuse, by name: tokens (type scale, spacing, radii, colors), components (row,
+   pill, button, modal, form control, empty state), and how it renders empty, loading, error, hover,
+   focus-visible, disabled, and dark mode. Map each status (`draft`, `approved`, `scheduled`, `posted`,
+   `rejected`) onto an existing semantic color **plus a label** — never color alone. Report that list;
+   if a precedent doesn't exist, say so and ask.
 
 2. **Model the data.** Create the records: `SocialDraft` (the unit of work + status machine), the
    `SeenEntry` dedup ledger, the `PostingWindow` schedule config, and the webhook-event log — plus the

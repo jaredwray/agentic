@@ -105,6 +105,8 @@ Rules for the rendered ADR:
 - **The Decision section names exactly one option.** Not two. Not "it depends." If the analysis genuinely supports either, recommend the reversible one and say why.
 - **The 2-year regret check is mandatory.** No exceptions. A skipped regret section makes the ADR worth half as much in 24 months — which is when it matters most.
 - **No marketing language.** "Best-in-class", "industry-standard", "modern", "elegant" — drop. Replace with the concrete claim or remove the line.
+- **No strawman options.** Every option gets the same depth of analysis. If one was never seriously on the table, drop it rather than fake-analyzing it to make the winner look better.
+- **The recommendation respects every constraint.** An option that wins on driver #1 while violating a constraint from the decision card is not on the table — constraints are hard, drivers are weighted.
 
 ## 2. The 10x stress test
 
@@ -144,17 +146,3 @@ Apply this check after the recommendation. The check has three parts; render all
 3. **The off-ramp.** If the bet loses, how do we exit? A concrete migration path — even if it's expensive — beats "we'd have to rewrite." If there is genuinely no off-ramp (one-way door with no escape), name that explicitly and **either** raise the bar for the recommendation **or** reduce the cost of being wrong with a smaller, narrower commitment first (pilot with one team / one tenant / one workload).
 
 A common Staff+ move: when an analysis points to a one-way door with no off-ramp, change the question. Can we do a **narrower** version first — a single-tenant pilot, a single-region deploy, a single workload migration — that gives us 60% of the information for 10% of the commitment? If yes, the ADR's actual recommendation is the narrower version, with the broader decision deferred until the pilot's data is in.
-
-## 5. Anti-patterns the ADR author must avoid
-
-These are the failure modes of bad ADRs. Catch yourself and rewrite.
-
-- **The "it depends" non-recommendation.** Listing trade-offs and ending with "the team should decide based on their priorities." Pick one. If you can't pick, the analysis is incomplete — go back and weight the drivers harder.
-- **The marketing-page ADR.** Pros and cons copy-pasted from the vendor's homepage. A real ADR has cons the vendor would never publish — operational tax, hiring rarity, migration cost, behavior at the edges.
-- **The strawman option.** Including an option only so the recommended one looks better. Every option deserves the same depth of analysis; if Option B was never seriously on the table, drop it from the ADR rather than fake-analyzing it.
-- **The 10x section that says "it scales."** Name the bottleneck or remove the section. "Scales linearly" is the answer of someone who hasn't operated the system.
-- **The missing regret check.** The most-skipped section is also the most valuable two years later. Don't ship the ADR without it.
-- **The bundled decision.** "We will adopt X and also restructure Y and also migrate Z." That's three decisions. Three ADRs. Each survives or dies on its own.
-- **The retroactive ADR.** Writing the ADR to justify a decision the team already made and shipped, with the analysis curated to support the foregone conclusion. If the user wants that, ask them to say so explicitly — and consider whether the document is actually an ADR or a postmortem in disguise.
-- **The recommendation that ignores the constraints.** Recommending the option that wins on driver #1 while quietly violating a constraint listed in the context. Constraints are not soft — if an option violates one, it's not on the table.
-- **No expiration awareness.** ADRs age. The recommendation that was right in 2025 may be wrong in 2027 because the world moved. The 2-year regret check is the procedure's way of dating the bet — don't skip the dating step.

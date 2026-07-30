@@ -52,11 +52,7 @@ If none of these hold, skip the interview — over-questioning a clear request i
 
 ## Anti-patterns
 
-- **The trivia quiz.** Ten questions where two would do, or questions whose answers wouldn't change
-  anything. Respect the user's time; ask only what's load-bearing.
 - **The silent guess.** Building on an unstated assumption that, if wrong, wastes the whole effort.
   When an assumption is load-bearing and uncertain, surface it.
 - **The interview that never ends.** Re-asking after you have enough to start. Once the design-changing
   questions are answered, stop interviewing and build.
-- **Questions you could answer yourself.** Anything resolvable by reading the code or picking a sane
-  default is not a question for the user.
