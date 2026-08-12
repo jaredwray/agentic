@@ -24,12 +24,12 @@ owns the summary section appended after it:
 This repository follows the [defense-in-depth](https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md)
 hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_DEPTH.md). Measures currently in place:
 
-- All changes land through pull requests — direct pushes to `main` are blocked.
+- All changes land through pull requests — direct pushes to `main` are blocked, and merging requires passing status checks.
 - Tags (and therefore releases) can only be created by repository admins.
-- Workflow runs from outside collaborators always require maintainer approval.
+- Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
 - CI runs with read-only permissions; every action is pinned to a full commit SHA and workflows are security-linted with zizmor on every PR.
-- Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default.
-- npm releases are staged, never published directly: CI publishes via OIDC trusted publishing to a staged release, Drydock reviews the exact artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
+- Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default. Socket reviews every dependency change; Aikido scans every build.
+- npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
 ```
 
 **Only list what is live.** The bullets above are the full-rollout end state — include a bullet only
