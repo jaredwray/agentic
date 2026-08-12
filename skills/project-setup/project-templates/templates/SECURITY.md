@@ -17,3 +17,7 @@ When reporting, please include as much of the following as you can:
 - Any suggested remediation, if you have one.
 
 We will acknowledge receipt, work with you on a coordinated disclosure timeline, and credit you in the advisory once a fix is published unless you ask to remain anonymous.
+
+## How this repository is secured
+
+This repository follows the [defense-in-depth](https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md) hardening checklist; progress is tracked in `DEFENSE_IN_DEPTH.md` at the repo root. Measures are listed here as they land — see that file for the full checklist and current status.

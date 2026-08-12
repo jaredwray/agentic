@@ -1,6 +1,6 @@
 # Release Management (Node.js) — reference
 
-The remaining sections are the implementation spec for items in the rollout. Section numbers here are referenced from the `SECURITY.md` block items above.
+The remaining sections are the implementation spec for items in the rollout. Section numbers here are referenced from the `Release Management status` block items (in the target repo's `DEFENSE_IN_DEPTH.md`).
 
 ## 1. Release Trust Model
 

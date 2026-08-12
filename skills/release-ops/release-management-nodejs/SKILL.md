@@ -1,6 +1,6 @@
 ---
 name: release-management-nodejs
-description: Roll out a hardened npm release pipeline — signer policy, signed release intent, npm trusted publishing, verification gates — one improvement per PR across a strict 4-phase rollout, with status tracked in the target repo's SECURITY.md. Use when asked to harden npm publishing, set up trusted publishing or release signing, or secure the release pipeline for high-impact packages. Manual, resumable, one PR at a time.
+description: Roll out a hardened npm release pipeline — signer policy, signed release intent, npm trusted publishing, verification gates — one improvement per PR across a strict 4-phase rollout, with status tracked in the target repo's DEFENSE_IN_DEPTH.md. Use when asked to harden npm publishing, set up trusted publishing or release signing, or secure the release pipeline for high-impact packages. Manual, resumable, one PR at a time.
 disable-model-invocation: true
 user-invocable: true
 allowed-tools: [Bash, Read, Edit, Write]
@@ -8,15 +8,15 @@ allowed-tools: [Bash, Read, Edit, Write]
 
 # Release Management (Node.js)
 
-Operation manual for rolling out a hardened npm release pipeline (signer policy, release intent, trusted publishing, verification gates) on Node.js OSS projects (Keyv, Cacheable, flat-cache, file-entry-cache, and similar). One controllable improvement per PR; status tracked in the target repo's `SECURITY.md`.
+Operation manual for rolling out a hardened npm release pipeline (signer policy, release intent, trusted publishing, verification gates) on Node.js OSS projects (Keyv, Cacheable, flat-cache, file-entry-cache, and similar). One controllable improvement per PR; status tracked in the target repo's `DEFENSE_IN_DEPTH.md`.
 
-> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow) Step 1. The first step audits the target repo's `SECURITY.md` so the agent can pick the next item from the rollout. Only stop to ask the user when the document explicitly says to stop and report (uncommitted changes, the next item is manual-only, `SECURITY.md` disagrees with reality, a phase transition needs maintainer sign-off) or when a decision genuinely requires their input.
+> **When this document is loaded, begin executing immediately.** Do not ask the user what to do — start with [Workflow](#workflow) Step 1. The first step audits the target repo's `DEFENSE_IN_DEPTH.md` so the agent can pick the next item from the rollout. Only stop to ask the user when the document explicitly says to stop and report (uncommitted changes, the next item is manual-only, `DEFENSE_IN_DEPTH.md` disagrees with reality, a phase transition needs maintainer sign-off) or when a decision genuinely requires their input.
 >
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next release PR`, or similar. Never open a second release-management PR while one is already in flight.
 >
-> **Phase order is strict.** Phase 1 must be complete before any Phase 2 item begins; Phase 2 before Phase 3; Phase 3 before Phase 4. Within a phase, pick items top-to-bottom from the catalog. Manual / external items are tracked in `SECURITY.md` so the maintainer can tick them off; the agent never opens a PR for those, but a phase is not "complete" until all items including manual ones are checked.
+> **Phase order is strict.** Phase 1 must be complete before any Phase 2 item begins; Phase 2 before Phase 3; Phase 3 before Phase 4. Within a phase, pick items top-to-bottom from the catalog. Manual / external items are tracked in `DEFENSE_IN_DEPTH.md` so the maintainer can tick them off; the agent never opens a PR for those, but a phase is not "complete" until all items including manual ones are checked.
 >
-> This skill follows the shared `shipping-conventions` loop and `pr-conventions`; the `SECURITY.md` status-block format and reconciliation rules live in `security-status-tracking`.
+> This skill follows the shared `shipping-conventions` loop and `pr-conventions`; the `DEFENSE_IN_DEPTH.md` status-block format and reconciliation rules live in `security-status-tracking`.
 
 ## Scope and summary
 
@@ -26,11 +26,11 @@ Operation manual for rolling out a hardened npm release pipeline (signer policy,
 
 See [§ 1 Release Trust Model](./reference.md#1-release-trust-model) for the underlying model that the rest of the manual implements.
 
-## Status tracking in SECURITY.md
+## Status tracking in DEFENSE_IN_DEPTH.md
 
-The target repo's `SECURITY.md` carries a `Release Management status` block. It is the source of truth for what's done, what's pending, and what was deferred or marked manual. Behavior:
+The target repo's `DEFENSE_IN_DEPTH.md` carries a `Release Management status` block. It is the source of truth for what's done, what's pending, and what was deferred or marked manual. Behavior:
 
-- The block is appended to `SECURITY.md` (preserving any existing content above and below).
+- The block is appended to `DEFENSE_IN_DEPTH.md` (preserving any existing content above and below).
 - Item ordering follows the rollout phases below. Do not invent new items — the catalog defines the universe.
 - Each item uses one of three states:
   - `- [ ] <item>` — not started.
@@ -97,7 +97,7 @@ Phase 1 → 2 → 3 → 4 in strict order. A phase is complete only when every i
 
 **Phase 2 — Signing policy.** Mostly auto (policy file, signed policy bundle, verification scripts, dry-run workflow). Two manual items at the top: creating the release identity and enforcing 2SV. The agent records these and stops if it reaches them without them being checked.
 
-**Phase 3 — Pilot package.** Mixed. Auto items: package selection (recorded in `SECURITY.md`), publish workflow, signed release intent, test release, negative tests. Manual items: GitHub environment creation, npm trusted publisher config, post-rollout npm 2FA setting and token revocation.
+**Phase 3 — Pilot package.** Mixed. Auto items: package selection (recorded in `DEFENSE_IN_DEPTH.md`), publish workflow, signed release intent, test release, negative tests. Manual items: GitHub environment creation, npm trusted publisher config, post-rollout npm 2FA setting and token revocation.
 
 **Phase 4 — Expand.** Mostly auto (onboarding each remaining package follows the Phase 3 pattern). Some items are external (mirror docs to `jaredwray.com`, evaluate Socket Gateway).
 
@@ -109,9 +109,9 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
 1. **Sync `main`.** Confirm the working tree is clean (`git status --short`); if there are uncommitted changes, stop and report — never discard uncommitted work. Then `git checkout main && git pull --ff-only origin main`.
 
-2. **Audit `SECURITY.md`.**
-   - If `SECURITY.md` does not exist, scaffold it from the [Status tracking](#status-tracking-in-securitymd) template and include a link to this operation manual.
-   - If the `Release Management status` block is missing, append it to `SECURITY.md` without modifying existing content above or below.
+2. **Audit `DEFENSE_IN_DEPTH.md`.**
+   - If `DEFENSE_IN_DEPTH.md` does not exist, scaffold it from the [Status tracking](#status-tracking-in-defense_in_depthmd) template and include a link to this operation manual.
+   - If the `Release Management status` block is missing, append it to `DEFENSE_IN_DEPTH.md` without modifying existing content above or below.
    - For each item, verify that the actual repo state matches the checkbox state using the [Reference](#reference) sections. Reconciliation rules:
      - `[ ]` items where the repo already has the change → check them off and add a brief note (e.g. `— verified <date>` if there is no PR record).
      - `[ ] X (PR #<n> pending)` where PR #n is now merged → mark `[x] X — PR #<n>`.
@@ -177,7 +177,7 @@ Examples:
 <one sentence: which phase/item this implements>
 
 ## Status update
-- `SECURITY.md` updated: `<item>` → `(PR #<n> pending)`
+- `DEFENSE_IN_DEPTH.md` updated: `<item>` → `(PR #<n> pending)`
 
 ## Verification
 - [x] <verification command from the reference section>
@@ -188,7 +188,7 @@ Examples:
 release-management-nodejs § <section number>
 ```
 
-When the user merges, the next `continue` invocation reconciles the audit in Step 2 and marks the item `[x]` in `SECURITY.md` as part of the next PR.
+When the user merges, the next `continue` invocation reconciles the audit in Step 2 and marks the item `[x]` in `DEFENSE_IN_DEPTH.md` as part of the next PR.
 
 ### Failure and incident handling during rollout
 
@@ -200,4 +200,4 @@ If verification fails during Step 4 or 5, see [reference.md § 20](./reference.m
 
 The trust model, release modes, file layout, signer policy, intent manifest, verification scripts,
 publish workflow, and incident handling live in [reference.md](./reference.md). Pull it in at the
-rollout item you are implementing — each `SECURITY.md` item names its section number.
+rollout item you are implementing — each `DEFENSE_IN_DEPTH.md` item names its section number.
