@@ -36,4 +36,6 @@ dogfoods that workflow. The pnpm 7-day cooldown (`minimumReleaseAge: 10080`) sta
 dependency control. deepsec, SBOM generation, and the monitoring items are dropped from the
 required stack; the tooling layer is [Aikido](https://www.aikido.dev) (build scanning: SCA,
 secrets, SAST) plus [Socket](https://socket.dev) (dependency-diff supply-chain linting on PRs),
-both already installed as GitHub apps.
+both already installed as GitHub apps. Aikido also gates releases: the publish workflow template
+gains an `aikido-gate` job (`aikido-api-client scan-release` failing on new findings) that must
+pass before CI may stage a version.

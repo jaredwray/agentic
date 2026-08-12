@@ -89,6 +89,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 6. Security tooling
 - [ ] Aikido runs on every build
+- [ ] Aikido release gate: the release workflow's stage-publish job `needs:` a passing `scan-release`
 - [ ] Socket reviews every PR that changes dependencies
 ```
 
@@ -262,7 +263,10 @@ whole setup, and each item is verified by its check appearing on PRs.
 
 - **Aikido** ([aikido.dev](https://www.aikido.dev)) runs on every build — SCA/CVE scanning, secrets,
   SAST. Aikido also partners with Drydock, so pre-publish review and build-time scanning share
-  findings.
+  findings. Code its release gate into the release workflow (`release.yaml` / `publish.yml`): an
+  `aikido-gate` job runs `aikido-api-client scan-release … --fail-on-sast-scan --fail-on-iac-scan
+  --fail-on-secrets-scan` and the stage-publish job `needs:` it, so nothing is staged while new
+  findings are open — full job template in the `release-management-nodejs` reference § 14.
 - **Socket** ([socket.dev](https://socket.dev)) is the dependency security linter: it reviews every
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet.
