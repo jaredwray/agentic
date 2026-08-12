@@ -28,8 +28,9 @@ skill-specific variant like `next dep PR`).
    cases and when each resolves (the single-mandated-branch decision needs step 2's item count).
    Discovering a constraint at PR time means the work is already done in the wrong shape.
 
-2. **Audit / take stock.** Reconcile the consumer skill's source of truth (e.g. a `SECURITY.md`
-   status block per `security-status-tracking`, or `pnpm outdated`) against actual repo state, and
+2. **Audit / take stock.** Reconcile the consumer skill's source of truth (e.g. a
+   `DEFENSE_IN_DEPTH.md` status block per `security-status-tracking`, or `pnpm outdated`) against
+   actual repo state, and
    determine what work remains. If nothing remains, report the full list of merged PRs plus any
    documented deferrals and **stop — done**.
 

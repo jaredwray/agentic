@@ -1,35 +1,40 @@
 ---
 name: security-status-tracking
-description: Convention for tracking a hardening rollout's state in a target repo's SECURITY.md — the status-block format, the three checkbox states (not started / PR pending / merged), manual-vs-auto items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs and release-management-nodejs skills. Use when recording or reconciling security-hardening progress in SECURITY.md.
+description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs and release-management-nodejs skills. Use when recording or reconciling security-hardening progress.
 user-invocable: true
 ---
 
 # Security status tracking
 
 How the `defense-in-depth-nodejs` and `release-management-nodejs` skills record rollout state in a
-target repo's `SECURITY.md`. The consumer skill owns the **catalog** (the actual list of items);
-this skill owns the **format and reconciliation rules** so both consumers track state identically.
+target repo's `DEFENSE_IN_DEPTH.md`. The consumer skill owns the **catalog** (the actual list of
+items); this skill owns the **format and reconciliation rules** so both consumers track state
+identically.
 
 > Background discipline. The consumer skill decides which items exist and their priority; it calls
 > here for how to write and reconcile the status block.
+>
+> `DEFENSE_IN_DEPTH.md` is the working checklist. The repo's `SECURITY.md` stays simple and
+> public-facing (contact info + a summary of measures actually in place) — status checkboxes never
+> live there.
 
 ## The status block
 
-Each consumer maintains one block in the target repo's `SECURITY.md` (e.g.
-`## Defense in Depth status`, `## Release Management status`). It is the source of truth for what's
-done, pending, deferred, or manual.
+Each consumer maintains one block in the target repo's `DEFENSE_IN_DEPTH.md` (the
+`defense-in-depth-nodejs` sections, a `## Release Management status` block appended below). It is
+the source of truth for what's done, pending, deferred, or manual.
 
-- The block is **appended** to `SECURITY.md`, preserving any content above and below.
+- Blocks are **appended** to `DEFENSE_IN_DEPTH.md`, preserving any content above and below.
 - Item ordering follows the consumer skill's catalog. **Do not invent items** — the catalog defines
   the universe.
 - Each item is in exactly one of three states:
   - `- [ ] <item>` — not started.
   - `- [ ] <item> (PR #<n> pending)` — implementation PR open, not yet merged.
   - `- [x] <item> — PR #<n>` — implemented and merged.
-- Items the agent **cannot** implement (registry/account settings, hardware keys, VM isolation, etc.)
-  live under a `Manual / external (maintainer-owned)` heading inside the same block. The maintainer
-  ticks those off.
-- On first run, the agent **scaffolds** the block from the consumer skill's catalog, including a line
+- Items only a human can perform (registry and account settings, hardware keys) carry an inline
+  `(manual)` marker at the end of the item text and keep their place in the catalog order — there is
+  no separate manual section. The agent reports them and moves on; the maintainer ticks them off.
+- On first run, the agent **scaffolds** the file from the consumer skill's catalog, including a line
   linking back to the operation manual that owns it, e.g.:
 
   ```md
@@ -38,6 +43,10 @@ done, pending, deferred, or manual.
 
   (Release-management's block links to
   `https://github.com/jaredwray/agentic/blob/main/skills/release-ops/release-management-nodejs/SKILL.md`.)
+
+- **Migration:** older repos carry these blocks inside `SECURITY.md`. On first contact, move each
+  status block into `DEFENSE_IN_DEPTH.md` unchanged (then let the consumer skill reconcile), and
+  leave `SECURITY.md` with only its public-facing content.
 
 ## Reconciliation rules
 

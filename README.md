@@ -148,7 +148,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 | Skill | Does |
 |---|---|
-| `defense-in-depth-nodejs` | Harden a high-download npm package against supply-chain compromise, one item per PR. |
+| `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, staged OIDC publishing — one item per PR. |
 
 ### growth/ — manual
 
@@ -170,7 +170,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 |---|---|
 | `shipping-conventions` | The one-PR-at-a-time loop (sync, work one item, drive CI green, stop, resume) the ops skills reuse. |
 | `pr-conventions` | Conventional-Commit types, title-prefix scheme, PR-body skeleton, review-reply rules. |
-| `security-status-tracking` | The `SECURITY.md` status-block format and reconciliation rules. |
+| `security-status-tracking` | The `DEFENSE_IN_DEPTH.md` status-block format and reconciliation rules. |
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
 | `writing-great-skills` | How to author a SKILL.md for this plugin (also the contributor guide). |
 
@@ -178,7 +178,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 The ops skills don't restate shared conventions — they point at the `shared/` skills. The one-PR loop
 lives once in `shipping-conventions`; PR titles/bodies and review replies in `pr-conventions`; the
-`SECURITY.md` tracking format in `security-status-tracking`. Engineering skills share a design
+`DEFENSE_IN_DEPTH.md` tracking format in `security-status-tracking`. Engineering skills share a design
 language via `codebase-design`. This keeps each SKILL.md lean and the conventions in one place.
 
 ## Authoring

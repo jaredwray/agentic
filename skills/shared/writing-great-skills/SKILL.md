@@ -79,8 +79,8 @@ catalogs. Move to `scripts/`: any shell scripts the workflow checks into a targe
 from the workflow step that needs them ("render per `reference.md` § 1") so they load on demand.
 
 Reuse the `shared/` skills instead of restating conventions: the one-PR loop
-(`shipping-conventions`), PR titles/bodies and review replies (`pr-conventions`), and `SECURITY.md`
-status tracking (`security-status-tracking`).
+(`shipping-conventions`), PR titles/bodies and review replies (`pr-conventions`), and
+`DEFENSE_IN_DEPTH.md` status tracking (`security-status-tracking`).
 
 **Cross-references.** Refer to *another* skill by its name in backticks (e.g. "defer to the
 `code-review` skill"), not by a relative file path — paths are fragile across the category tree and

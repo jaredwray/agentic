@@ -1,6 +1,6 @@
 # Release Management (Node.js) — reference
 
-The remaining sections are the implementation spec for items in the rollout. Section numbers here are referenced from the `SECURITY.md` block items above.
+The remaining sections are the implementation spec for items in the rollout. Section numbers here are referenced from the `Release Management status` block items (in the target repo's `DEFENSE_IN_DEPTH.md`).
 
 ## 1. Release Trust Model
 
@@ -542,9 +542,36 @@ jobs:
       - name: Verify release intent content
         run: ./scripts/verify-release-intent.sh "$PKG" "$VERSION"
 
+  aikido-gate:
+    name: Aikido release gate
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@<FULL_COMMIT_SHA>
+        with:
+          node-version: 22
+
+      - name: Install Aikido CI client
+        run: npm install --global @aikidosec/ci-api-client@<PINNED_VERSION>
+
+      # Fails on new SAST/IaC/secrets findings and on dependency issues over the
+      # severity threshold configured in the Aikido dashboard. The API key comes from
+      # Aikido's Continuous Integration settings and is a plain repo secret — it grants
+      # no publish authority and stays out of the npm-publish environment.
+      - name: Run Aikido release scan
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          AIKIDO_CLIENT_API_KEY: ${{ secrets.AIKIDO_CLIENT_API_KEY }}
+        run: >
+          aikido-api-client scan-release
+          "$REPO_NAME" "$GITHUB_SHA"
+          --apikey "$AIKIDO_CLIENT_API_KEY"
+          --fail-on-sast-scan --fail-on-iac-scan --fail-on-secrets-scan
+
   publish:
-    name: Publish to npm with provenance
-    needs: verify-release-approval
+    name: Stage publish to npm with provenance
+    needs: [verify-release-approval, aikido-gate]
     runs-on: ubuntu-latest
     environment: npm-publish
     env:
@@ -583,12 +610,17 @@ jobs:
           pnpm --filter "$PKG" pack --pack-destination "$PWD/dist"
           sha256sum dist/*.tgz > dist/SHA256SUMS
 
-      - name: Publish through npm trusted publishing
-        run: pnpm --filter "$PKG" publish --access public --no-git-checks
+      # npm ≥ 11.15: lands in the npm staging queue via trusted publishing — it does
+      # NOT go live. A maintainer promotes with 2FA after Drydock review
+      # (defense-in-depth-nodejs § 5).
+      - name: Stage publish through npm trusted publishing
+        run: npm stage publish dist/*.tgz --access public
 ```
 
 Important release-job rules:
 
+- [ ] CI only stages (`npm stage publish`) — it never publishes a version live. Promotion is a human action with 2FA after the staged artifact passes Drydock review.
+- [ ] The Aikido release gate passes before anything is staged; its CI key is a plain repo secret with no publish authority.
 - [ ] No npm token.
 - [ ] No dependency cache.
 - [ ] No `workflow_dispatch` for unreviewed manual publishing unless separately gated.
