@@ -129,6 +129,9 @@ Notes:
 
 - The agent never runs the apply mode on its own: run `--check` freely for reconciliation, but stop
   and ask before changing repo settings, or hand the command to the maintainer.
+- Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
+  types, targets, and the bypass list, and apply mode overwrites a same-name ruleset with the
+  canonical config — a pre-existing weak ruleset can't pass as compliant.
 - The PR ruleset requires 0 approving reviews by default — the point is "no direct pushes", and a
   solo maintainer must still be able to merge. Teams can raise the count or add code-owner review on
   top.

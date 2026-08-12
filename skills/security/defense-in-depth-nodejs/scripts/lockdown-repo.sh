@@ -95,31 +95,56 @@ else
 fi
 
 # 3+4. Rulesets ------------------------------------------------------------------
+# A ruleset is judged by its contents, never by its name alone — a pre-existing
+# weak ruleset with the right name must not pass the audit. Check mode fetches the
+# ruleset and validates enforcement, rule types, targets, and bypass list; apply
+# mode always writes the canonical config (create or overwrite), which also heals
+# a weak same-name ruleset.
+
+ruleset_id() { # $1=name → repo-level ruleset id, or empty
+  gh api "repos/$REPO/rulesets?includes_parents=false" --paginate \
+    --jq ".[] | select(.name == \"$1\") | .id" 2>/dev/null | head -1
+}
+
+ruleset_compliant() { # $1=id $2=jq filter that prints "ok" for a compliant ruleset
+  [[ -n "$1" ]] && [[ "$(gh api "repos/$REPO/rulesets/$1" --jq "$2" 2>/dev/null)" == "ok" ]]
+}
+
 # Ruleset helper: create or update a repo ruleset by name from JSON on stdin.
 upsert_ruleset() { # $1=name
   local id
-  id=$(gh api "repos/$REPO/rulesets?includes_parents=false" --paginate \
-        --jq ".[] | select(.name == \"$1\") | .id" 2>/dev/null | head -1)
+  id=$(ruleset_id "$1")
   if [[ -n "$id" ]]; then
     gh api -X PUT "repos/$REPO/rulesets/$id" --input - >/dev/null
-    pass "updated ruleset \"$1\" (id $id)"
+    pass "wrote ruleset \"$1\" (id $id, existing config replaced)"
   else
     gh api -X POST "repos/$REPO/rulesets" --input - >/dev/null
     pass "created ruleset \"$1\""
   fi
 }
 
-ruleset_state() { # $1=name → "active" if an active ruleset with that name exists
-  gh api "repos/$REPO/rulesets?includes_parents=false" --paginate \
-    --jq ".[] | select(.name == \"$1\") | .enforcement" 2>/dev/null | head -1
-}
+BR_COMPLIANT='if .enforcement == "active"
+  and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward"))
+  and (.conditions.ref_name.include | index("~DEFAULT_BRANCH"))
+  and ((.bypass_actors // []) | length == 0)
+  then "ok" else "weak" end'
+
+TAG_COMPLIANT='if .enforcement == "active"
+  and ([.rules[].type] | index("creation"))
+  and (.conditions.ref_name.include | index("~ALL"))
+  then "ok" else "weak" end'
 
 step 3 "Branch ruleset: pull requests required on $DEFAULT_BRANCH"
 BR_NAME="Pull requests required"
-if [[ "$(ruleset_state "$BR_NAME")" == "active" ]]; then
-  pass "ruleset \"$BR_NAME\" is active"
-elif [[ "$CHECK" -eq 1 ]]; then
-  fail "no active ruleset \"$BR_NAME\""
+if [[ "$CHECK" -eq 1 ]]; then
+  BR_ID=$(ruleset_id "$BR_NAME")
+  if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
+    pass "ruleset \"$BR_NAME\" is active with PR/deletion/force-push rules on the default branch and no bypass"
+  elif [[ -n "$BR_ID" ]]; then
+    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, target, enforcement, or bypass list)"
+  else
+    fail "no ruleset \"$BR_NAME\""
+  fi
 else
   if upsert_ruleset "$BR_NAME" <<'JSON'
 {
@@ -150,10 +175,15 @@ fi
 
 step 4 "Tag ruleset: tags only by admins"
 TAG_NAME="Tags only by admins"
-if [[ "$(ruleset_state "$TAG_NAME")" == "active" ]]; then
-  pass "ruleset \"$TAG_NAME\" is active"
-elif [[ "$CHECK" -eq 1 ]]; then
-  fail "no active ruleset \"$TAG_NAME\""
+if [[ "$CHECK" -eq 1 ]]; then
+  TAG_ID=$(ruleset_id "$TAG_NAME")
+  if ruleset_compliant "$TAG_ID" "$TAG_COMPLIANT"; then
+    pass "ruleset \"$TAG_NAME\" is active with creation restricted on all tags"
+  elif [[ -n "$TAG_ID" ]]; then
+    fail "ruleset \"$TAG_NAME\" exists but is weaker than required (rules, target, or enforcement)"
+  else
+    fail "no ruleset \"$TAG_NAME\""
+  fi
 else
   # bypass actor 5 = the "Repository admin" role
   if upsert_ruleset "$TAG_NAME" <<'JSON'
