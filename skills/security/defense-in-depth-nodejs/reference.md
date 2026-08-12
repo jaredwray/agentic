@@ -56,12 +56,17 @@ Profile: <npm library | website/app> · <public | private>
 ## 2. Repository lockdown
 - [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
 - [ ] Pull requests required on the default branch; force pushes and deletion blocked
+- [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
 - [ ] Tag ruleset "Tags only by admins" active
 - [ ] Workflow runs from all outside collaborators require approval
 - [ ] Default workflow token read-only; Actions cannot create or approve PRs
+- [ ] Actions allowlist: GitHub-owned + verified + explicit patterns only (`--allowed-actions`)
 - [ ] Secret scanning + push protection enabled *(plan-gated on private repos)*
 - [ ] Private vulnerability reporting enabled *(public repos only)*
 - [ ] Dependabot alerts enabled
+- [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
+- [ ] Recovery codes stored offline in a password manager (manual)
+- [ ] Dev/release VM network egress filtered by a firewall (e.g. PMG) (manual)
 
 ## 3. Dependencies (pnpm)
 - [ ] `packageManager: pnpm@11.x` pinned in `package.json`
@@ -81,7 +86,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] No npm tokens (or other registry credentials) in Actions secrets
 
 ## 5. npm publishing — npm libraries only
-- [ ] OIDC trusted publishing configured on npmjs.com for the publish workflow (manual)
+- [ ] OIDC trusted publishing configured **stage-only** on npmjs.com for the publish workflow — it can stage, never publish live (manual)
 - [ ] Staged publishing: CI runs `npm stage publish`; a maintainer promotes with 2FA (manual)
 - [ ] Drydock connected — staged releases reviewed before promotion (manual)
 - [ ] No direct publish rights: package requires 2FA and disallows tokens (manual)
@@ -108,10 +113,10 @@ skill) applies every GitHub-side setting in § 2 idempotently via `gh`, and audi
 
 ```bash
 # audit — safe anywhere, changes nothing, exits 1 if anything is off
-lockdown-repo.sh jaredwray/keyv --check
+lockdown-repo.sh jaredwray/keyv --check --required-checks "test,zizmor"
 
 # apply — requires gh authenticated as a repo admin
-lockdown-repo.sh jaredwray/keyv
+lockdown-repo.sh jaredwray/keyv --required-checks "test,zizmor" --allowed-actions "changesets/*"
 ```
 
 What it sets:
@@ -121,10 +126,12 @@ What it sets:
 | Default workflow token | `read` only, and Actions cannot create or approve PRs |
 | Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
 | Branch ruleset "Pull requests required" | PR required on the default branch, force pushes and deletion blocked, **no bypass** (admins go through PRs too) |
+| Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
 | Dependabot alerts | enabled |
+| Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
 
 Notes:
 
@@ -179,8 +186,8 @@ allowBuilds: {}
   `permissions: {}` with per-job grants). `id-token: write` appears only on a publish job.
 - **Pin by SHA with [actions-up](https://github.com/azat-io/actions-up):** `npx actions-up` scans
   every workflow and composite action, updates to the latest release, and pins to the full commit
-  SHA with a version comment. Use it both for the initial pinning PR and for routine updates —
-  never hand-resolve SHAs.
+  SHA with a version comment. Use it for the initial pinning PR; afterwards pin refresh rides the
+  monthly dependency/workflow management pass. Never hand-resolve SHAs.
 - `persist-credentials: false` on every `actions/checkout` that doesn't need to push.
 - No `pull_request_target` for workflows that check out or execute untrusted PR code; don't share
   caches across trust boundaries, and disable package-manager caching in release builds.
@@ -231,9 +238,11 @@ file's snapshot.
 The publishing model, end to end: **CI can stage, only a human can ship, and a second system reviews
 the artifact in between.**
 
-1. **OIDC trusted publishing** — the publish workflow authenticates to npm with a short-lived OIDC
-   token (`id-token: write` on that job only). No npm tokens exist anywhere: not in Actions secrets,
-   not on laptops. Provenance is generated automatically.
+1. **OIDC trusted publishing, stage-only** — the publish workflow authenticates to npm with a
+   short-lived OIDC token (`id-token: write` on that job only), and the trusted publisher is
+   configured **stage-only** on npmjs.com, so even a tampered workflow cannot publish live. No npm
+   tokens exist anywhere: not in Actions secrets, not on laptops. Provenance is generated
+   automatically.
 2. **Staged publishing** — CI runs `npm stage publish` (npm CLI ≥ 11.15) instead of `npm publish`.
    The version lands in a staging queue, not on the registry.
 3. **Drydock review** — [Drydock](https://drydock.org) (free for npm maintainers) picks up the
@@ -246,9 +255,9 @@ the artifact in between.**
    publisher is the only automated path in, so a compromised laptop or CI run cannot skip the stage.
 
 npmjs.com setup (manual, per package): configure the trusted publisher (GitHub Actions provider →
-exact repo, workflow filename, environment), switch CI to `npm stage publish`, connect Drydock, then
-set **Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
-provenance maps to the repo.
+exact repo, workflow filename, environment) as **stage-only**, switch CI to `npm stage publish`,
+connect Drydock, then set **Require two-factor authentication and disallow tokens**. Keep
+`repository.url` accurate so provenance maps to the repo.
 
 The publish workflow itself (build steps, environments, verification gates) belongs to the
 `release-management-nodejs` skill — this section owns the policy and the registry-side settings.

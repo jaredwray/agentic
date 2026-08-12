@@ -21,8 +21,12 @@ skip public-only items and plan-gated settings degrade gracefully).
 (force pushes and deletion blocked), restricts tag creation to repository admins via a ruleset,
 requires approval for every outside collaborator's workflow run, sets workflow tokens read-only and
 blocks Actions from creating/approving PRs, and enables secret scanning, push protection, private
-vulnerability reporting, and Dependabot alerts. `--check` mode audits without changing anything and
-powers reconciliation.
+vulnerability reporting, and Dependabot alerts. `--required-checks` additionally blocks merging
+unless the named status checks pass, and the script enforces an Actions allowlist (GitHub-owned +
+verified creators + explicit patterns, extendable with `--allowed-actions`). `--check` mode audits
+without changing anything — including rule contents and allowlist patterns — and powers
+reconciliation. The catalog also records the maintainer-level controls inline: phishing-resistant
+2FA on GitHub/npm, offline recovery codes, and firewalled dev/release VMs.
 
 **Publishing policy: staged, reviewed, never direct.** npm libraries publish via OIDC trusted
 publishing (no tokens anywhere) with `npm stage publish`; [Drydock](https://drydock.org) reviews

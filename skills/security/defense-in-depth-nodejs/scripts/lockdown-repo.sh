@@ -6,32 +6,48 @@
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
 #   2. Workflow runs from ALL outside collaborators require owner approval
 #   3. Branch ruleset on the default branch: pull request required, force pushes and
-#      deletion blocked (no bypass — admins go through PRs too)
+#      deletion blocked (no bypass — admins go through PRs too); with --required-checks,
+#      merges are also blocked unless those status checks pass
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
 #   7. Dependabot vulnerability alerts
-#
-# Usage:
-#   lockdown-repo.sh [owner/repo] [--check]
-#
-#   owner/repo   Target repository. Defaults to the repo of the current directory.
-#   --check      Audit only: report PASS/FAIL per setting, change nothing.
-#                Exits 1 if any applicable setting is not in the desired state.
+#   8. Actions allowlist: GitHub-owned + verified creators + explicit patterns only
 #
 # Requires: gh (https://cli.github.com) authenticated as a repository admin.
 # Everything it does is idempotent — safe to re-run any time.
 
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: lockdown-repo.sh [owner/repo] [--check] [--required-checks "<c1,c2>"] [--allowed-actions "<p1,p2>"]
+
+  owner/repo          Target repository. Defaults to the repo of the current directory.
+  --check             Audit only: report PASS/FAIL per setting, change nothing.
+                      Exits 1 if any applicable setting is not in the desired state.
+  --required-checks   Comma-separated status-check names (job names) that must pass
+                      before merging into the default branch, e.g. "test,zizmor".
+  --allowed-actions   Extra action patterns for the allowlist, e.g. "changesets/*".
+                      GitHub-owned, verified creators, and zizmorcore/* are always allowed.
+
+Requires gh authenticated as a repository admin. Idempotent — safe to re-run.
+EOF
+}
+
 REPO=""
 CHECK=0
-for arg in "$@"; do
-  case "$arg" in
+REQUIRED_CHECKS=""
+EXTRA_PATTERNS=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
     --check) CHECK=1 ;;
-    -h|--help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) REPO="$arg" ;;
+    --required-checks) REQUIRED_CHECKS="${2:-}"; shift ;;
+    --allowed-actions) EXTRA_PATTERNS="${2:-}"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) REPO="$1" ;;
   esac
+  shift
 done
 
 command -v gh >/dev/null || { echo "error: gh CLI is required (https://cli.github.com)"; exit 1; }
@@ -133,10 +149,34 @@ upsert_ruleset() { # $1=name
   fi
 }
 
-BR_COMPLIANT='if .enforcement == "active"
+# With --required-checks, the branch ruleset also carries a required_status_checks
+# rule; both the written JSON and the compliance filter include each named check.
+BR_CHECKS_RULE=""
+BR_CHECKS_FILTER=""
+if [[ -n "$REQUIRED_CHECKS" ]]; then
+  CTX_JSON=""
+  IFS=',' read -ra _checks <<<"$REQUIRED_CHECKS"
+  for c in "${_checks[@]}"; do
+    c="${c# }"; c="${c% }"
+    [[ -z "$c" ]] && continue
+    CTX_JSON+="{ \"context\": \"$c\" },"
+    BR_CHECKS_FILTER+=" and (\$ctxs | index(\"$c\"))"
+  done
+  CTX_JSON="${CTX_JSON%,}"
+  BR_CHECKS_RULE=",
+    { \"type\": \"required_status_checks\",
+      \"parameters\": {
+        \"strict_required_status_checks_policy\": false,
+        \"required_status_checks\": [ $CTX_JSON ]
+      } }"
+fi
+
+BR_COMPLIANT='([.rules[] | select(.type == "required_status_checks")
+    | .parameters.required_status_checks[].context]) as $ctxs
+  | if .enforcement == "active"
   and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward"))
   and (.conditions.ref_name.include | index("~DEFAULT_BRANCH"))
-  and ((.bypass_actors // []) | length == 0)
+  and ((.bypass_actors // []) | length == 0)'"$BR_CHECKS_FILTER"'
   then "ok" else "weak" end'
 
 TAG_COMPLIANT='if .enforcement == "active"
@@ -161,7 +201,7 @@ elif [[ "$CHECK" -eq 1 ]]; then
     fail "no ruleset \"$BR_NAME\""
   fi
 else
-  if upsert_ruleset "$BR_NAME" <<'JSON'
+  BR_JSON=$(cat <<JSON
 {
   "name": "Pull requests required",
   "target": "branch",
@@ -179,11 +219,12 @@ else
         "allowed_merge_methods": ["merge", "squash", "rebase"]
       } },
     { "type": "deletion" },
-    { "type": "non_fast_forward" }
+    { "type": "non_fast_forward" }$BR_CHECKS_RULE
   ]
 }
 JSON
-  then :; else
+)
+  if printf '%s' "$BR_JSON" | upsert_ruleset "$BR_NAME"; then :; else
     fail "could not write branch ruleset"
   fi
 fi
@@ -276,6 +317,46 @@ else
   pass "enabled Dependabot alerts"
 fi
 
+# 8. Actions allowlist -------------------------------------------------------------
+step 8 "Actions allowlist (GitHub-owned + verified + explicit patterns)"
+ALLOWED_PATTERNS=("zizmorcore/*")
+if [[ -n "$EXTRA_PATTERNS" ]]; then
+  IFS=',' read -ra _pats <<<"$EXTRA_PATTERNS"
+  for p in "${_pats[@]}"; do
+    p="${p# }"; p="${p% }"
+    [[ -n "$p" ]] && ALLOWED_PATTERNS+=("$p")
+  done
+fi
+PATTERNS_JSON=$(printf '"%s",' "${ALLOWED_PATTERNS[@]}")
+PATTERNS_JSON="${PATTERNS_JSON%,}"
+
+AA_MODE=$(gh api "repos/$REPO/actions/permissions" --jq '.allowed_actions // ""' 2>/dev/null || echo "")
+allowlist_covers() { # every wanted pattern present in the current selected-actions config
+  local have p
+  have=$(gh api "repos/$REPO/actions/permissions/selected-actions" \
+    --jq '(.patterns_allowed // []) | join(",")' 2>/dev/null || echo "")
+  gh api "repos/$REPO/actions/permissions/selected-actions" --jq .github_owned_allowed 2>/dev/null \
+    | grep -q true || return 1
+  for p in "${ALLOWED_PATTERNS[@]}"; do
+    grep -qF ",$p," <<<",$have," || return 1
+  done
+}
+if [[ "$AA_MODE" == "selected" ]] && allowlist_covers; then
+  pass "only GitHub-owned, verified, and allowlisted actions can run (${ALLOWED_PATTERNS[*]})"
+elif [[ "$CHECK" -eq 1 ]]; then
+  fail "allowed_actions is ${AA_MODE:-all} or the allowlist is missing patterns (want: ${ALLOWED_PATTERNS[*]})"
+else
+  if gh api -X PUT "repos/$REPO/actions/permissions" -F enabled=true -f allowed_actions=selected >/dev/null 2>&1 &&
+     printf '{ "github_owned_allowed": true, "verified_allowed": true, "patterns_allowed": [%s] }' "$PATTERNS_JSON" |
+       gh api -X PUT "repos/$REPO/actions/permissions/selected-actions" --input - >/dev/null 2>&1; then
+    pass "allowlist set: GitHub-owned + verified + ${ALLOWED_PATTERNS[*]}"
+    echo "    note: any workflow using an action outside this list will fail — grep 'uses:' in"
+    echo "    .github/workflows and re-run with --allowed-actions \"owner/*,...\" to extend."
+  else
+    fail "could not set the Actions allowlist (an org-level policy may control it)"
+  fi
+fi
+
 # ---------------------------------------------------------------------------------
 echo
 if [[ "$CHECK" -eq 1 ]]; then
@@ -286,7 +367,7 @@ if [[ "$CHECK" -eq 1 ]]; then
   echo "Audit: all applicable settings are in the desired state."
 else
   echo "Done. Settings GitHub cannot script — configure these on npmjs.com (npm libraries only):"
-  echo "  · Trusted publishing (OIDC) for the publish workflow — no npm tokens anywhere"
+  echo "  · Trusted publishing (OIDC) configured STAGE-ONLY — the publisher can stage, never publish live"
   echo "  · Staged publishing: CI runs 'npm stage publish'; a maintainer promotes with 2FA"
   echo "  · Package access: require 2FA and disallow tokens (no direct publish rights)"
   echo "  · Connect Drydock (https://drydock.org) to review staged releases before promotion"
