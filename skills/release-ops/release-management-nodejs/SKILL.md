@@ -86,7 +86,6 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 - [ ] Release signature bundles and SHA256 digests mirrored to `jaredwray.com`
 - [ ] (Optional) Custom deployment protection rule added to the `npm-publish` environment
 - [ ] Socket Gateway evaluated in report-only mode
-- [ ] `deepsec` enabled on PRs touching release / dep / CI / auth / crypto / package paths
 ```
 
 ## Phase priority

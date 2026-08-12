@@ -89,7 +89,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 6. Security tooling
 - [ ] Aikido runs on every build
-- [ ] deepsec runs on PRs touching release/dep/CI/auth/crypto/package paths (optional)
+- [ ] Socket reviews every PR that changes dependencies
 ```
 
 Profile adjustments when scaffolding:
@@ -257,12 +257,15 @@ and [Two places to stop a bad release](https://jovidecroock.com/blog/drydock-rel
 
 ## 6. Security tooling
 
-- **Aikido** runs on every build (SCA, secrets, SAST). Aikido also partners with Drydock, so
-  pre-publish review and build-time scanning share findings.
-- **deepsec** ([vercel-labs/deepsec](https://github.com/vercel-labs/deepsec)) — optional second
-  layer: an agent-powered scanner that reviews the diff (`deepsec process --diff`). It's LLM-based
-  and costs per run, so scope it with an `on.pull_request.paths` filter to PRs touching release,
-  dependency, CI, auth, crypto, or package-boundary paths, and cap spend with `--max-cost-usd`.
+Both layers are GitHub apps already used across these repos — installing the app on the repo is the
+whole setup, and each item is verified by its check appearing on PRs.
+
+- **Aikido** ([aikido.dev](https://www.aikido.dev)) runs on every build — SCA/CVE scanning, secrets,
+  SAST. Aikido also partners with Drydock, so pre-publish review and build-time scanning share
+  findings.
+- **Socket** ([socket.dev](https://socket.dev)) is the dependency security linter: it reviews every
+  PR that changes dependencies for supply-chain behavior — new install scripts, network access,
+  obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet.
 - Secret scanning, push protection, and Dependabot alerts are repo settings — § 2 owns them.
 
 ## References
@@ -273,7 +276,8 @@ and [Two places to stop a bad release](https://jovidecroock.com/blog/drydock-rel
 - Drydock: https://drydock.org/
 - actions-up: https://github.com/azat-io/actions-up
 - zizmor: https://docs.zizmor.sh/
-- deepsec: https://github.com/vercel-labs/deepsec
+- Socket: https://socket.dev/
+- Aikido: https://www.aikido.dev/
 - pnpm settings: https://pnpm.io/settings
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
 - GitHub Actions secure use: https://docs.github.com/en/actions/reference/security/secure-use

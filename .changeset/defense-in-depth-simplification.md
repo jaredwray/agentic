@@ -33,6 +33,7 @@ disallow tokens, so there are no direct publish rights.
 [actions-up](https://github.com/azat-io/actions-up), and every repo gets
 `.github/workflows/check-workflows.yaml` running [zizmor](https://docs.zizmor.sh) — this repo now
 dogfoods that workflow. The pnpm 7-day cooldown (`minimumReleaseAge: 10080`) stays the anchor
-dependency control. Socket.dev, SBOM generation, and the monitoring items are dropped from the
-required stack; Aikido (build scanning) and optional deepsec (agent-powered PR review on sensitive
-paths) remain.
+dependency control. deepsec, SBOM generation, and the monitoring items are dropped from the
+required stack; the tooling layer is [Aikido](https://www.aikido.dev) (build scanning: SCA,
+secrets, SAST) plus [Socket](https://socket.dev) (dependency-diff supply-chain linting on PRs),
+both already installed as GitHub apps.

@@ -59,7 +59,7 @@ top-to-bottom:
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — OIDC trusted publishing + staged publishing + Drydock review; npm-side items are `(manual)`.
-6. **§ 6 Security tooling** — Aikido on builds; deepsec on sensitive-path PRs (optional).
+6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 
 ## Workflow
 
