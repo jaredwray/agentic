@@ -72,12 +72,15 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
    `DEFENSE_IN_DEPTH.md` and re-verify only if the repo changed shape.
 
 3. **Audit.**
-   - If `DEFENSE_IN_DEPTH.md` is missing, scaffold it from [reference.md § 1](./reference.md#1-security-docs),
-     dropping sections the profile excludes.
-   - **Migration:** if `SECURITY.md` contains an old `Defense in Depth status` block, move its state
-     into `DEFENSE_IN_DEPTH.md` (map matching items; list dropped ones in the PR body) and cut
-     `SECURITY.md` down to the simple shape. Same for a `Release Management status` block — it moves
-     to `DEFENSE_IN_DEPTH.md` untouched.
+   - If `DEFENSE_IN_DEPTH.md` is missing, the next item is § 1 by definition. Scaffolding — from
+     [reference.md § 1](./reference.md#1-security-docs), dropping sections the profile excludes —
+     happens in that item's PR in Step 4, never during the audit, so no scaffold ever sits
+     uncommitted when a settings step runs.
+   - **Migration (rides the § 1 PR):** if `SECURITY.md` contains an old `Defense in Depth status`
+     block, move its state into `DEFENSE_IN_DEPTH.md` (map matching items; list dropped ones in the
+     PR body) and cut `SECURITY.md` down to the simple shape. Same for a `Release Management status`
+     block — it moves over untouched. The move is one-shot: afterwards status is never read from
+     `SECURITY.md` again.
    - Reconcile every checkbox against actual repo state per `security-status-tracking` — for § 2 run
      `lockdown-repo.sh <owner/repo> --check` and mirror its PASS/FAIL lines. Never silently uncheck
      a regression — stop and report it.
@@ -89,10 +92,10 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      checkbox to `(PR #<n> pending)`, run the section's local verification
      (`pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist), open the PR per
      [PR rules](#pull-request-rules).
-   - **§ 2 setting items:** these change GitHub settings, not files — no PR. Show the user the
-     `--check` output and ask before applying; then run `lockdown-repo.sh <owner/repo>` (or hand the
-     command to a repo admin if `gh` here isn't one) and re-run `--check`. Checkbox updates ride the
-     next file PR.
+   - **§ 2 setting items:** these change GitHub settings, not files — no PR, and they run only
+     against a clean working tree. Show the user the `--check` output and ask before applying; then
+     run `lockdown-repo.sh <owner/repo>` (or hand the command to a repo admin if `gh` here isn't
+     one) and re-run `--check`. Checkbox updates ride the next file PR.
    - **`(manual)` items** (npm-side settings): report what the maintainer needs to do — from
      [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only) — and continue past
      them; the maintainer ticks them off.

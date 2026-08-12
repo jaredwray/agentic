@@ -106,6 +106,16 @@ ruleset_id() { # $1=name → repo-level ruleset id, or empty
     --jq ".[] | select(.name == \"$1\") | .id" 2>/dev/null | head -1
 }
 
+# Rulesets on private repos are plan-gated (GitHub Pro/Team). Probe with an empty
+# POST body: a 422 validation error means the feature is available, a 403 means the
+# plan doesn't include it. The probe never creates anything.
+rulesets_supported() {
+  [[ "$PRIVATE" != "true" ]] && return 0
+  local out
+  out=$(gh api -X POST "repos/$REPO/rulesets" --input /dev/null 2>&1) && return 0
+  ! grep -q "HTTP 403" <<<"$out"
+}
+
 ruleset_compliant() { # $1=id $2=jq filter that prints "ok" for a compliant ruleset
   [[ -n "$1" ]] && [[ "$(gh api "repos/$REPO/rulesets/$1" --jq "$2" 2>/dev/null)" == "ok" ]]
 }
@@ -134,9 +144,14 @@ TAG_COMPLIANT='if .enforcement == "active"
   and (.conditions.ref_name.include | index("~ALL"))
   then "ok" else "weak" end'
 
+RULESETS_OK=1
+rulesets_supported || RULESETS_OK=0
+
 step 3 "Branch ruleset: pull requests required on $DEFAULT_BRANCH"
 BR_NAME="Pull requests required"
-if [[ "$CHECK" -eq 1 ]]; then
+if [[ "$RULESETS_OK" -eq 0 ]]; then
+  skip "branch ruleset \"$BR_NAME\"" "rulesets on private repos need GitHub Pro/Team"
+elif [[ "$CHECK" -eq 1 ]]; then
   BR_ID=$(ruleset_id "$BR_NAME")
   if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
     pass "ruleset \"$BR_NAME\" is active with PR/deletion/force-push rules on the default branch and no bypass"
@@ -169,13 +184,15 @@ else
 }
 JSON
   then :; else
-    fail "could not create branch ruleset (private repos need GitHub Pro/Team for rulesets)"
+    fail "could not write branch ruleset"
   fi
 fi
 
 step 4 "Tag ruleset: tags only by admins"
 TAG_NAME="Tags only by admins"
-if [[ "$CHECK" -eq 1 ]]; then
+if [[ "$RULESETS_OK" -eq 0 ]]; then
+  skip "tag ruleset \"$TAG_NAME\"" "rulesets on private repos need GitHub Pro/Team"
+elif [[ "$CHECK" -eq 1 ]]; then
   TAG_ID=$(ruleset_id "$TAG_NAME")
   if ruleset_compliant "$TAG_ID" "$TAG_COMPLIANT"; then
     pass "ruleset \"$TAG_NAME\" is active with creation restricted on all tags"
@@ -199,22 +216,26 @@ else
 }
 JSON
   then :; else
-    fail "could not create tag ruleset (private repos need GitHub Pro/Team for rulesets)"
+    fail "could not write tag ruleset"
   fi
 fi
 
 # 5. Secret scanning + push protection ------------------------------------------
 step 5 "Secret scanning + push protection"
-SS=$(gh api "repos/$REPO" --jq '.security_and_analysis.secret_scanning.status' 2>/dev/null || echo "")
-SSPP=$(gh api "repos/$REPO" --jq '.security_and_analysis.secret_scanning_push_protection.status' 2>/dev/null || echo "")
+# "disabled but available" must fail the audit; only genuine unavailability (the
+# security_and_analysis key is absent — no Secret Protection on this plan) is a skip.
+SS=$(gh api "repos/$REPO" --jq \
+  'if (.security_and_analysis // {}) | has("secret_scanning") then .security_and_analysis.secret_scanning.status else "unavailable" end' \
+  2>/dev/null || echo unavailable)
+SSPP=$(gh api "repos/$REPO" --jq \
+  'if (.security_and_analysis // {}) | has("secret_scanning_push_protection") then .security_and_analysis.secret_scanning_push_protection.status else "unavailable" end' \
+  2>/dev/null || echo unavailable)
 if [[ "$SS" == "enabled" && "$SSPP" == "enabled" ]]; then
   pass "secret scanning and push protection enabled"
+elif [[ "$PRIVATE" == "true" && "$SS" == "unavailable" ]]; then
+  skip "secret scanning + push protection" "not available on this plan — needs GitHub Secret Protection"
 elif [[ "$CHECK" -eq 1 ]]; then
-  if [[ "$PRIVATE" == "true" ]]; then
-    skip "secret scanning is ${SS:-off}, push protection is ${SSPP:-off}" "private repo — needs GitHub Secret Protection"
-  else
-    fail "secret scanning is ${SS:-off}, push protection is ${SSPP:-off}"
-  fi
+  fail "secret scanning is ${SS}, push protection is ${SSPP}"
 else
   if gh api -X PATCH "repos/$REPO" --input - >/dev/null 2>&1 <<'JSON'
 { "security_and_analysis": {
@@ -223,8 +244,6 @@ else
 JSON
   then
     pass "enabled secret scanning and push protection"
-  elif [[ "$PRIVATE" == "true" ]]; then
-    skip "secret scanning" "private repo — requires the GitHub Secret Protection add-on"
   else
     fail "could not enable secret scanning"
   fi

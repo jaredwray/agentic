@@ -543,7 +543,7 @@ jobs:
         run: ./scripts/verify-release-intent.sh "$PKG" "$VERSION"
 
   publish:
-    name: Publish to npm with provenance
+    name: Stage publish to npm with provenance
     needs: verify-release-approval
     runs-on: ubuntu-latest
     environment: npm-publish
@@ -583,12 +583,16 @@ jobs:
           pnpm --filter "$PKG" pack --pack-destination "$PWD/dist"
           sha256sum dist/*.tgz > dist/SHA256SUMS
 
-      - name: Publish through npm trusted publishing
-        run: pnpm --filter "$PKG" publish --access public --no-git-checks
+      # npm ≥ 11.15: lands in the npm staging queue via trusted publishing — it does
+      # NOT go live. A maintainer promotes with 2FA after Drydock review
+      # (defense-in-depth-nodejs § 5).
+      - name: Stage publish through npm trusted publishing
+        run: npm stage publish dist/*.tgz --access public
 ```
 
 Important release-job rules:
 
+- [ ] CI only stages (`npm stage publish`) — it never publishes a version live. Promotion is a human action with 2FA after the staged artifact passes Drydock review.
 - [ ] No npm token.
 - [ ] No dependency cache.
 - [ ] No `workflow_dispatch` for unreviewed manual publishing unless separately gated.
