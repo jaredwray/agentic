@@ -119,7 +119,7 @@ Each key is one override. Nested npm-style overrides (`"foo": { ".": "1.0.0", "b
 Walk the collected pins in listed order. Evaluate each on a `chore/override-<pkg>` branch from latest `main`, never on `main`. Prefer removal over an update:
 
 1. **Try remove.** Delete the pin, run `pnpm install`, and check `pnpm why <pkg>` and the lockfile. If the resolved version is still ≥ the pin, the parent has caught up — that's the PR.
-2. **Try update.** If removal would regress the resolved version, restore the pin and bump it to the newest version installable under the repo's `minimumReleaseAge` (the same gate as `pnpm outdated`'s Latest; do not pick a younger version). Edit the override and run `pnpm install`, not `pnpm add`. If the pin moves, that's the PR.
+2. **Try update.** If removal would regress the resolved version, restore the pin. Rewrite it to `>=<current>` (`<current>` is the exact pin, or the range's lower bound) and run `pnpm install`, not `pnpm add`. The version `pnpm why <pkg>` (or the lockfile) then resolves is the newest installable under `minimumReleaseAge` — the same gate as `pnpm outdated`'s Latest; do not pick a younger version. If that version is newer than the original pin, rewrite the override to that exact version. If the pin moves, that's the PR.
 3. **Keep** if neither applies. Discard the branch, return to `main`, and continue to the next pin.
 
 Stop at the first pin that removes or updates. Kept pins are not deferrals; they stay until a later resume (usually after a parent upgrade) makes them removable.
@@ -220,6 +220,8 @@ exception are `pr-conventions`. What's specific to this workflow:
 **The "Latest" column from `pnpm outdated` is the exact target version — never upgrade past it.** This repo uses pnpm's `minimumReleaseAge` to gate freshly-published versions, so `pnpm outdated`'s "Latest" is already the curated upgrade target. Don't cross-reference npm, GitHub releases, or CHANGELOGs to pick a newer version.
 
 **For Docker image groups**, there is no `pnpm outdated` equivalent. The target is the latest tag within the same lineage, as determined by [Container image discovery](#container-image-discovery). Do not cross-reference Docker Hub's "latest" tag — target the latest tag matching the current major and variant.
+
+**For override updates**, the package is usually transitive and will not appear in `pnpm outdated`. The target is the version `pnpm install` resolves after rewriting the pin to `>=<current>` — that resolution already applies `minimumReleaseAge`. Do not look up versions on npm, GitHub, or CHANGELOGs.
 
 ### Title prefixes
 
