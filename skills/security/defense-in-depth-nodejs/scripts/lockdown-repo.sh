@@ -5,9 +5,9 @@
 #
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
 #   2. Workflow runs from ALL outside collaborators require owner approval
-#   3. Branch ruleset on the default branch: pull request required, force pushes and
-#      deletion blocked (no bypass — admins go through PRs too); with --required-checks,
-#      merges are also blocked unless those status checks pass
+#   3. Branch ruleset on the default branch: pull request required with 1 approving
+#      review, force pushes and deletion blocked (no bypass — admins go through PRs too);
+#      with --required-checks, merges are also blocked unless those status checks pass
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
@@ -113,7 +113,7 @@ fi
 # 3+4. Rulesets ------------------------------------------------------------------
 # A ruleset is judged by its contents, never by its name alone — a pre-existing
 # weak ruleset with the right name must not pass the audit. Check mode fetches the
-# ruleset and validates enforcement, rule types, targets, and bypass list; apply
+# ruleset and validates enforcement, rule types, review count, targets, and bypass list; apply
 # mode always writes the canonical config (create or overwrite), which also heals
 # a weak same-name ruleset.
 
@@ -175,6 +175,7 @@ BR_COMPLIANT='([.rules[] | select(.type == "required_status_checks")
     | .parameters.required_status_checks[].context]) as $ctxs
   | if .enforcement == "active"
   and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward"))
+  and (any(.rules[]; .type == "pull_request" and (.parameters.required_approving_review_count // 0) >= 1))
   and (.conditions.ref_name.include | index("~DEFAULT_BRANCH"))
   and ((.bypass_actors // []) | length == 0)'"$BR_CHECKS_FILTER"'
   then "ok" else "weak" end'
@@ -194,9 +195,9 @@ if [[ "$RULESETS_OK" -eq 0 ]]; then
 elif [[ "$CHECK" -eq 1 ]]; then
   BR_ID=$(ruleset_id "$BR_NAME")
   if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
-    pass "ruleset \"$BR_NAME\" is active with PR/deletion/force-push rules on the default branch and no bypass"
+    pass "ruleset \"$BR_NAME\" is active with 1+ approving reviews, PR/deletion/force-push rules on the default branch, and no bypass"
   elif [[ -n "$BR_ID" ]]; then
-    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, target, enforcement, or bypass list)"
+    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, review count, target, enforcement, or bypass list)"
   else
     fail "no ruleset \"$BR_NAME\""
   fi
@@ -211,7 +212,7 @@ else
   "rules": [
     { "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 0,
+        "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": false,
         "require_code_owner_review": false,
         "require_last_push_approval": false,

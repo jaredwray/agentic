@@ -55,7 +55,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 2. Repository lockdown
 - [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
-- [ ] Pull requests required on the default branch; force pushes and deletion blocked
+- [ ] Pull requests required on the default branch (1 approving review); force pushes and deletion blocked
 - [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
 - [ ] Tag ruleset "Tags only by admins" active
 - [ ] Workflow runs from all outside collaborators require approval
@@ -125,7 +125,7 @@ What it sets:
 | --- | --- |
 | Default workflow token | `read` only, and Actions cannot create or approve PRs |
 | Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
-| Branch ruleset "Pull requests required" | PR required on the default branch, force pushes and deletion blocked, **no bypass** (admins go through PRs too) |
+| Branch ruleset "Pull requests required" | PR required on the default branch with **1 approving review**, force pushes and deletion blocked, **no bypass** (admins go through PRs too) |
 | Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
@@ -138,11 +138,10 @@ Notes:
 - The agent never runs the apply mode on its own: run `--check` freely for reconciliation, but stop
   and ask before changing repo settings, or hand the command to the maintainer.
 - Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
-  types, targets, and the bypass list, and apply mode overwrites a same-name ruleset with the
-  canonical config — a pre-existing weak ruleset can't pass as compliant.
-- The PR ruleset requires 0 approving reviews by default — the point is "no direct pushes", and a
-  solo maintainer must still be able to merge. Teams can raise the count or add code-owner review on
-  top.
+  types, review count, targets, and the bypass list, and apply mode overwrites a same-name ruleset
+  with the canonical config — a pre-existing weak ruleset can't pass as compliant.
+- The PR ruleset requires 1 approving review — no direct pushes, and a second person must approve
+  before merge. Teams can raise the count or add code-owner review on top.
 - Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
   Protection add-on — the script reports these instead of failing.
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
