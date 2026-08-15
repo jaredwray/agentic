@@ -29,7 +29,7 @@ Usage: lockdown-repo.sh [owner/repo] [--check] [--required-checks "<c1,c2>"] [--
   --required-checks   Comma-separated status-check names (job names) that must pass
                       before merging into the default branch, e.g. "test,zizmor".
   --allowed-actions   Extra action patterns for the allowlist, e.g. "changesets/*".
-                      GitHub-owned, verified creators, and zizmorcore/* are always allowed.
+                      GitHub-owned, verified creators, zizmorcore/*, and SocketDev/* are always allowed.
 
 Requires gh authenticated as a repository admin. Idempotent — safe to re-run.
 EOF
@@ -319,7 +319,7 @@ fi
 
 # 8. Actions allowlist -------------------------------------------------------------
 step 8 "Actions allowlist (GitHub-owned + verified + explicit patterns)"
-ALLOWED_PATTERNS=("zizmorcore/*")
+ALLOWED_PATTERNS=("zizmorcore/*" "SocketDev/*")
 if [[ -n "$EXTRA_PATTERNS" ]]; then
   IFS=',' read -ra _pats <<<"$EXTRA_PATTERNS"
   for p in "${_pats[@]}"; do
