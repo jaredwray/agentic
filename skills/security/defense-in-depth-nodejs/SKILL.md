@@ -1,6 +1,6 @@
 ---
 name: defense-in-depth-nodejs
-description: Harden a Node.js repo against supply-chain compromise one PR at a time — a gh lockdown script for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs), pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, zizmor workflow linting, and staged OIDC npm publishing reviewed in Drydock. Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
+description: Harden a Node.js repo against supply-chain compromise one PR at a time — a gh lockdown script for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs), pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, and staged OIDC npm publishing reviewed in Drydock. Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -57,7 +57,7 @@ top-to-bottom:
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
 2. **§ 2 Repository lockdown** — GitHub settings via [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (settings, not commits — see Step 4).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown, blocked lifecycle scripts, frozen lockfile.
-4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, `check-workflows.yaml` zizmor linting.
+4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on every job, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — OIDC trusted publishing + staged publishing + Drydock review; npm-side items are `(manual)`.
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 
@@ -88,7 +88,7 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
 4. **Implement the next item.**
    - **File items** (everything except § 2): branch from `main` as
      `chore/defense-<section-key>-<item-key>` (e.g. `chore/defense-pnpm-cooldown`,
-     `chore/defense-actions-check-workflows`), make only the change the item requires, update its
+     `chore/defense-actions-socket-firewall`), make only the change the item requires, update its
      checkbox to `(PR #<n> pending)`, run the section's local verification
      (`pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist), open the PR per
      [PR rules](#pull-request-rules).
@@ -123,5 +123,5 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
 ## Reference
 
 The implementation spec — doc templates, the lockdown script's settings table, the pnpm baseline,
-the `check-workflows.yaml` template, the staged-publishing model, tooling links — lives in
-[reference.md](./reference.md). Each `DEFENSE_IN_DEPTH.md` item names its section.
+the Socket Firewall step, the `check-workflows.yaml` template, the staged-publishing model, tooling
+links — lives in [reference.md](./reference.md). Each `DEFENSE_IN_DEPTH.md` item names its section.
