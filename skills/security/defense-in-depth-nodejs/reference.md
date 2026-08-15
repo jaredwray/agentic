@@ -27,7 +27,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - All changes land through pull requests — direct pushes to `main` are blocked, and merging requires passing status checks.
 - Tags (and therefore releases) can only be created by repository admins.
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
-- CI runs with read-only permissions; every action is pinned to a full commit SHA and workflows are security-linted with zizmor on every PR.
+- CI runs with read-only permissions; every action is pinned to a full commit SHA; Socket Firewall wraps package installs; workflows are security-linted with zizmor on every PR.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
 ```
@@ -80,6 +80,7 @@ Profile: <npm library | website/app> · <public | private>
 ## 4. GitHub Actions
 - [ ] `permissions: contents: read` (or `{}` + per-job grants) on every workflow
 - [ ] Every action pinned to a full commit SHA (`npx actions-up`)
+- [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned)
 - [ ] `.github/workflows/check-workflows.yaml` lints workflows with zizmor on every PR
 - [ ] `persist-credentials: false` on checkouts that don't push
 - [ ] No `pull_request_target` on workflows that run untrusted PR code
@@ -131,7 +132,7 @@ What it sets:
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
 | Dependabot alerts | enabled |
-| Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
+| Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
 
 Notes:
 
@@ -195,6 +196,29 @@ allowBuilds: {}
   changes always get a code-owner review (pair the maintainer with a second trusted reviewer, and
   enable code-owner review in the branch ruleset).
 
+### Socket Firewall on every job
+
+Every job with `steps:` installs [Socket Firewall Free](https://docs.socket.dev/docs/socket-firewall-free)
+immediately after checkout (or as the first step if the job does not check out). Default shims wrap
+npm/pnpm/yarn, so later install commands do not need an `sfw` prefix. Add the step even to jobs that
+do not currently install packages, so a later install is already covered. This is install-time
+blocking; the Socket GitHub app in § 6 reviews dependency diffs on PRs.
+
+```yaml
+      - name: Install Socket Firewall
+        uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: "1.15.0"
+```
+
+- Pin `SocketDev/action` to a full commit SHA via actions-up — never a floating tag.
+- Pin `firewall-version` to a reviewed [sfw-free](https://github.com/SocketDev/sfw-free/releases)
+  version (no `v` prefix; the action prepends it). Never `latest`. After copying this snapshot, look
+  up the current reviewed release rather than trusting the version in this file.
+- `mode: firewall-free` needs no Socket API token. The job still needs `contents: read` so the
+  action can fetch the release through the GitHub API.
+
 ### CI security linting: check-workflows.yaml
 
 Add `.github/workflows/check-workflows.yaml` running [zizmor](https://docs.zizmor.sh), the GitHub
@@ -223,14 +247,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install Socket Firewall
+        uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: "1.15.0"
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
 ```
 
 Private repos without Advanced Security can't upload SARIF — add `with: advanced-security: false`
 to the zizmor step (findings become annotations and fail the job) and drop `security-events: write`.
-After copying the template, run `npx actions-up` so the pins are current rather than trusting this
-file's snapshot.
+After copying the template, run `npx actions-up` so the action pins are current rather than trusting
+this file's snapshot, and look up the current reviewed sfw-free version for `firewall-version`.
 
 ## 5. npm publishing — npm libraries only
 
@@ -277,7 +306,8 @@ whole setup, and each item is verified by its check appearing on PRs.
   findings are open — full job template in the `release-management-nodejs` reference § 14.
 - **Socket** ([socket.dev](https://socket.dev)) is the dependency security linter: it reviews every
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
-  obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet.
+  obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI
+  install-time blocking is Socket Firewall in § 4, not this GitHub-app item.
 - Secret scanning, push protection, and Dependabot alerts are repo settings — § 2 owns them.
 
 ## References
@@ -289,6 +319,9 @@ whole setup, and each item is verified by its check appearing on PRs.
 - actions-up: https://github.com/azat-io/actions-up
 - zizmor: https://docs.zizmor.sh/
 - Socket: https://socket.dev/
+- Socket Firewall Free: https://docs.socket.dev/docs/socket-firewall-free
+- SocketDev/action: https://github.com/SocketDev/action
+- sfw-free releases: https://github.com/SocketDev/sfw-free/releases
 - Aikido: https://www.aikido.dev/
 - pnpm settings: https://pnpm.io/settings
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets

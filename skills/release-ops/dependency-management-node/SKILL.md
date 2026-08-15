@@ -56,6 +56,8 @@ Surface with `pnpm outdated --dev` (single-package) or `pnpm -r outdated --dev` 
 
 4. **GitHub Actions → 1 PR** (only if `.github/workflows/` exists; not surfaced by `pnpm outdated`):
    Upgrade every `uses: <action>@<ref>` reference to the latest available version.
+   When a workflow installs Socket Firewall, also bump `firewall-version` to the latest reviewed
+   [sfw-free](https://github.com/SocketDev/sfw-free/releases) release (no `v` prefix).
    - Branch: `chore/github-actions`
    - PR title: e.g. `root - chore: upgrade GitHub Actions` (or `mono - chore: …`); append `(breaking)` if any action's major changed
    - Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`) — don't change pin style during the upgrade

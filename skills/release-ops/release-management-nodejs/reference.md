@@ -58,6 +58,7 @@ Required:
 - Protected `npm-publish` environment.
 - Frozen pnpm install.
 - Full SHA-pinned actions.
+- Socket Firewall on every job (`firewall-version` pinned).
 
 ### Mode B: Local-Only Release
 
@@ -481,7 +482,9 @@ Notes:
 
 ## 14. GitHub Actions Publish Workflow
 
-This workflow is a template. Replace action refs with full commit SHAs before use.
+This workflow is a template. Replace action refs with full commit SHAs and pin
+`firewall-version` to a reviewed [sfw-free](https://github.com/SocketDev/sfw-free/releases)
+release (no `v` prefix) before use.
 
 `.github/workflows/publish.yml`:
 
@@ -515,6 +518,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Socket Firewall
+        uses: SocketDev/action@<FULL_COMMIT_SHA>
+        with:
+          mode: firewall-free
+          firewall-version: "<REVIEWED_SFW_FREE_VERSION>"
+
       - name: Verify signed tag
         run: git tag -v "$GITHUB_REF_NAME"
 
@@ -545,8 +554,15 @@ jobs:
   aikido-gate:
     name: Aikido release gate
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      contents: read
     steps:
+      - name: Install Socket Firewall
+        uses: SocketDev/action@<FULL_COMMIT_SHA>
+        with:
+          mode: firewall-free
+          firewall-version: "<REVIEWED_SFW_FREE_VERSION>"
+
       - name: Set up Node.js
         uses: actions/setup-node@<FULL_COMMIT_SHA>
         with:
@@ -589,6 +605,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install Socket Firewall
+        uses: SocketDev/action@<FULL_COMMIT_SHA>
+        with:
+          mode: firewall-free
+          firewall-version: "<REVIEWED_SFW_FREE_VERSION>"
+
       - name: Enable Corepack
         run: corepack enable
 
@@ -621,6 +643,7 @@ Important release-job rules:
 
 - [ ] CI only stages (`npm stage publish`) — it never publishes a version live. Promotion is a human action with 2FA after the staged artifact passes Drydock review.
 - [ ] The Aikido release gate passes before anything is staged; its CI key is a plain repo secret with no publish authority.
+- [ ] Socket Firewall installed (SHA-pinned `SocketDev/action`, `firewall-version` pinned) before any package-manager command.
 - [ ] No npm token.
 - [ ] No dependency cache.
 - [ ] No `workflow_dispatch` for unreviewed manual publishing unless separately gated.

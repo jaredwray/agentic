@@ -50,6 +50,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 - [ ] `pnpm-workspace.yaml` security baseline added (`minimumReleaseAge`, `minimumReleaseAgeStrict`, `minimumReleaseAgeIgnoreMissingTime`, `blockExoticSubdeps`, `strictDepBuilds`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}`)
 - [ ] pnpm 11 pinned via `packageManager` in `package.json`
 - [ ] All GitHub Actions pinned to full commit SHAs
+- [ ] Every workflow job installs Socket Firewall via SHA-pinned `SocketDev/action` (`firewall-version` pinned)
 - [ ] `permissions: contents: read` default on all workflows
 - [ ] npm publish tokens removed from GitHub Actions
 - [ ] CODEOWNERS added for `.github/workflows/**` and `.release-policy/**`
@@ -69,7 +70,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 - [ ] `npm-publish` protected environment created on GitHub (manual)
 - [ ] npm trusted publisher configured for the pilot (provider GitHub Actions, exact repo, workflow `publish.yml`, environment `npm-publish`) (manual)
 - [ ] Package `repository.url` confirmed accurate
-- [ ] `.github/workflows/publish.yml` added per the [reference.md § 14](./reference.md#14-github-actions-publish-workflow) template (all action refs replaced with full commit SHAs)
+- [ ] `.github/workflows/publish.yml` added per the [reference.md § 14](./reference.md#14-github-actions-publish-workflow) template (all action refs replaced with full commit SHAs; `firewall-version` pinned)
 - [ ] Signed release intent prepared for the pilot's first release (`.release/<pkg>/<version>/release-intent.json` + approved maintainer signature bundle)
 - [ ] Test release run on a prerelease tag (`<pkg>@x.y.z-test.0`)
 - [ ] npm provenance verified on the published prerelease

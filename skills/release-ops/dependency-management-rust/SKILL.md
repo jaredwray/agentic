@@ -55,6 +55,8 @@ Surface with `cargo outdated --depth 1` (single-crate) or `cargo outdated --work
 
 4. **GitHub Actions → 1 PR** (only if `.github/workflows/` exists; not surfaced by `cargo outdated`):
    Upgrade every `uses: <action>@<ref>` reference to the latest available version, including Rust-specific actions like `dtolnay/rust-toolchain`, `Swatinem/rust-cache`, `taiki-e/install-action`.
+   When a workflow installs Socket Firewall, also bump `firewall-version` to the latest reviewed
+   [sfw-free](https://github.com/SocketDev/sfw-free/releases) release (no `v` prefix).
    - Branch: `chore/github-actions`
    - PR title: e.g. `root - chore: upgrade GitHub Actions` (or `workspace - chore: …`); append `(breaking)` if any action's major changed
    - Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`) — don't change pin style during the upgrade
