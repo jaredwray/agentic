@@ -1,6 +1,6 @@
 ---
 name: dependency-management-node
-description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — code-quality tooling, build tooling, monorepo tooling, GitHub Actions, Docker images, then runtime ecosystems — respecting pnpm minimumReleaseAge and the @types/node-versus-Node-major rule. Use when asked to update, upgrade, or bump dependencies on a Node or pnpm project. Manual and resumable; dev phase before runtime phase.
+description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — first reviewing pnpm overrides to remove or update them, then code-quality tooling, build tooling, monorepo tooling, GitHub Actions, Docker images, then runtime ecosystems — respecting pnpm minimumReleaseAge and the @types/node-versus-Node-major rule. Use when asked to update, upgrade, or bump dependencies on a Node or pnpm project. Manual and resumable; overrides first, then the dev phase before the runtime phase.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -13,7 +13,7 @@ Workflow for upgrading both **devDependencies** (with CI tooling) and **runtime 
 >
 > **One PR at a time.** Open a PR, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next dep PR`, or similar. Never open a second dep-management PR while one is already in flight.
 >
-> **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
+> **Overrides, then dev, then runtime.** Finish every override that can be removed or updated before any upgrade group. Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it).
 
@@ -31,10 +31,11 @@ Determine the repo shape first:
 
 ## Phases
 
-Run the two phases in order. Do not interleave.
+Run the three phases in order. Do not interleave.
 
-1. **Dev phase** — devDependencies and GitHub Actions. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
-2. **Runtime phase** — runtime ecosystems and standalone runtime deps. Begin only after every dev group has either been merged or documented as a deferral.
+1. **Overrides** — existing version pins (`pnpm.overrides`, `overrides`, Yarn `resolutions`). Exhaust every pin that can be removed or updated (one PR each) before starting the dev phase. See [Overrides](#overrides).
+2. **Dev phase** — devDependencies and GitHub Actions. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
+3. **Runtime phase** — runtime ecosystems and standalone runtime deps. Begin only after every dev group has either been merged or documented as a deferral.
 
 ## Standard groups
 
@@ -99,6 +100,30 @@ Surface with `pnpm outdated --prod` (single-package) or `pnpm -r outdated --prod
    Infrastructure service images — `postgres`, `redis`, `nginx`, `mysql`, `elasticsearch`, etc. — in Compose definitions and CI `services:` blocks. Each service ecosystem gets its own PR.
    - Branch: `chore/docker-<service>` (e.g. `chore/docker-postgres`, `chore/docker-redis`)
 
+## Overrides
+
+Review every existing pin **before** any upgrade group. Overrides go stale: the parent catches up, or the pin itself lags. One override per PR. Do not add new overrides in this step.
+
+### Collect
+
+Sweep every source — do not skip a pin because it looks intentional:
+
+- `pnpm.overrides` and `overrides` in the root `package.json` and every workspace `package.json`
+- `overrides` in `pnpm-workspace.yaml`
+- `resolutions` in `package.json` (Yarn)
+
+Each key is one override. Nested npm-style overrides (`"foo": { ".": "1.0.0", "bar": "2.0.0" }`) count each leaf as one.
+
+### Try one
+
+Walk the collected pins in listed order. Evaluate each on a `chore/override-<pkg>` branch from latest `main`, never on `main`. Prefer removal over an update:
+
+1. **Try remove.** Delete the pin, run `pnpm install`, and check `pnpm why <pkg>` and the lockfile. If the resolved version is still ≥ the pin, the parent has caught up — that's the PR.
+2. **Try update.** If removal would regress the resolved version, keep that lockfile. Put the override back as `>=<current>` (`<current>` is the exact pin, or the range's lower bound) and run `pnpm install`, not `pnpm add`. The lockfile version is below `<current>`, so the range is unsatisfied and pnpm resolves from the registry — that version is the newest installable under `minimumReleaseAge` (the same gate as `pnpm outdated`'s Latest; do not pick a younger version). If it is newer than the original pin, rewrite the override to that exact version. If the pin moves, that's the PR.
+3. **Keep** if neither applies. Discard the branch, return to `main`, and continue to the next pin.
+
+Stop at the first pin that removes or updates. Kept pins are not deferrals; they stay until a later resume (usually after a parent upgrade) makes them removable.
+
 ## Container image discovery
 
 Container images are not surfaced by `pnpm outdated`. Use this procedure when Docker build-time or runtime groups need upgrading.
@@ -151,20 +176,23 @@ Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) a
 
 The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
 check for already-merged, stop and wait for `continue` — is `shipping-conventions`. Run it, with the
-**item taxonomy** and **branch naming** below (`chore/<group-key>`). Its first step syncs `main` and
+**item taxonomy** and **branch naming** below (`chore/<group-key>`, `chore/override-<pkg>`). Its first step syncs `main` and
 stops on a dirty working tree — do not skip ahead to the numbered steps here, which are additions
 *inside* that loop, not a replacement for it:
 
 1. **Start test services if `local`.** Run `pnpm test:services:start` — idempotent, safe to run on every resume. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
 
-2. **Determine the active phase.**
+2. **Review overrides first.** Follow [Overrides](#overrides). If a pin can be removed or updated, verify (if a `build` script exists, `pnpm build && pnpm test`; otherwise `pnpm test`) and open the PR — title e.g. `root - chore: remove <pkg> override` or `root - chore: update <pkg> override` (use `mono - ` when the pin lives at the workspace root). Hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration.
+   If none can change, continue to step 3. Re-run this step on every resume — a merged parent upgrade often makes a kept pin removable.
+
+3. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time images are outdated, the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps or Docker runtime/service images are outdated, the active phase is **runtime**.
-   - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred") and stop.
+   - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs, any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred"), and any overrides that were kept, then stop.
 
-3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
+4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
 
-4. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
+5. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
    - Bump it — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the exact value from the "Latest" column of `pnpm outdated`. **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, or `pnpm up --latest` — they can bypass `minimumReleaseAge` and pull versions younger than the gate allows.
    - Verify the upgrade. Check the relevant `package.json` `scripts` (root for single-package, the affected workspace for monorepos):
      - If a `build` script exists, run `pnpm build && pnpm test` — building first catches type and bundler regressions that tests alone won't.
@@ -193,11 +221,15 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 **For Docker image groups**, there is no `pnpm outdated` equivalent. The target is the latest tag within the same lineage, as determined by [Container image discovery](#container-image-discovery). Do not cross-reference Docker Hub's "latest" tag — target the latest tag matching the current major and variant.
 
+**For override updates**, the package is usually transitive and will not appear in `pnpm outdated`. The target is the version `pnpm install` resolves from the registry after putting the override back as `>=<current>` on the post-remove lockfile — that resolution already applies `minimumReleaseAge`. Do not look up versions on npm, GitHub, or CHANGELOGs.
+
 ### Title prefixes
 
 Per `pr-conventions` → Prefix scheme for the automated ops loops.
 Examples:
 
+- `mono - chore: remove semver override`
+- `root - chore: update braces override`
 - `mono - chore: upgrade code quality dependencies`
 - `web-app - chore: upgrade TypeScript and build tooling`
 - `api - chore: upgrade Prisma dependencies`
