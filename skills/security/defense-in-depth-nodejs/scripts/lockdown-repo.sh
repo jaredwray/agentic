@@ -463,8 +463,7 @@ else
   echo "  · Staged publishing: CI runs 'npm stage publish'; a maintainer promotes with 2FA"
   echo "  · Package access: require 2FA and disallow tokens (no direct publish rights)"
   echo "  · Connect Drydock (https://drydock.org) to review staged releases before promotion"
-  echo "Optional (no public API): a Dependabot auto-triage rule that dismisses low/medium so"
-  echo "  new alerts stay high/critical-only without re-running this script — Settings →"
-  echo "  Advanced Security → Dependabot rules."
+  echo "Optional (no public API): Dependabot rule dismissing low+medium — Settings → Advanced"
+  echo "  Security → Dependabot rules (see defense-in-depth-nodejs reference § 2)."
   [[ "$FAILS" -gt 0 ]] && { echo; echo "warning: $FAILS setting(s) could not be applied — see above."; exit 1; }
 fi

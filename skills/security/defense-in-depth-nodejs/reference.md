@@ -64,6 +64,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Secret scanning + push protection enabled *(plan-gated on private repos)*
 - [ ] Private vulnerability reporting enabled *(public repos only)*
 - [ ] Dependabot alerts enabled; open low/medium dismissed (high/critical only)
+- [ ] Dependabot rule: auto-dismiss low + medium (manual)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 - [ ] Dev/release VM network egress filtered by a firewall (e.g. PMG) (manual)
@@ -131,7 +132,7 @@ What it sets:
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
-| Dependabot alerts | enabled; open low/medium dismissed so only high/critical remain open (GitHub has no API for auto-triage rules — re-run the script or add a UI rule for new low/medium alerts) |
+| Dependabot alerts | enabled; low/medium dismissed (high/critical only) |
 | Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
 
 Notes:
@@ -156,6 +157,9 @@ Notes:
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
   name `Tags only by admins`, Enforcement **Active**, add **Repository admins** to the bypass list,
   target **All tags**, enable **Restrict creations**.
+- Dependabot high/critical only (manual): Settings → Advanced Security → Dependabot rules →
+  **New rule** → target severity **low** and **medium** → **Dismiss alerts**. The script dismisses
+  existing low/medium alerts; this rule covers new ones (no public API for rules).
 
 ## 3. Dependencies (pnpm)
 
