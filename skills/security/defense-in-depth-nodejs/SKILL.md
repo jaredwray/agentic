@@ -13,8 +13,8 @@ target repo's `DEFENSE_IN_DEPTH.md`.
 
 > **When this document is loaded, begin executing immediately.** Do not ask the user what to do —
 > start with [Workflow](#workflow) Step 1. Only stop where the workflow says to stop (uncommitted
-> changes, repo-settings changes, status disagrees with reality) or when a decision genuinely
-> requires the user.
+> changes, repo-settings changes, CODEOWNERS owners not yet named, status disagrees with reality) or
+> when a decision genuinely requires the user.
 >
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume
 > only when the user says `continue`, `next`, `next defense PR`, or similar.
@@ -55,7 +55,7 @@ Sections in `DEFENSE_IN_DEPTH.md`, in execution order — pick the first uncheck
 top-to-bottom:
 
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
-2. **§ 2 Repository lockdown** — GitHub settings via [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (settings, not commits — see Step 4).
+2. **§ 2 Repository lockdown** — `.github/CODEOWNERS` (file PR), then GitHub settings via [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (see Step 4).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on every job, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — OIDC trusted publishing + staged publishing + Drydock review; npm-side items are `(manual)`.
@@ -82,20 +82,26 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      block — it moves over untouched. The move is one-shot: afterwards status is never read from
      `SECURITY.md` again.
    - Reconcile every checkbox against actual repo state per `security-status-tracking` — for § 2 run
-     `lockdown-repo.sh <owner/repo> --check` and mirror its PASS/FAIL lines. Never silently uncheck
-     a regression — stop and report it.
+     `lockdown-repo.sh <owner/repo> --check` and mirror its PASS/FAIL lines (including CODEOWNERS).
+     Never silently uncheck a regression — stop and report it.
 
 4. **Implement the next item.**
-   - **File items** (everything except § 2): branch from `main` as
+   - **File items** (everything except § 2 GitHub settings): branch from `main` as
      `chore/defense-<section-key>-<item-key>` (e.g. `chore/defense-pnpm-cooldown`,
      `chore/defense-actions-socket-firewall`), make only the change the item requires, update its
      checkbox to `(PR #<n> pending)`, run the section's local verification
      (`pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist), open the PR per
-     [PR rules](#pull-request-rules).
-   - **§ 2 setting items:** these change GitHub settings, not files — no PR, and they run only
-     against a clean working tree. Show the user the `--check` output and ask before applying; then
-     run `lockdown-repo.sh <owner/repo>` (or hand the command to a repo admin if `gh` here isn't
-     one) and re-run `--check`. Checkbox updates ride the next file PR.
+     [PR rules](#pull-request-rules). § 2's CODEOWNERS item is a file PR: copy the template from
+     [reference.md § 2](./reference.md#2-repository-lockdown). **Stop and ask who the owners are**
+     (`@user` and/or `@org/team`) before writing the file; substitute `{{OWNERS}}` with the answer.
+     Never hardcode a username and never guess from the repo owner login. If the user already named
+     owners in this conversation, use those and do not re-ask.
+   - **§ 2 setting items** (everything in § 2 except CODEOWNERS): these change GitHub settings, not
+     files — no PR, and they run only against a clean working tree. Show the user the `--check`
+     output and ask before applying; then run `lockdown-repo.sh <owner/repo>` (or hand the command
+     to a repo admin if `gh` here isn't one) and re-run `--check`. Checkbox updates ride the next
+     file PR. The script audits CODEOWNERS and requires `require_code_owner_review` on the branch
+     ruleset; it does not write the file.
    - **`(manual)` items** (npm-side settings): report what the maintainer needs to do — from
      [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only) — and continue past
      them; the maintainer ticks them off.
