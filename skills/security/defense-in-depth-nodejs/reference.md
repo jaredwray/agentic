@@ -56,7 +56,7 @@ Profile: <npm library | website/app> · <public | private>
 ## 2. Repository lockdown
 - [ ] `.github/CODEOWNERS` covers `/.github/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with owners the maintainer names
 - [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
-- [ ] Pull requests required on the default branch (0 required approving reviews, last-push approval off, code-owner review of owned paths; only the repository owner can merge, and they may merge without a review); force pushes and deletion blocked
+- [ ] Pull requests required on the default branch (0 required approving reviews, last-push approval off, code-owner review of owned paths, Restrict updates off; the owner may merge without a review); force pushes and deletion blocked
 - [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
 - [ ] Tag ruleset "Tags only by admins" active
 - [ ] Workflow runs from all outside collaborators require approval
@@ -129,7 +129,7 @@ What it sets:
 | --- | --- |
 | Default workflow token | `read` only, and Actions cannot create or approve PRs |
 | Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
-| Branch ruleset "Pull requests required" | PR required on the default branch with **0 required approving reviews**, **last-push approval off**, and **code owner review** of owned paths; **only the repository owner can merge** (`update` rule + owner on the bypass list). The owner may merge without a review (`bypass_mode: pull_request`) but still cannot push directly. Force pushes and deletion blocked |
+| Branch ruleset "Pull requests required" | PR required on the default branch with **0 required approving reviews**, **last-push approval off**, **code owner review** of owned paths, and **Restrict updates off**. The owner is on the bypass list in **pull request** mode: they may merge without a review but still cannot push directly. Force pushes and deletion blocked |
 | CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is a PR. Without it `require_code_owner_review` is a no-op |
 | Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
@@ -143,18 +143,18 @@ Notes:
 - The agent never runs the apply mode on its own: run `--check` freely for reconciliation, but stop
   and ask before changing repo settings, or hand the command to the maintainer.
 - Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
-  types, review count (0), last-push approval off, code-owner review, owner-only merge, targets, and
-  the bypass list, and apply mode overwrites a same-name ruleset with the canonical config — a
+  types, review count (0), last-push approval off, code-owner review, Restrict updates off, targets,
+  and the bypass list, and apply mode overwrites a same-name ruleset with the canonical config — a
   pre-existing weak ruleset can't pass as compliant.
 - The PR ruleset does not require an approving review (`required_approving_review_count: 0`) and
   does not require approval of the most recent push (`require_last_push_approval: false`). A PR is
   still required — no direct pushes. It does require a code-owner review (`require_code_owner_review`)
-  of any path listed in `.github/CODEOWNERS`. **Restrict updates** plus the owner on the bypass list
-  means only the repository owner can merge: on a user-owned repo that is the owner user
-  (`actor_type: User`); on an org-owned repo it is organization owners (`OrganizationAdmin`).
-  Collaborators with write or admin cannot. The owner's bypass is **pull request** mode: they can
-  merge without a review (including without a code-owner review) but still cannot push directly to
-  the default branch.
+  of any path listed in `.github/CODEOWNERS`. **Restrict updates** is off (`update` rule absent);
+  `--check` fails if it is on. The owner is on the bypass list: on a user-owned repo that is the
+  owner user (`actor_type: User`); on an org-owned repo it is organization owners
+  (`OrganizationAdmin`). The owner's bypass is **pull request** mode: they can merge without a
+  review (including without a code-owner review) but still cannot push directly to the default
+  branch.
 - `--check` fails if the default branch has no CODEOWNERS file with at least one owner (looks in
   `.github/CODEOWNERS`, then `CODEOWNERS`, then `docs/CODEOWNERS`). The script never writes that
   file — add it as a PR from this template. **Ask who the owners are** (`@user` and/or `@org/team`,
