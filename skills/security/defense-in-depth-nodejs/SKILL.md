@@ -13,8 +13,8 @@ target repo's `DEFENSE_IN_DEPTH.md`.
 
 > **When this document is loaded, begin executing immediately.** Do not ask the user what to do —
 > start with [Workflow](#workflow) Step 1. Only stop where the workflow says to stop (uncommitted
-> changes, repo-settings changes, status disagrees with reality) or when a decision genuinely
-> requires the user.
+> changes, repo-settings changes, CODEOWNERS owners not yet named, status disagrees with reality) or
+> when a decision genuinely requires the user.
 >
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume
 > only when the user says `continue`, `next`, `next defense PR`, or similar.
@@ -91,8 +91,11 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      `chore/defense-actions-socket-firewall`), make only the change the item requires, update its
      checkbox to `(PR #<n> pending)`, run the section's local verification
      (`pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist), open the PR per
-     [PR rules](#pull-request-rules). § 2's CODEOWNERS item is a file PR — copy the template from
-     [reference.md § 2](./reference.md#2-repository-lockdown).
+     [PR rules](#pull-request-rules). § 2's CODEOWNERS item is a file PR: copy the template from
+     [reference.md § 2](./reference.md#2-repository-lockdown). **Stop and ask who the owners are**
+     (`@user` and/or `@org/team`) before writing the file; substitute `{{OWNERS}}` with the answer.
+     Never hardcode a username and never guess from the repo owner login. If the user already named
+     owners in this conversation, use those and do not re-ask.
    - **§ 2 setting items** (everything in § 2 except CODEOWNERS): these change GitHub settings, not
      files — no PR, and they run only against a clean working tree. Show the user the `--check`
      output and ask before applying; then run `lockdown-repo.sh <owner/repo>` (or hand the command

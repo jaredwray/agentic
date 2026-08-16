@@ -54,7 +54,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `DEFENSE_IN_DEPTH.md` present (this file)
 
 ## 2. Repository lockdown
-- [ ] `.github/CODEOWNERS` covers `/.github/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with the maintainer as owner
+- [ ] `.github/CODEOWNERS` covers `/.github/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with owners the maintainer names
 - [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
 - [ ] Pull requests required on the default branch (1 approving review of the latest push, including code owners on owned paths; only the repository owner can merge, and they may merge without a review); force pushes and deletion blocked
 - [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
@@ -157,19 +157,21 @@ Notes:
   the default branch.
 - `--check` fails if the default branch has no CODEOWNERS file with at least one owner (looks in
   `.github/CODEOWNERS`, then `CODEOWNERS`, then `docs/CODEOWNERS`). The script never writes that
-  file — add it as a PR from this template, with the maintainer as owner to start:
+  file — add it as a PR from this template. **Ask who the owners are** (`@user` and/or `@org/team`,
+  one or more) and substitute `{{OWNERS}}`. Never hardcode a username and never guess from the repo
+  owner login; if the user already named owners in this conversation, use those.
 
   ```
   # High-risk paths. Last matching pattern wins.
   # Root-anchored so nested copies (e.g. skills/**/scripts/) are not owned here.
-  /.github/ @jaredwray
-  /.cursor/ @jaredwray
-  /.devcontainer/ @jaredwray
-  /scripts/ @jaredwray
+  /.github/ {{OWNERS}}
+  /.cursor/ {{OWNERS}}
+  /.devcontainer/ {{OWNERS}}
+  /scripts/ {{OWNERS}}
   ```
 
   Cover `.cursor/` and `.devcontainer/` even before those directories exist so a later add is
-  already owned. Pair the maintainer with a second trusted reviewer when the bus factor allows.
+  already owned. Pair with a second trusted reviewer when the bus factor allows.
 - Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
   Protection add-on — the script reports these instead of failing.
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
