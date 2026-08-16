@@ -567,6 +567,7 @@ jobs:
         uses: actions/setup-node@<FULL_COMMIT_SHA>
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Install Aikido CI client
         run: npm install --global @aikidosec/ci-api-client@<PINNED_VERSION>
@@ -645,7 +646,7 @@ Important release-job rules:
 - [ ] The Aikido release gate passes before anything is staged; its CI key is a plain repo secret with no publish authority.
 - [ ] Socket Firewall installed (SHA-pinned `SocketDev/action`, `firewall-version` pinned) before any package-manager command.
 - [ ] No npm token.
-- [ ] No dependency cache.
+- [ ] No dependency cache: every `actions/setup-node` step sets `package-manager-cache: false` and does not set `cache:`.
 - [ ] No `workflow_dispatch` for unreviewed manual publishing unless separately gated.
 - [ ] No third-party action unless pinned to a full SHA.
 - [ ] No untrusted PR code in the publish job.

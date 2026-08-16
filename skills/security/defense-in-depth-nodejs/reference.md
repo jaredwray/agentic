@@ -86,6 +86,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `.github/workflows/check-workflows.yaml` lints workflows with zizmor on every PR
 - [ ] `persist-credentials: false` on checkouts that don't push
 - [ ] No `pull_request_target` on workflows that run untrusted PR code
+- [ ] Artifact-publishing workflows disable `actions/setup-node` default caching (`package-manager-cache: false`) to prevent cache poisoning
 - [ ] No npm tokens (or other registry credentials) in Actions secrets
 
 ## 5. npm publishing — npm libraries only
@@ -222,7 +223,12 @@ allowBuilds: {}
   monthly dependency/workflow management pass. Never hand-resolve SHAs.
 - `persist-credentials: false` on every `actions/checkout` that doesn't need to push.
 - No `pull_request_target` for workflows that check out or execute untrusted PR code; don't share
-  caches across trust boundaries, and disable package-manager caching in release builds.
+  caches across trust boundaries.
+- Artifact-publishing workflows (npm stage/publish, GitHub Releases, OIDC, attestations) set
+  `package-manager-cache: false` on every `actions/setup-node` step and do not set `cache:` to a
+  package manager. `setup-node` otherwise enables npm caching by default when `package.json`
+  names npm, and a poisoned Actions cache can run attacker-controlled code in a job that holds
+  publish credentials. Regular CI may still cache.
 - No npm tokens in Actions secrets — publishing is OIDC-only (§ 5).
 - CODEOWNERS for workflow and script paths is § 2 — the branch ruleset requires the review.
 
@@ -357,4 +363,5 @@ whole setup, and each item is verified by its check appearing on PRs.
 - pnpm settings: https://pnpm.io/settings
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
 - GitHub Actions secure use: https://docs.github.com/en/actions/reference/security/secure-use
+- setup-node caching (disable in publishing workflows): https://github.com/actions/setup-node/blob/main/docs/advanced-usage.md#caching-packages-data
 - Jovi De Croock on the model this follows: https://jovidecroock.com/blog/secure-npm-publishing/
