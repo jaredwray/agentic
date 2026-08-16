@@ -5,9 +5,11 @@
 #
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
 #   2. Workflow runs from ALL outside collaborators require owner approval
-#   3. Branch ruleset on the default branch: pull request required, force pushes and
-#      deletion blocked (no bypass — admins go through PRs too); with --required-checks,
-#      merges are also blocked unless those status checks pass
+#   3. Branch ruleset on the default branch: pull request required with 1 approving
+#      review of the most recent push; only the repository owner can merge (and they
+#      may merge without a review, but cannot push directly); force pushes and
+#      deletion blocked; with --required-checks, merges are also blocked unless those
+#      status checks pass
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
@@ -63,6 +65,8 @@ gh api "repos/$REPO" --jq .full_name >/dev/null 2>&1 ||
   { echo "error: cannot read repos/$REPO — check the name and your gh auth"; exit 1; }
 PRIVATE=$(gh api "repos/$REPO" --jq .private)
 DEFAULT_BRANCH=$(gh api "repos/$REPO" --jq .default_branch)
+OWNER_TYPE=$(gh api "repos/$REPO" --jq .owner.type)
+OWNER_ID=$(gh api "repos/$REPO" --jq .owner.id)
 IS_ADMIN=$(gh api "repos/$REPO" --jq '.permissions.admin // false' 2>/dev/null || echo false)
 
 echo "Default branch: $DEFAULT_BRANCH · Private: $PRIVATE · You are admin: $IS_ADMIN"
@@ -113,9 +117,9 @@ fi
 # 3+4. Rulesets ------------------------------------------------------------------
 # A ruleset is judged by its contents, never by its name alone — a pre-existing
 # weak ruleset with the right name must not pass the audit. Check mode fetches the
-# ruleset and validates enforcement, rule types, targets, and bypass list; apply
-# mode always writes the canonical config (create or overwrite), which also heals
-# a weak same-name ruleset.
+# ruleset and validates enforcement, rule types, review count, last-push approval,
+# owner-only merge, targets, and bypass list; apply mode always writes the
+# canonical config (create or overwrite), which also heals a weak same-name ruleset.
 
 ruleset_id() { # $1=name → repo-level ruleset id, or empty
   gh api "repos/$REPO/rulesets?includes_parents=false" --paginate \
@@ -171,12 +175,37 @@ if [[ -n "$REQUIRED_CHECKS" ]]; then
       } }"
 fi
 
+# Restrict updates so only the bypass actor can merge. GitHub has no "merge
+# permission" rule; the update rule blocks PR merges for everyone not on the
+# bypass list. pull_request mode still forbids a direct push by that actor.
+# User-owned repo → the owner user; org-owned repo → organization owners.
+case "$OWNER_TYPE" in
+  Organization)
+    BR_BYPASS_JSON='{ "actor_id": 1, "actor_type": "OrganizationAdmin", "bypass_mode": "pull_request" }'
+    BR_BYPASS_FILTER='.actor_type == "OrganizationAdmin" and .bypass_mode == "pull_request"'
+    ;;
+  User)
+    [[ "$OWNER_ID" =~ ^[0-9]+$ ]] || { echo "error: unexpected owner id: $OWNER_ID"; exit 1; }
+    BR_BYPASS_JSON="{ \"actor_id\": $OWNER_ID, \"actor_type\": \"User\", \"bypass_mode\": \"pull_request\" }"
+    BR_BYPASS_FILTER=".actor_id == $OWNER_ID and .actor_type == \"User\" and .bypass_mode == \"pull_request\""
+    ;;
+  *)
+    echo "error: unsupported repository owner type: ${OWNER_TYPE:-unset}"
+    exit 1
+    ;;
+esac
+
 BR_COMPLIANT='([.rules[] | select(.type == "required_status_checks")
     | .parameters.required_status_checks[].context]) as $ctxs
   | if .enforcement == "active"
-  and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward"))
+  and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward") and index("update"))
+  and (any(.rules[]; .type == "pull_request"
+    and (.parameters.required_approving_review_count // 0) >= 1
+    and (.parameters.require_last_push_approval == true
+         or .parameters.dismiss_stale_reviews_on_push == true)))
   and (.conditions.ref_name.include | index("~DEFAULT_BRANCH"))
-  and ((.bypass_actors // []) | length == 0)'"$BR_CHECKS_FILTER"'
+  and ((.bypass_actors // []) | length == 1)
+  and ((.bypass_actors // [])[0] | '"$BR_BYPASS_FILTER"')'"$BR_CHECKS_FILTER"'
   then "ok" else "weak" end'
 
 TAG_COMPLIANT='if .enforcement == "active"
@@ -194,30 +223,35 @@ if [[ "$RULESETS_OK" -eq 0 ]]; then
 elif [[ "$CHECK" -eq 1 ]]; then
   BR_ID=$(ruleset_id "$BR_NAME")
   if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
-    pass "ruleset \"$BR_NAME\" is active with PR/deletion/force-push rules on the default branch and no bypass"
+    pass "ruleset \"$BR_NAME\" is active with 1+ reviews of the latest push, owner-only merge, PR/deletion/force-push rules on the default branch"
   elif [[ -n "$BR_ID" ]]; then
-    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, target, enforcement, or bypass list)"
+    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, review count, last-push approval, owner-only merge, target, enforcement, or bypass list)"
   else
     fail "no ruleset \"$BR_NAME\""
   fi
 else
+  # Restrict updates + owner on the bypass list = only the owner can merge.
+  # pull_request mode: they can merge without a review, but cannot push directly.
   BR_JSON=$(cat <<JSON
 {
   "name": "Pull requests required",
   "target": "branch",
   "enforcement": "active",
-  "bypass_actors": [],
+  "bypass_actors": [
+    $BR_BYPASS_JSON
+  ],
   "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
   "rules": [
     { "type": "pull_request",
       "parameters": {
-        "required_approving_review_count": 0,
+        "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": false,
         "require_code_owner_review": false,
-        "require_last_push_approval": false,
+        "require_last_push_approval": true,
         "required_review_thread_resolution": false,
         "allowed_merge_methods": ["merge", "squash", "rebase"]
       } },
+    { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } },
     { "type": "deletion" },
     { "type": "non_fast_forward" }$BR_CHECKS_RULE
   ]
