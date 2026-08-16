@@ -63,7 +63,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Actions allowlist: GitHub-owned + verified + explicit patterns only (`--allowed-actions`)
 - [ ] Secret scanning + push protection enabled *(plan-gated on private repos)*
 - [ ] Private vulnerability reporting enabled *(public repos only)*
-- [ ] Dependabot alerts enabled
+- [ ] Dependabot alerts enabled; open low/medium dismissed (high/critical only)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 - [ ] Dev/release VM network egress filtered by a firewall (e.g. PMG) (manual)
@@ -131,7 +131,7 @@ What it sets:
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
-| Dependabot alerts | enabled |
+| Dependabot alerts | enabled; open low/medium dismissed so only high/critical remain open (GitHub has no API for auto-triage rules — re-run the script or add a UI rule for new low/medium alerts) |
 | Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
 
 Notes:
@@ -316,7 +316,8 @@ whole setup, and each item is verified by its check appearing on PRs.
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI
   install-time blocking is Socket Firewall in § 4, not this GitHub-app item.
-- Secret scanning, push protection, and Dependabot alerts are repo settings — § 2 owns them.
+- Secret scanning, push protection, and Dependabot alerts (high/critical only) are repo
+  settings — § 2 owns them.
 
 ## References
 
