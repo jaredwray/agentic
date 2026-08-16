@@ -6,10 +6,10 @@
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
 #   2. Workflow runs from ALL outside collaborators require owner approval
 #   3. Branch ruleset on the default branch: pull request required with 1 approving
-#      review of the most recent push; only the repository owner can merge (and they
-#      may merge without a review, but cannot push directly); force pushes and
-#      deletion blocked; with --required-checks, merges are also blocked unless those
-#      status checks pass
+#      review of the most recent push and a code-owner review of owned paths; only
+#      the repository owner can merge (and they may merge without a review, but
+#      cannot push directly); force pushes and deletion blocked; with
+#      --required-checks, merges are also blocked unless those status checks pass
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
@@ -118,8 +118,9 @@ fi
 # A ruleset is judged by its contents, never by its name alone — a pre-existing
 # weak ruleset with the right name must not pass the audit. Check mode fetches the
 # ruleset and validates enforcement, rule types, review count, last-push approval,
-# owner-only merge, targets, and bypass list; apply mode always writes the
-# canonical config (create or overwrite), which also heals a weak same-name ruleset.
+# code-owner review, owner-only merge, targets, and bypass list; apply mode always
+# writes the canonical config (create or overwrite), which also heals a weak
+# same-name ruleset.
 
 ruleset_id() { # $1=name → repo-level ruleset id, or empty
   gh api "repos/$REPO/rulesets?includes_parents=false" --paginate \
@@ -201,6 +202,7 @@ BR_COMPLIANT='([.rules[] | select(.type == "required_status_checks")
   and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward") and index("update"))
   and (any(.rules[]; .type == "pull_request"
     and (.parameters.required_approving_review_count // 0) >= 1
+    and .parameters.require_code_owner_review == true
     and (.parameters.require_last_push_approval == true
          or .parameters.dismiss_stale_reviews_on_push == true)))
   and (.conditions.ref_name.include | index("~DEFAULT_BRANCH"))
@@ -223,9 +225,9 @@ if [[ "$RULESETS_OK" -eq 0 ]]; then
 elif [[ "$CHECK" -eq 1 ]]; then
   BR_ID=$(ruleset_id "$BR_NAME")
   if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
-    pass "ruleset \"$BR_NAME\" is active with 1+ reviews of the latest push, owner-only merge, PR/deletion/force-push rules on the default branch"
+    pass "ruleset \"$BR_NAME\" is active with 1+ reviews of the latest push, code-owner review, owner-only merge, PR/deletion/force-push rules on the default branch"
   elif [[ -n "$BR_ID" ]]; then
-    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, review count, last-push approval, owner-only merge, target, enforcement, or bypass list)"
+    fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, review count, last-push approval, code-owner review, owner-only merge, target, enforcement, or bypass list)"
   else
     fail "no ruleset \"$BR_NAME\""
   fi
@@ -246,7 +248,7 @@ else
       "parameters": {
         "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": false,
-        "require_code_owner_review": false,
+        "require_code_owner_review": true,
         "require_last_push_approval": true,
         "required_review_thread_resolution": false,
         "allowed_merge_methods": ["merge", "squash", "rebase"]
