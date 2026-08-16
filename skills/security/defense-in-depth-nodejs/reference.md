@@ -63,7 +63,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Actions allowlist: GitHub-owned + verified + explicit patterns only (`--allowed-actions`)
 - [ ] Secret scanning + push protection enabled *(plan-gated on private repos)*
 - [ ] Private vulnerability reporting enabled *(public repos only)*
-- [ ] Dependabot alerts enabled; open low/medium dismissed (high/critical only)
+- [ ] Dependabot alerts enabled
 - [ ] Dependabot rule: auto-dismiss low + medium (manual)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
@@ -132,7 +132,7 @@ What it sets:
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
-| Dependabot alerts | enabled; low/medium dismissed (high/critical only) |
+| Dependabot alerts | enabled |
 | Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
 
 Notes:

@@ -13,7 +13,7 @@
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
-#   7. Dependabot vulnerability alerts, dismissing open low/medium so only high/critical remain
+#   7. Dependabot vulnerability alerts
 #   8. Actions allowlist: GitHub-owned + verified creators + explicit patterns only
 #
 # Requires: gh (https://cli.github.com) authenticated as a repository admin.
@@ -340,73 +340,15 @@ else
   fi
 fi
 
-# 7. Dependabot alerts (high/critical only) ----------------------------------------
-# GitHub has no public API for Dependabot auto-triage rules, so the durable "only
-# high/critical" policy is enforced by dismissing open low/medium alerts. Re-run
-# the script (or add a UI auto-triage rule) when new low/medium alerts appear.
-step 7 "Dependabot vulnerability alerts (high/critical only)"
-
-# Prints open low/medium alert numbers one per line. Returns 1 if the list API fails
-# (e.g. missing security_events scope) so callers don't treat failure as "zero alerts".
-list_open_low_medium_alerts() {
-  gh api --paginate \
-    "repos/$REPO/dependabot/alerts?state=open&severity=low,medium&per_page=100" \
-    --jq '.[].number' 2>/dev/null
-}
-
-count_lines() { awk 'NF' | wc -l | tr -d ' '; }
-
-ALERTS_ON=0
-JUST_ENABLED=0
+# 7. Dependabot alerts ------------------------------------------------------------
+step 7 "Dependabot vulnerability alerts"
 if gh api "repos/$REPO/vulnerability-alerts" >/dev/null 2>&1; then
-  ALERTS_ON=1
+  pass "Dependabot alerts enabled"
 elif [[ "$CHECK" -eq 1 ]]; then
   fail "Dependabot alerts disabled"
 else
   gh api -X PUT "repos/$REPO/vulnerability-alerts" >/dev/null
-  ALERTS_ON=1
-  JUST_ENABLED=1
-fi
-
-if [[ "$ALERTS_ON" -eq 1 ]]; then
-  if ! LOW_MED_LIST=$(list_open_low_medium_alerts); then
-    fail "Dependabot alerts enabled, but could not list alerts (need security_events scope)"
-  else
-    LOW_MED=$(printf '%s\n' "$LOW_MED_LIST" | count_lines)
-    if [[ "$LOW_MED" -eq 0 ]]; then
-      if [[ "$JUST_ENABLED" -eq 1 ]]; then
-        pass "enabled Dependabot alerts; no open low/medium alerts (high/critical only)"
-      else
-        pass "Dependabot alerts enabled; no open low/medium alerts (high/critical only)"
-      fi
-    elif [[ "$CHECK" -eq 1 ]]; then
-      fail "Dependabot alerts enabled, but $LOW_MED open low/medium alert(s) — want high/critical only"
-    else
-      DISMISSED=0
-      DISMISS_FAIL=0
-      while IFS= read -r num; do
-        [[ -z "$num" ]] && continue
-        if gh api -X PATCH "repos/$REPO/dependabot/alerts/$num" --input - >/dev/null 2>&1 <<'JSON'
-{ "state": "dismissed",
-  "dismissed_reason": "tolerable_risk",
-  "dismissed_comment": "lockdown-repo.sh: keep only high/critical Dependabot alerts open" }
-JSON
-        then
-          DISMISSED=$((DISMISSED + 1))
-        else
-          DISMISS_FAIL=$((DISMISS_FAIL + 1))
-          fail "could not dismiss Dependabot alert #$num (need security_events scope)"
-        fi
-      done <<<"$LOW_MED_LIST"
-      if [[ "$DISMISS_FAIL" -eq 0 ]]; then
-        if [[ "$JUST_ENABLED" -eq 1 ]]; then
-          pass "enabled Dependabot alerts; dismissed $DISMISSED low/medium alert(s); only high/critical remain open"
-        else
-          pass "dismissed $DISMISSED low/medium Dependabot alert(s); only high/critical remain open"
-        fi
-      fi
-    fi
-  fi
+  pass "enabled Dependabot alerts"
 fi
 
 # 8. Actions allowlist -------------------------------------------------------------
@@ -463,7 +405,5 @@ else
   echo "  · Staged publishing: CI runs 'npm stage publish'; a maintainer promotes with 2FA"
   echo "  · Package access: require 2FA and disallow tokens (no direct publish rights)"
   echo "  · Connect Drydock (https://drydock.org) to review staged releases before promotion"
-  echo "Optional (no public API): Dependabot rule dismissing low+medium — Settings → Advanced"
-  echo "  Security → Dependabot rules (see defense-in-depth-nodejs reference § 2)."
   [[ "$FAILS" -gt 0 ]] && { echo; echo "warning: $FAILS setting(s) could not be applied — see above."; exit 1; }
 fi
