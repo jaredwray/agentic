@@ -55,7 +55,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 2. Repository lockdown
 - [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
-- [ ] Pull requests required on the default branch (1 approving review of the latest push; repository admins may merge without a review); force pushes and deletion blocked
+- [ ] Pull requests required on the default branch (1 approving review of the latest push; only the repository owner can merge, and they may merge without a review); force pushes and deletion blocked
 - [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
 - [ ] Tag ruleset "Tags only by admins" active
 - [ ] Workflow runs from all outside collaborators require approval
@@ -126,7 +126,7 @@ What it sets:
 | --- | --- |
 | Default workflow token | `read` only, and Actions cannot create or approve PRs |
 | Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
-| Branch ruleset "Pull requests required" | PR required on the default branch with **1 approving review of the most recent push**, force pushes and deletion blocked. Repository admins (the owner on a user-owned repo) may merge a PR without a review (`bypass_mode: pull_request`) but still cannot push directly |
+| Branch ruleset "Pull requests required" | PR required on the default branch with **1 approving review of the most recent push**; **only the repository owner can merge** (`update` rule + owner on the bypass list). The owner may merge without a review (`bypass_mode: pull_request`) but still cannot push directly. Force pushes and deletion blocked |
 | Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
@@ -139,16 +139,18 @@ Notes:
 - The agent never runs the apply mode on its own: run `--check` freely for reconciliation, but stop
   and ask before changing repo settings, or hand the command to the maintainer.
 - Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
-  types, review count, last-push approval, targets, and the bypass list, and apply mode overwrites
-  a same-name ruleset with the canonical config — a pre-existing weak ruleset can't pass as
-  compliant.
+  types, review count, last-push approval, owner-only merge, targets, and the bypass list, and apply
+  mode overwrites a same-name ruleset with the canonical config — a pre-existing weak ruleset can't
+  pass as compliant.
 - The PR ruleset requires 1 approving review of the most recent push (`require_last_push_approval`)
   — no direct pushes, and a second person must approve the tip commit before merge. A later push
   after approval cannot ride the old review. Dismissing stale reviews on push is an accepted
-  equivalent in `--check`. Repository admins are on the bypass list in **pull request** mode: they
-  can merge without a review (GitHub has no owner-only actor; admin is the owner on a user-owned
-  repo) but still cannot push directly to the default branch. Teams can raise the count or add
-  code-owner review on top.
+  equivalent in `--check`. **Restrict updates** plus the owner on the bypass list means only the
+  repository owner can merge: on a user-owned repo that is the owner user (`actor_type: User`); on
+  an org-owned repo it is organization owners (`OrganizationAdmin`). Collaborators with write or
+  admin cannot. The owner's bypass is **pull request** mode: they can merge without a review but
+  still cannot push directly to the default branch. Teams can raise the count or add code-owner
+  review on top.
 - Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
   Protection add-on — the script reports these instead of failing.
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
