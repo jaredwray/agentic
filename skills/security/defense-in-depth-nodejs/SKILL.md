@@ -57,7 +57,7 @@ top-to-bottom:
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
 2. **§ 2 Repository lockdown** — `.github/CODEOWNERS` (file PR), GitHub settings via [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh), then Aikido Safe Chain on Codespaces and Cursor Cloud Agents (file PR; skip without `pnpm-lock.yaml`).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown, blocked lifecycle scripts, frozen lockfile.
-4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on every job, `check-workflows.yaml` zizmor linting.
+4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — OIDC trusted publishing + staged publishing + Drydock review; npm-side items are `(manual)`.
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 
@@ -91,7 +91,7 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      `chore/defense-<section-key>-<item-key>` (e.g. `chore/defense-pnpm-cooldown`,
      `chore/defense-actions-socket-firewall`), make only the change the item requires, update its
      checkbox to `(PR #<n> pending)`, run the section's local verification
-     (`pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist), open the PR per
+     (`sfw pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist), open the PR per
      [PR rules](#pull-request-rules). § 2's CODEOWNERS item is a file PR: copy the template from
      [reference.md § 2](./reference.md#2-repository-lockdown). **Stop and ask who the owners are**
      (`@user` and/or `@org/team`) before writing the file; substitute `{{OWNERS}}` with the answer.

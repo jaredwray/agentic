@@ -9,7 +9,7 @@ A valid release should prove four distinct things:
 1. **Maintainer approval:** at least one approved maintainer signed the release intent using a non-GitHub identity.
 2. **Build provenance:** the package was built and published from the expected GitHub repo, workflow, tag, and protected environment.
 3. **Registry integrity:** the tarball served by npm has not been tampered with after publication.
-4. **Dependency determinism:** the release used the committed lockfile and `pnpm install --frozen-lockfile`.
+4. **Dependency determinism:** the release used the committed lockfile and `sfw pnpm install --frozen-lockfile`.
 
 This intentionally separates trust roots:
 
@@ -36,7 +36,7 @@ Every package release must satisfy these invariants before `npm publish` runs:
 - [ ] GitHub, GitHub Actions, and CI OIDC identities are rejected as human approval identities.
 - [ ] The signer policy itself verifies against the root release identity.
 - [ ] The release intent package, version, tag, workflow path, workflow hash, lockfile hash, install policy, and environment all match the current run.
-- [ ] The install command is exactly `pnpm install --frozen-lockfile`.
+- [ ] The install command is exactly `sfw pnpm install --frozen-lockfile`.
 - [ ] Every third-party GitHub Action is pinned to a full commit SHA.
 - [ ] `id-token: write` exists only on the publish job.
 - [ ] The publish job uses the `npm-publish` protected environment.
@@ -56,7 +56,7 @@ Required:
 - npm provenance generated automatically by trusted publishing where supported.
 - At least one approved maintainer signature over `release-intent.json`.
 - Protected `npm-publish` environment.
-- Frozen pnpm install.
+- Frozen pnpm install through `sfw`.
 - Full SHA-pinned actions.
 - Socket Firewall on every job (`firewall-version` pinned).
 
@@ -189,7 +189,7 @@ The release intent binds maintainer approval to one package, one version, one ta
   "workflow_sha256": "REPLACE_WITH_SHA256",
   "lockfile": "pnpm-lock.yaml",
   "lockfile_sha256": "REPLACE_WITH_SHA256",
-  "install_policy": "pnpm install --frozen-lockfile",
+  "install_policy": "sfw pnpm install --frozen-lockfile",
   "publish_environment": "npm-publish",
   "trusted_publisher": true,
   "human_approval_policy": "one approved non-GitHub maintainer signature required",
@@ -231,7 +231,7 @@ cat > "${RELEASE_DIR}/release-intent.json" <<JSON
   "workflow_sha256": "${WORKFLOW_SHA}",
   "lockfile": "${LOCKFILE}",
   "lockfile_sha256": "${LOCK_SHA}",
-  "install_policy": "pnpm install --frozen-lockfile",
+  "install_policy": "sfw pnpm install --frozen-lockfile",
   "publish_environment": "npm-publish",
   "trusted_publisher": true,
   "human_approval_policy": "one approved non-GitHub maintainer signature required",
@@ -389,7 +389,7 @@ test -f "${MANIFEST}"
 test "$(jq -r '.package' "${MANIFEST}")" = "${PKG}"
 test "$(jq -r '.version' "${MANIFEST}")" = "${VERSION}"
 test "$(jq -r '.tag' "${MANIFEST}")" = "${TAG}"
-test "$(jq -r '.install_policy' "${MANIFEST}")" = "pnpm install --frozen-lockfile"
+test "$(jq -r '.install_policy' "${MANIFEST}")" = "sfw pnpm install --frozen-lockfile"
 test "$(jq -r '.publish_environment' "${MANIFEST}")" = "npm-publish"
 test "$(jq -r '.trusted_publisher' "${MANIFEST}")" = "true"
 
@@ -570,7 +570,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install Aikido CI client
-        run: npm install --global @aikidosec/ci-api-client@<PINNED_VERSION>
+        run: sfw npm install --global @aikidosec/ci-api-client@<PINNED_VERSION>
 
       # Fails on new SAST/IaC/secrets findings and on dependency issues over the
       # severity threshold configured in the Aikido dashboard. The API key comes from
@@ -619,7 +619,7 @@ jobs:
         run: pnpm --version
 
       - name: Install dependencies from frozen lockfile only
-        run: pnpm install --frozen-lockfile
+        run: sfw pnpm install --frozen-lockfile
 
       - name: Test
         run: pnpm --filter "$PKG" test
@@ -644,7 +644,7 @@ Important release-job rules:
 
 - [ ] CI only stages (`npm stage publish`) — it never publishes a version live. Promotion is a human action with 2FA after the staged artifact passes Drydock review.
 - [ ] The Aikido release gate passes before anything is staged; its CI key is a plain repo secret with no publish authority.
-- [ ] Socket Firewall installed (SHA-pinned `SocketDev/action`, `firewall-version` pinned) before any package-manager command.
+- [ ] Socket Firewall installed (SHA-pinned `SocketDev/action`, `firewall-version` pinned) before any package-manager command; `pnpm install` / `npm install` use the `sfw` prefix.
 - [ ] No npm token.
 - [ ] No dependency cache: every `actions/setup-node` step sets `package-manager-cache: false` and does not set `cache:`.
 - [ ] No `workflow_dispatch` for unreviewed manual publishing unless separately gated.
@@ -721,7 +721,7 @@ A valid release for this package must have:
 1. npm provenance from the configured GitHub Actions trusted publisher;
 2. a signed release-intent manifest checked into the release tag;
 3. at least one approved maintainer signature over that release intent;
-4. release install policy of `pnpm install --frozen-lockfile`;
+4. release install policy of `sfw pnpm install --frozen-lockfile`;
 5. a published tarball matching the release metadata.
 
 A package version without a valid maintainer release-intent signature should be treated as suspicious, even if it has npm provenance.

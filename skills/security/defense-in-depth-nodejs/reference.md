@@ -27,7 +27,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - All changes land through pull requests — direct pushes to `main` are blocked, and merging requires passing status checks.
 - Tags (and therefore releases) can only be created by repository admins.
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
-- CI runs with read-only permissions; every action is pinned to a full commit SHA; Socket Firewall wraps package installs; workflows are security-linted with zizmor on every PR.
+- CI runs with read-only permissions; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
@@ -83,7 +83,7 @@ Profile: <npm library | website/app> · <public | private>
 ## 4. GitHub Actions
 - [ ] `permissions: contents: read` (or `{}` + per-job grants) on every workflow
 - [ ] Every action pinned to a full commit SHA (`npx actions-up`)
-- [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned)
+- [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned); `pnpm install` / `npm install` run as `sfw pnpm install` / `sfw npm install`
 - [ ] `.github/workflows/check-workflows.yaml` lints workflows with zizmor on every PR
 - [ ] `persist-credentials: false` on checkouts that don't push
 - [ ] No `pull_request_target` on workflows that run untrusted PR code
@@ -254,7 +254,8 @@ allowBuilds: {}
 - `allowBuilds` replaces the older `onlyBuiltDependencies` / `neverBuiltDependencies` /
   `ignoredBuiltDependencies` settings. Every entry added to it is a security exception that gets code
   review; run `pnpm approve-builds` only during dependency review, never in CI.
-- CI installs use exactly `pnpm install --frozen-lockfile`, so CI fails if the lockfile would change.
+- CI installs use `--frozen-lockfile` so CI fails if the lockfile would change. Once Socket Firewall
+  is on the job (§ 4), the command is `sfw pnpm install --frozen-lockfile`.
 - If a dependency-update tool is already configured (Renovate, Dependabot), it opens PRs that go
   through normal review — never auto-merge. Don't add one where none exists; tool choice is the
   maintainer's call.
@@ -284,10 +285,14 @@ allowBuilds: {}
 ### Socket Firewall on every job
 
 Every job with `steps:` installs [Socket Firewall Free](https://docs.socket.dev/docs/socket-firewall-free)
-immediately after checkout (or as the first step if the job does not check out). Default shims wrap
-npm/pnpm/yarn, so later install commands do not need an `sfw` prefix. Add the step even to jobs that
-do not currently install packages, so a later install is already covered. This is install-time
-blocking; the Socket GitHub app in § 6 reviews dependency diffs on PRs.
+immediately after checkout (or as the first step if the job does not check out), even if the job
+does not currently install packages. This is install-time blocking; the Socket GitHub app in § 6
+reviews dependency diffs on PRs.
+
+Socket Firewall Free is wrapper-mode only. Every `pnpm install` and `npm install` (including
+`npm install --global`) is invoked with the `sfw` prefix — do not rely on PATH shims
+(`corepack enable` and later PATH changes can shadow them). A job that installs dependencies runs
+`sfw pnpm install --frozen-lockfile` (or `sfw npm install …`).
 
 ```yaml
       - name: Install Socket Firewall
@@ -303,6 +308,9 @@ blocking; the Socket GitHub app in § 6 reviews dependency diffs on PRs.
   up the current reviewed release rather than trusting the version in this file.
 - `mode: firewall-free` needs no Socket API token. The job still needs `contents: read` so the
   action can fetch the release through the GitHub API.
+- Rewrite existing `pnpm install` / `npm install` steps to `sfw pnpm install` / `sfw npm install` in
+  the same PR. Reconcile as done when every job with `steps:` has the Firewall step and no workflow
+  install is missing the prefix.
 
 ### CI security linting: check-workflows.yaml
 
