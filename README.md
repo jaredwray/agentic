@@ -148,7 +148,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 | Skill | Does |
 |---|---|
-| `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, staged OIDC publishing — one item per PR. |
+| `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, Safe Chain on cloud agents, staged OIDC publishing — one item per PR. |
 
 ### growth/ — manual
 

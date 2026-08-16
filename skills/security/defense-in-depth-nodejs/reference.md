@@ -28,6 +28,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - Tags (and therefore releases) can only be created by repository admins.
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
 - CI runs with read-only permissions; every action is pinned to a full commit SHA; Socket Firewall wraps package installs; workflows are security-linted with zizmor on every PR.
+- Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
 ```
@@ -68,7 +69,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Dependabot rule: auto-dismiss low + medium (manual)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
-- [ ] Dev/release VM network egress filtered by a firewall (e.g. PMG) (manual)
+- [ ] Codespaces and Cursor Cloud Agents bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (pinned installer checksum, --ci shims, frozen lockfile)
 
 ## 3. Dependencies (pnpm)
 - [ ] `packageManager: pnpm@11.x` pinned in `package.json`
@@ -108,6 +109,7 @@ Profile adjustments when scaffolding:
 - **private** — omit the private-vulnerability-reporting item; keep the plan-gated items only if the
   plan supports them (the lockdown script reports this); omit § 5 unless the repo actually publishes
   a package.
+- **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item.
 
 ## 2. Repository lockdown
 
@@ -180,6 +182,46 @@ Notes:
 - Dependabot high/critical only (manual): Settings → Advanced Security → Dependabot rules →
   **New rule** → target severity **low** and **medium** → **Dismiss alerts**. The script dismisses
   existing low/medium alerts; this rule covers new ones (no public API for rules).
+
+### Safe Chain on Codespaces and Cursor Cloud Agents
+
+File PR (`chore/defense-safe-chain-cloud`) — not a lockdown-script setting and not `(manual)`. Skip
+when the target repo has no `pnpm-lock.yaml`. Copy the bundled
+[`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) to the target's
+`scripts/setup-cloud-environment.sh`, and copy from this skill's `templates/`:
+
+| Source | Target path |
+| --- | --- |
+| `templates/.devcontainer/devcontainer.json` | `.devcontainer/devcontainer.json` |
+| `templates/.cursor/environment.json` | `.cursor/environment.json` |
+| `templates/AGENTS.md` | `AGENTS.md` (section only — see merge rules) |
+| `scripts/setup-cloud-environment.sh` | `scripts/setup-cloud-environment.sh` |
+
+The bootstrap installs [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) from a **pinned**
+release, verifies the official installer SHA-256, runs `--ci` so `pnpm` / `npm` / `npx` / `pnpx` use
+shims, persists those shim paths, runs `pnpm safe-chain-verify`, and then `pnpm install
+--frozen-lockfile`. It fails closed — no unprotected install, no `latest` installer. Bump the
+version and digest in the bundled script the same way Socket Firewall's `firewall-version` is
+bumped; do not fetch "latest" when applying.
+
+Greenfield templates: Codespaces uses `mcr.microsoft.com/devcontainers/javascript-node:latest`
+directly (no Dockerfile). Cursor uses a managed environment with only `install` (no `build`, no
+Dockerfile, no snapshot). Both invoke `./scripts/setup-cloud-environment.sh`.
+
+Merge — never blindly overwrite:
+
+| File | Missing | Already present |
+| --- | --- | --- |
+| `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
+| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` so the bootstrap runs. Do not add a Dockerfile. Do not force `javascript-node:latest` over an existing image. |
+| `.cursor/environment.json` | Write `{ "install": "./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the bootstrap (`./scripts/setup-cloud-environment.sh && …`) unless it already runs the script. Do not add `build` or a Dockerfile. |
+| `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
+
+Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. A leftover catalog
+line about PMG / VM-egress filtering is dropped in this PR (list it in the body).
+
+Reconcile as done when the bootstrap script is present, both environment configs invoke it, and
+`AGENTS.md` has the Safe Chain section.
 
 ## 3. Dependencies (pnpm)
 
@@ -359,6 +401,7 @@ whole setup, and each item is verified by its check appearing on PRs.
 - SocketDev/action: https://github.com/SocketDev/action
 - sfw-free releases: https://github.com/SocketDev/sfw-free/releases
 - Aikido: https://www.aikido.dev/
+- Aikido Safe Chain: https://github.com/AikidoSec/safe-chain
 - pnpm settings: https://pnpm.io/settings
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
 - GitHub Actions secure use: https://docs.github.com/en/actions/reference/security/secure-use
