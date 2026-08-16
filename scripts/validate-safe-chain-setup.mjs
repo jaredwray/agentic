@@ -14,7 +14,9 @@ const SCRIPT = join(SKILL, 'scripts/setup-cloud-environment.sh');
 const DEVCONTAINER = join(SKILL, 'templates/.devcontainer/devcontainer.json');
 const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
-const BOOTSTRAP = './scripts/setup-cloud-environment.sh';
+const REFERENCE = join(SKILL, 'reference.md');
+const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
+const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
 
 const errors = [];
 const err = (msg) => errors.push(msg);
@@ -54,6 +56,17 @@ if (environment) {
 const agents = readFileSync(AGENTS, 'utf8');
 if (!/Safe Chain/i.test(agents) || !/never bypass/i.test(agents)) {
   err('templates/AGENTS.md must tell agents never to bypass Safe Chain');
+}
+
+const reference = readFileSync(REFERENCE, 'utf8');
+if (!reference.includes(BOOTSTRAP)) {
+  err(`reference.md must invoke the bootstrap with ${BOOTSTRAP}`);
+}
+if (!reference.includes(SHIM_PATH_EXPORT)) {
+  err('reference.md merge guidance must export Safe Chain shims onto PATH for follow-on commands');
+}
+if (/`\.\/scripts\/setup-cloud-environment\.sh\s*&&/.test(reference)) {
+  err('reference.md must not chain the bootstrap without putting shims on PATH');
 }
 
 const script = readFileSync(SCRIPT, 'utf8');
