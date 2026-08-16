@@ -269,18 +269,24 @@ fi
 
 # require_code_owner_review does nothing unless a CODEOWNERS file on the default
 # branch names at least one owner. The file itself is a PR (see reference.md);
-# this script only audits it.
+# this script only audits it. GitHub binds to the first of these paths that
+# exists — even if that file is empty or has no owners — so do not fall through.
+codeowners_fetch() { # $1=path → raw body; return 1 if missing
+  gh api -H "Accept: application/vnd.github.raw" \
+    "repos/$REPO/contents/${1}?ref=$DEFAULT_BRANCH" 2>/dev/null
+}
+
+# `@` after `#` is an inline comment, not an owner.
 codeowners_has_owner() {
-  local path="$1" body
-  body=$(gh api -H "Accept: application/vnd.github.raw" \
-    "repos/$REPO/contents/${path}?ref=$DEFAULT_BRANCH" 2>/dev/null) || return 1
-  grep -qE '^[[:space:]]*[^#[:space:]].*@' <<<"$body"
+  grep -qE '^[[:space:]]*[^#[:space:]][^#]*@' <<<"$1"
 }
 
 CO_FOUND=""
 for p in ".github/CODEOWNERS" "CODEOWNERS" "docs/CODEOWNERS"; do
-  if codeowners_has_owner "$p"; then
-    CO_FOUND=$p
+  if body=$(codeowners_fetch "$p"); then
+    if codeowners_has_owner "$body"; then
+      CO_FOUND=$p
+    fi
     break
   fi
 done
