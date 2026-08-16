@@ -6,9 +6,9 @@
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
 #   2. Workflow runs from ALL outside collaborators require owner approval
 #   3. Branch ruleset on the default branch: pull request required with 1 approving
-#      review of the most recent push, force pushes and deletion blocked (no bypass —
-#      admins go through PRs too); with --required-checks, merges are also blocked unless
-#      those status checks pass
+#      review of the most recent push (repository admins may merge without a review,
+#      but cannot push directly); force pushes and deletion blocked; with
+#      --required-checks, merges are also blocked unless those status checks pass
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
@@ -181,7 +181,8 @@ BR_COMPLIANT='([.rules[] | select(.type == "required_status_checks")
     and (.parameters.require_last_push_approval == true
          or .parameters.dismiss_stale_reviews_on_push == true)))
   and (.conditions.ref_name.include | index("~DEFAULT_BRANCH"))
-  and ((.bypass_actors // []) | length == 0)'"$BR_CHECKS_FILTER"'
+  and ((.bypass_actors // []) | length == 1)
+  and ((.bypass_actors // [])[0] | .actor_id == 5 and .actor_type == "RepositoryRole" and .bypass_mode == "pull_request")'"$BR_CHECKS_FILTER"'
   then "ok" else "weak" end'
 
 TAG_COMPLIANT='if .enforcement == "active"
@@ -199,19 +200,23 @@ if [[ "$RULESETS_OK" -eq 0 ]]; then
 elif [[ "$CHECK" -eq 1 ]]; then
   BR_ID=$(ruleset_id "$BR_NAME")
   if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
-    pass "ruleset \"$BR_NAME\" is active with 1+ reviews of the latest push, PR/deletion/force-push rules on the default branch, and no bypass"
+    pass "ruleset \"$BR_NAME\" is active with 1+ reviews of the latest push, PR/deletion/force-push rules on the default branch, and repo-admin PR-only bypass"
   elif [[ -n "$BR_ID" ]]; then
     fail "ruleset \"$BR_NAME\" exists but is weaker than required (rules, review count, last-push approval, target, enforcement, or bypass list)"
   else
     fail "no ruleset \"$BR_NAME\""
   fi
 else
+  # bypass actor 5 = the "Repository admin" role (the owner on a user-owned repo).
+  # pull_request mode: they can merge without a review, but cannot push directly.
   BR_JSON=$(cat <<JSON
 {
   "name": "Pull requests required",
   "target": "branch",
   "enforcement": "active",
-  "bypass_actors": [],
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" }
+  ],
   "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
   "rules": [
     { "type": "pull_request",
