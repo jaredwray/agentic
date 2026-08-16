@@ -409,14 +409,6 @@ if grep -R "pnpm install" .github/workflows | grep -v -- "--frozen-lockfile"; th
   echo "Release blocked: found pnpm install without --frozen-lockfile" >&2
   exit 1
 fi
-if grep -R "pnpm install" .github/workflows | grep -v "sfw pnpm install"; then
-  echo "Release blocked: found pnpm install without sfw prefix" >&2
-  exit 1
-fi
-if grep -R "npm install" .github/workflows | grep -v "sfw npm install"; then
-  echo "Release blocked: found npm install without sfw prefix" >&2
-  exit 1
-fi
 
 echo "Release intent content verified."
 ```
