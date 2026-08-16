@@ -9,7 +9,9 @@
 #      review of the most recent push and a code-owner review of owned paths; only
 #      the repository owner can merge (and they may merge without a review, but
 #      cannot push directly); force pushes and deletion blocked; with
-#      --required-checks, merges are also blocked unless those status checks pass
+#      --required-checks, merges are also blocked unless those status checks pass.
+#      CODEOWNERS must exist on the default branch (the review flag is a no-op
+#      without it)
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
@@ -263,6 +265,29 @@ JSON
   if printf '%s' "$BR_JSON" | upsert_ruleset "$BR_NAME"; then :; else
     fail "could not write branch ruleset"
   fi
+fi
+
+# require_code_owner_review does nothing unless a CODEOWNERS file on the default
+# branch names at least one owner. The file itself is a PR (see reference.md);
+# this script only audits it.
+codeowners_has_owner() {
+  local path="$1" body
+  body=$(gh api -H "Accept: application/vnd.github.raw" \
+    "repos/$REPO/contents/${path}?ref=$DEFAULT_BRANCH" 2>/dev/null) || return 1
+  grep -qE '^[[:space:]]*[^#[:space:]].*@' <<<"$body"
+}
+
+CO_FOUND=""
+for p in ".github/CODEOWNERS" "CODEOWNERS" "docs/CODEOWNERS"; do
+  if codeowners_has_owner "$p"; then
+    CO_FOUND=$p
+    break
+  fi
+done
+if [[ -n "$CO_FOUND" ]]; then
+  pass "CODEOWNERS at $CO_FOUND names at least one owner"
+else
+  fail "no CODEOWNERS with owners on $DEFAULT_BRANCH (want .github/CODEOWNERS covering high-risk paths)"
 fi
 
 step 4 "Tag ruleset: tags only by admins"

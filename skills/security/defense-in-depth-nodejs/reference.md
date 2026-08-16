@@ -54,6 +54,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `DEFENSE_IN_DEPTH.md` present (this file)
 
 ## 2. Repository lockdown
+- [ ] `.github/CODEOWNERS` covers `/.github/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with the maintainer as owner
 - [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
 - [ ] Pull requests required on the default branch (1 approving review of the latest push, including code owners on owned paths; only the repository owner can merge, and they may merge without a review); force pushes and deletion blocked
 - [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
@@ -128,6 +129,7 @@ What it sets:
 | Default workflow token | `read` only, and Actions cannot create or approve PRs |
 | Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
 | Branch ruleset "Pull requests required" | PR required on the default branch with **1 approving review of the most recent push** and **code owner review** of owned paths; **only the repository owner can merge** (`update` rule + owner on the bypass list). The owner may merge without a review (`bypass_mode: pull_request`) but still cannot push directly. Force pushes and deletion blocked |
+| CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is a PR. Without it `require_code_owner_review` is a no-op |
 | Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
@@ -147,12 +149,27 @@ Notes:
   — no direct pushes, and a second person must approve the tip commit before merge. A later push
   after approval cannot ride the old review. Dismissing stale reviews on push is an accepted
   equivalent in `--check`. It also requires a code-owner review (`require_code_owner_review`) of
-  any path listed in `.github/CODEOWNERS`; without that file the setting is a no-op. **Restrict
-  updates** plus the owner on the bypass list means only the repository owner can merge: on a
-  user-owned repo that is the owner user (`actor_type: User`); on an org-owned repo it is
-  organization owners (`OrganizationAdmin`). Collaborators with write or admin cannot. The owner's
-  bypass is **pull request** mode: they can merge without a review (including without a code-owner
-  review) but still cannot push directly to the default branch.
+  any path listed in `.github/CODEOWNERS`. **Restrict updates** plus the owner on the bypass list
+  means only the repository owner can merge: on a user-owned repo that is the owner user
+  (`actor_type: User`); on an org-owned repo it is organization owners (`OrganizationAdmin`).
+  Collaborators with write or admin cannot. The owner's bypass is **pull request** mode: they can
+  merge without a review (including without a code-owner review) but still cannot push directly to
+  the default branch.
+- `--check` fails if the default branch has no CODEOWNERS file with at least one owner (looks in
+  `.github/CODEOWNERS`, then `CODEOWNERS`, then `docs/CODEOWNERS`). The script never writes that
+  file — add it as a PR from this template, with the maintainer as owner to start:
+
+  ```
+  # High-risk paths. Last matching pattern wins.
+  # Root-anchored so nested copies (e.g. skills/**/scripts/) are not owned here.
+  /.github/ @jaredwray
+  /.cursor/ @jaredwray
+  /.devcontainer/ @jaredwray
+  /scripts/ @jaredwray
+  ```
+
+  Cover `.cursor/` and `.devcontainer/` even before those directories exist so a later add is
+  already owned. Pair the maintainer with a second trusted reviewer when the bus factor allows.
 - Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
   Protection add-on — the script reports these instead of failing.
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
@@ -205,10 +222,7 @@ allowBuilds: {}
 - No `pull_request_target` for workflows that check out or execute untrusted PR code; don't share
   caches across trust boundaries, and disable package-manager caching in release builds.
 - No npm tokens in Actions secrets — publishing is OIDC-only (§ 5).
-- Add `.github/CODEOWNERS` for the paths the ruleset should gate — typically `.github/`, `scripts/`,
-  and any release-policy files. The branch ruleset already requires code-owner review; without a
-  CODEOWNERS file that setting is a no-op. Pair the maintainer with a second trusted reviewer when
-  the bus factor allows; until then the owner's pull-request bypass still lets them merge.
+- CODEOWNERS for workflow and script paths is § 2 — the branch ruleset requires the review.
 
 ### Socket Firewall on every job
 
