@@ -377,8 +377,11 @@ fi
 # 7. Dependabot off ---------------------------------------------------------------
 # Aikido already does CVE/SCA and Socket already reviews dependency diffs. A third
 # overlapping scanner is alert noise, not an independent control.
+# These GETs require admin. 204/enabled = on; only HTTP 404 is a confirmed off.
+# 403, rate limits, and network errors are unknown and must fail — a failed GET
+# is not proof Dependabot is disabled (--check is allowed without admin).
 step 7 "Dependabot disabled (alerts, security updates, version-update config)"
-if gh api "repos/$REPO/vulnerability-alerts" >/dev/null 2>&1; then
+if VA_OUT=$(gh api "repos/$REPO/vulnerability-alerts" 2>&1); then
   if [[ "$CHECK" -eq 1 ]]; then
     fail "Dependabot alerts enabled"
   elif gh api -X DELETE "repos/$REPO/vulnerability-alerts" >/dev/null 2>&1; then
@@ -386,11 +389,19 @@ if gh api "repos/$REPO/vulnerability-alerts" >/dev/null 2>&1; then
   else
     fail "could not disable Dependabot alerts"
   fi
-else
+elif grep -q "HTTP 404" <<<"$VA_OUT"; then
   pass "Dependabot alerts disabled"
+else
+  fail "could not confirm Dependabot alerts are disabled"
 fi
 
-ASF=$(gh api "repos/$REPO/automated-security-fixes" --jq '.enabled // false' 2>/dev/null || echo false)
+if ASF_OUT=$(gh api "repos/$REPO/automated-security-fixes" --jq '.enabled' 2>&1); then
+  ASF=$ASF_OUT
+elif grep -q "HTTP 404" <<<"$ASF_OUT"; then
+  ASF=false
+else
+  ASF=""
+fi
 if [[ "$ASF" == "true" ]]; then
   if [[ "$CHECK" -eq 1 ]]; then
     fail "Dependabot security updates enabled"
@@ -399,8 +410,10 @@ if [[ "$ASF" == "true" ]]; then
   else
     fail "could not disable Dependabot security updates"
   fi
-else
+elif [[ "$ASF" == "false" ]]; then
   pass "Dependabot security updates disabled"
+else
+  fail "could not confirm Dependabot security updates are disabled"
 fi
 
 DEP_YML=""
