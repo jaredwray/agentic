@@ -12,8 +12,9 @@
 //  7. plugin.json / marketplace.json parse and their referenced paths exist.
 //  8. Orchestration-category skills (release-ops, security, growth, project-setup) set
 //     `disable-model-invocation: true` so a mutating/expensive loop never auto-fires.
-//  9. `npm publish` / `npm stage publish` tarball args in skills/ are prefixed with `./` (npm 11+
-//     parses a bare dir/file.tgz as GitHub owner/repo shorthand).
+//  9. `pnpm publish` / `pnpm stage publish` (and leftover `npm publish`) tarball args in skills/
+//     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
+// 10. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
@@ -260,14 +261,16 @@ function discoverableSkillFiles() {
   return found;
 }
 
-// npm 11+ (npa) treats a slashed arg without a leading ./ or / as GitHub owner/repo shorthand,
-// so `npm stage publish packed/foo.tgz` becomes git ls-remote of packed/foo.tgz.git and dies
-// with Permission denied (publickey). Workflow templates must prefix local tarballs with ./.
+// Local tarball args to publish / stage publish must be prefixed with ./. npm 11+ (npa) treats a
+// slashed arg without a leading ./ or / as GitHub owner/repo shorthand, so
+// `npm stage publish packed/foo.tgz` becomes git ls-remote of packed/foo.tgz.git and dies with
+// Permission denied (publickey). pnpm accepts a bare path, but templates keep the prefix so a
+// glob is unambiguously a local file.
 const SKILL_DOC_EXT = new Set(['.md', '.yml', '.yaml']);
 
-function npmPublishArgSegments(line) {
+function publishArgSegments(line) {
   const segments = [];
-  const re = /npm (?:stage )?publish\b/g;
+  const re = /(?:npm|pnpm) (?:stage )?publish\b/g;
   let m;
   while ((m = re.exec(line))) {
     const before = line.slice(0, m.index);
@@ -283,7 +286,7 @@ function npmPublishArgSegments(line) {
   return segments;
 }
 
-function validateNpmPublishTarballPaths() {
+function validatePublishTarballPaths() {
   const skillRoot = join(ROOT, 'skills');
   for (const file of walk(skillRoot)) {
     const ext = file.slice(file.lastIndexOf('.'));
@@ -291,12 +294,19 @@ function validateNpmPublishTarballPaths() {
     const content = readFileSync(file, 'utf8');
     const lines = content.split('\n');
     for (let i = 0; i < lines.length; i++) {
-      for (const args of npmPublishArgSegments(lines[i])) {
+      const line = lines[i];
+      if (/\bnpm stage publish\b/.test(line)) {
+        err(file, `line ${i + 1}: use pnpm stage publish (pnpm ≥ 11.3); do not install the npm CLI for staging`);
+      }
+      if (/\bpnpm stage publish\b/.test(line) && /\.tgz\b/.test(line) && !/--no-git-checks/.test(line)) {
+        err(file, `line ${i + 1}: pnpm stage publish of a tarball must pass --no-git-checks (git-checks run even for a tarball)`);
+      }
+      for (const args of publishArgSegments(line)) {
         for (const raw of args.split(/\s+/)) {
           const tok = raw.replace(/^['"`]+|['"`]+$/g, '');
           if (!tok || tok.startsWith('-')) continue;
           if (tok.includes('/') && !tok.startsWith('./') && !tok.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/i.test(tok)) {
-            err(file, `line ${i + 1}: npm publish tarball path "${tok}" must be prefixed with ./ (npm 11+ parses dir/file.tgz as GitHub owner/repo shorthand)`);
+            err(file, `line ${i + 1}: publish tarball path "${tok}" must be prefixed with ./`);
           }
         }
       }
@@ -309,7 +319,7 @@ const skillFiles = walk(join(ROOT, 'skills')).filter((f) => basename(f) === 'SKI
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validateManifests();
-validateNpmPublishTarballPaths();
+validatePublishTarballPaths();
 
 const discoverable = discoverableSkillFiles();
 for (const file of skillFiles) {

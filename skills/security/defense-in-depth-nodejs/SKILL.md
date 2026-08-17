@@ -63,7 +63,8 @@ preceding auto-implementable applicable item is checked. `(manual)` items do not
 4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on
    every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — `release.yaml` stages with
-   `npm stage publish ./packed/*.tgz`; npmjs.com / Drydock / 2FA settings are `(manual)`.
+   `pnpm stage publish ./packed/*.tgz --no-git-checks`; npmjs.com / Drydock / 2FA settings are
+   `(manual)`.
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 7. **§ 7 Repository lockdown** — GitHub settings via
    [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Apply after every earlier auto item.
@@ -120,8 +121,9 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
        VM-egress line is dropped in that PR.
      - Release workflow (npm libraries): copy `.github/workflows/release.yaml` from
        [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only). If a publish
-       workflow already exists, switch it to pack + `npm stage publish ./packed/*.tgz` rather
-       than replacing a custom pipeline. Branch `chore/defense-release-stage-publish`.
+       workflow already exists, switch it to pack +
+       `pnpm stage publish ./packed/*.tgz --no-git-checks` rather than replacing a custom pipeline.
+       Branch `chore/defense-release-stage-publish`.
    - **`(manual)` items:** report what the maintainer needs to do — from the matching reference
      section — and continue past them; the maintainer ticks them off.
    - **§ 7 lockdown (always last):** do not pick this item while any earlier auto-implementable

@@ -59,7 +59,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Codespaces and Cursor Cloud Agents bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
 
 ## 3. Dependencies (pnpm)
-- [ ] `packageManager: pnpm@11.x` pinned in `package.json`
+- [ ] `packageManager: pnpm@11.3+` pinned in `package.json`
 - [ ] 7-day cooldown: `minimumReleaseAge: 10080`, `minimumReleaseAgeStrict: true`, `minimumReleaseAgeIgnoreMissingTime: false`
 - [ ] Lifecycle scripts blocked: `strictDepBuilds: true`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}` baseline
 - [ ] `blockExoticSubdeps: true`
@@ -79,7 +79,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 5. npm publishing — npm libraries only
 - [ ] OIDC trusted publishing configured **stage-only** on npmjs.com for the publish workflow — it can stage, never publish live (manual)
-- [ ] `.github/workflows/release.yaml` packs then stages with `npm stage publish ./packed/*.tgz`
+- [ ] `.github/workflows/release.yaml` packs then stages with `pnpm stage publish ./packed/*.tgz --no-git-checks`
 - [ ] Maintainer promotes staged versions with 2FA (manual)
 - [ ] Drydock connected — staged releases reviewed before promotion (manual)
 - [ ] No direct publish rights: package requires 2FA and disallows tokens (manual)
@@ -179,8 +179,8 @@ Reconcile as done when the bootstrap script is present, both environment configs
 
 ## 3. Dependencies (pnpm)
 
-Target `pnpm@11.x`; put the policy in `pnpm-workspace.yaml` so it's code-reviewed, not
-developer-local:
+Target `pnpm@11.3+` (`pnpm stage` landed in 11.3); put the policy in `pnpm-workspace.yaml` so
+it's code-reviewed, not developer-local:
 
 ```yaml
 minimumReleaseAge: 10080 # 7 days, in minutes
@@ -194,7 +194,7 @@ trustPolicy: no-downgrade
 allowBuilds: {}
 ```
 
-- Pin the package manager in `package.json` (e.g. `"packageManager": "pnpm@11.1.0"`).
+- Pin the package manager in `package.json` (e.g. `"packageManager": "pnpm@11.3.0"`).
 - The 7-day window (`minimumReleaseAge: 10080`) is the single highest-leverage control: almost every
   npm supply-chain attack is caught and unpublished within days.
 - `allowBuilds` replaces the older `onlyBuiltDependencies` / `neverBuiltDependencies` /
@@ -222,7 +222,7 @@ allowBuilds: {}
 - `persist-credentials: false` on every `actions/checkout` that doesn't need to push.
 - No `pull_request_target` for workflows that check out or execute untrusted PR code; don't share
   caches across trust boundaries.
-- Artifact-publishing workflows (npm stage/publish, GitHub Releases, OIDC, attestations) set
+- Artifact-publishing workflows (staged npm publish, GitHub Releases, OIDC, attestations) set
   `package-manager-cache: false` on every `actions/setup-node` step and do not set `cache:` to a
   package manager. `setup-node` otherwise enables npm caching by default when `package.json`
   names npm, and a poisoned Actions cache can run attacker-controlled code in a job that holds
@@ -313,14 +313,12 @@ the artifact in between.**
    configured **stage-only** on npmjs.com, so even a tampered workflow cannot publish live. No npm
    tokens exist anywhere: not in Actions secrets, not on laptops. Provenance is generated
    automatically.
-2. **Staged publishing** — CI packs a tarball and runs `npm stage publish ./packed/*.tgz` (npm CLI
-   ≥ 11.15) instead of `npm publish`. The version lands in a staging queue, not on the registry.
-   **The `./` prefix is required.** npm 11+ parses a bare `dir/file.tgz` path as GitHub
-   `owner/repo` shorthand (npm npa). A glob that expands to `packed/<name>-<version>.tgz`
-   without a leading `./` makes CI run
-   `git ls-remote ssh://git@github.com/packed/<name>-<version>.tgz.git` and die with
-   `Permission denied (publickey)`. That is not an OIDC or SSH-key failure — prefix the
-   tarball with `./`. Any pack directory is fine (`packed/`, `dist/`); the prefix is not.
+2. **Staged publishing** — CI packs a tarball and runs
+   `pnpm stage publish ./packed/*.tgz --access public --provenance --no-git-checks` (pnpm ≥ 11.3)
+   instead of `pnpm publish`. The version lands in a staging queue, not on the registry.
+   `--no-git-checks` is required: pnpm still runs git-checks for a tarball, and they fail on a
+   detached release-tag checkout and on the untracked pack output. Prefix the glob with `./` so
+   it is a local path. Any pack directory is fine (`packed/`, `dist/`).
 3. **Drydock review** — [Drydock](https://drydock.org) (free for npm maintainers) picks up the
    staged tarball with a read-only token, diffs it against the last published version, and flags
    what malware relies on: new lifecycle scripts, unexpected files, network/process calls, added
@@ -344,12 +342,13 @@ skill. This section owns the stage-publish workflow below plus the registry-side
 File PR. Copy into `.github/workflows/release.yaml`. Adapt the test script (`pnpm test:ci` vs
 `pnpm test`), Node version, and pack command to the repo. After copying, run `npx actions-up` so
 the action pins are current rather than trusting this file's snapshot, and look up the current
-reviewed sfw-free version for `firewall-version`. Pin a current npm 11.15+ for `npm stage publish`.
+reviewed sfw-free version for `firewall-version`. `packageManager` must be pnpm 11.3+ so Corepack
+provides `pnpm stage publish` — do not install the npm CLI for staging.
 
 If the repo already has a publish workflow, do not replace a custom pipeline wholesale — switch its
-publish step to pack + `npm stage publish ./<dir>/*.tgz`. A new workflow includes the Aikido gate
-so the stage-publish job is never ungated; when a publish workflow already exists, § 6 adds the
-gate as its own PR.
+publish step to pack + `pnpm stage publish ./<dir>/*.tgz --no-git-checks`. A new workflow includes
+the Aikido gate so the stage-publish job is never ungated; when a publish workflow already exists,
+§ 6 adds the gate as its own PR.
 
 ```yaml
 name: release
@@ -439,15 +438,10 @@ jobs:
           pnpm pack --pack-destination packed
           ls -la packed
 
-      - name: Ensure npm CLI for staged publishing
-        # zizmor: ignore[adhoc-packages] pin npm 11.19.0 so `npm stage publish` is available
-        run: sfw npm install --global npm@11.19.0
-
       - name: Stage publish
-        # Prefix with ./ so npm treats the tarball as a local file. A bare
-        # packed/*.tgz path is parsed as GitHub owner/repo shorthand (npm npa),
-        # which then fails with git ls-remote Permission denied (publickey).
-        run: npm stage publish ./packed/*.tgz --access public --provenance
+        # pnpm ≥ 11.3. --no-git-checks: git-checks run even for a tarball and
+        # fail on a detached release-tag checkout and on the untracked pack output.
+        run: pnpm stage publish ./packed/*.tgz --access public --provenance --no-git-checks
 ```
 
 Background: [Publishing packages with less anxiety](https://jovidecroock.com/blog/secure-npm-publishing/)
@@ -546,6 +540,7 @@ Notes:
 
 ## References
 
+- pnpm staged publishing: https://pnpm.io/cli/stage
 - npm staged publishing: https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/
 - npm trusted publishing (OIDC): https://docs.npmjs.com/trusted-publishers/
 - npm 2FA / disallow tokens: https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/
