@@ -17,7 +17,7 @@
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
 #   5. Secret scanning + push protection (plan-gated on private repos)
 #   6. Private vulnerability reporting (public repos only)
-#   7. Dependabot vulnerability alerts
+#   7. Dependabot off (alerts, security updates, no version-update config)
 #   8. Actions allowlist: GitHub-owned + verified creators + explicit patterns only
 #
 # Requires: gh (https://cli.github.com) authenticated as a repository admin.
@@ -374,15 +374,60 @@ else
   fi
 fi
 
-# 7. Dependabot alerts ------------------------------------------------------------
-step 7 "Dependabot vulnerability alerts"
-if gh api "repos/$REPO/vulnerability-alerts" >/dev/null 2>&1; then
-  pass "Dependabot alerts enabled"
-elif [[ "$CHECK" -eq 1 ]]; then
-  fail "Dependabot alerts disabled"
+# 7. Dependabot off ---------------------------------------------------------------
+# Aikido already does CVE/SCA and Socket already reviews dependency diffs. A third
+# overlapping scanner is alert noise, not an independent control.
+# These GETs require admin. 204/enabled = on; only HTTP 404 is a confirmed off.
+# 403, rate limits, and network errors are unknown and must fail — a failed GET
+# is not proof Dependabot is disabled (--check is allowed without admin).
+step 7 "Dependabot disabled (alerts, security updates, version-update config)"
+if VA_OUT=$(gh api "repos/$REPO/vulnerability-alerts" 2>&1); then
+  if [[ "$CHECK" -eq 1 ]]; then
+    fail "Dependabot alerts enabled"
+  elif gh api -X DELETE "repos/$REPO/vulnerability-alerts" >/dev/null 2>&1; then
+    pass "disabled Dependabot alerts"
+  else
+    fail "could not disable Dependabot alerts"
+  fi
+elif grep -q "HTTP 404" <<<"$VA_OUT"; then
+  pass "Dependabot alerts disabled"
 else
-  gh api -X PUT "repos/$REPO/vulnerability-alerts" >/dev/null
-  pass "enabled Dependabot alerts"
+  fail "could not confirm Dependabot alerts are disabled"
+fi
+
+if ASF_OUT=$(gh api "repos/$REPO/automated-security-fixes" --jq '.enabled' 2>&1); then
+  ASF=$ASF_OUT
+elif grep -q "HTTP 404" <<<"$ASF_OUT"; then
+  ASF=false
+else
+  ASF=""
+fi
+if [[ "$ASF" == "true" ]]; then
+  if [[ "$CHECK" -eq 1 ]]; then
+    fail "Dependabot security updates enabled"
+  elif gh api -X DELETE "repos/$REPO/automated-security-fixes" >/dev/null 2>&1; then
+    pass "disabled Dependabot security updates"
+  else
+    fail "could not disable Dependabot security updates"
+  fi
+elif [[ "$ASF" == "false" ]]; then
+  pass "Dependabot security updates disabled"
+else
+  fail "could not confirm Dependabot security updates are disabled"
+fi
+
+DEP_YML=""
+for f in ".github/dependabot.yml" ".github/dependabot.yaml"; do
+  if gh api -H "Accept: application/vnd.github.raw" \
+       "repos/$REPO/contents/${f}?ref=$DEFAULT_BRANCH" >/dev/null 2>&1; then
+    DEP_YML=$f
+    break
+  fi
+done
+if [[ -n "$DEP_YML" ]]; then
+  fail "$DEP_YML present — delete it in a PR; the script cannot remove files"
+else
+  pass "no .github/dependabot.yml"
 fi
 
 # 8. Actions allowlist -------------------------------------------------------------
@@ -435,7 +480,6 @@ if [[ "$CHECK" -eq 1 ]]; then
   echo "Audit: all applicable settings are in the desired state."
 else
   echo "Done. Re-run with --check to confirm. Remaining catalog items are maintainer-owned:"
-  echo "  · Dependabot rule: auto-dismiss low + medium (GitHub UI)"
   echo "  · Phishing-resistant 2FA on GitHub and npm accounts"
   echo "  · Recovery codes stored offline"
   [[ "$FAILS" -gt 0 ]] && { echo; echo "warning: $FAILS setting(s) could not be applied — see above."; exit 1; }
