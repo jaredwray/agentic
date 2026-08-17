@@ -1,6 +1,6 @@
 ---
 name: defense-in-depth-nodejs
-description: Harden a Node.js repo against supply-chain compromise one PR at a time — a gh lockdown script for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs), pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, and staged OIDC npm publishing reviewed in Drydock. Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
+description: Harden a Node.js repo against supply-chain compromise one PR at a time — a gh lockdown script for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs), pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, and staged OIDC npm publishing reviewed in Drydock. Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -55,7 +55,7 @@ Sections in `DEFENSE_IN_DEPTH.md`, in execution order — pick the first uncheck
 top-to-bottom:
 
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
-2. **§ 2 Repository lockdown** — `.github/CODEOWNERS` (file PR), then GitHub settings via [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (see Step 4).
+2. **§ 2 Repository lockdown** — `.github/CODEOWNERS` (file PR), GitHub settings via [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh), then Aikido Safe Chain on Codespaces and Cursor Cloud Agents (file PR; skip without `pnpm-lock.yaml`).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — OIDC trusted publishing + staged publishing + Drydock review; npm-side items are `(manual)`.
@@ -83,7 +83,8 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      `SECURITY.md` again.
    - Reconcile every checkbox against actual repo state per `security-status-tracking` — for § 2 run
      `lockdown-repo.sh <owner/repo> --check` and mirror its PASS/FAIL lines (including CODEOWNERS).
-     Never silently uncheck a regression — stop and report it.
+     Skip the Safe Chain item when `pnpm-lock.yaml` is absent. Never silently uncheck a regression —
+     stop and report it.
 
 4. **Implement the next item.**
    - **File items** (everything except § 2 GitHub settings): branch from `main` as
@@ -95,13 +96,18 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      [reference.md § 2](./reference.md#2-repository-lockdown). **Stop and ask who the owners are**
      (`@user` and/or `@org/team`) before writing the file; substitute `{{OWNERS}}` with the answer.
      Never hardcode a username and never guess from the repo owner login. If the user already named
-     owners in this conversation, use those and do not re-ask.
-   - **§ 2 setting items** (everything in § 2 except CODEOWNERS): these change GitHub settings, not
-     files — no PR, and they run only against a clean working tree. Show the user the `--check`
-     output and ask before applying; then run `lockdown-repo.sh <owner/repo>` (or hand the command
-     to a repo admin if `gh` here isn't one) and re-run `--check`. Checkbox updates ride the next
-     file PR. The script audits CODEOWNERS and requires `require_code_owner_review` on the branch
-     ruleset; it does not write the file.
+     owners in this conversation, use those and do not re-ask. § 2's Safe Chain item is a file PR:
+     copy [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) and the
+     files in `templates/` per [reference.md § 2](./reference.md#2-repository-lockdown) (merge
+     existing `.devcontainer` / `.cursor` config; never overwrite it). Skip when `pnpm-lock.yaml`
+     is absent. Branch `chore/defense-safe-chain-cloud`. A leftover PMG / VM-egress line is dropped
+     in that PR.
+   - **§ 2 setting items** (everything in § 2 except CODEOWNERS and Safe Chain): these change GitHub
+     settings, not files — no PR, and they run only against a clean working tree. Show the user the
+     `--check` output and ask before applying; then run `lockdown-repo.sh <owner/repo>` (or hand the
+     command to a repo admin if `gh` here isn't one) and re-run `--check`. Checkbox updates ride the
+     next file PR. The script audits CODEOWNERS and requires `require_code_owner_review` on the
+     branch ruleset; it does not write the file.
    - **`(manual)` items** (npm-side settings): report what the maintainer needs to do — from
      [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only) — and continue past
      them; the maintainer ticks them off.
@@ -128,6 +134,7 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
 
 ## Reference
 
-The implementation spec — doc templates, the lockdown script's settings table, the pnpm baseline,
-the Socket Firewall step, the `check-workflows.yaml` template, the staged-publishing model, tooling
-links — lives in [reference.md](./reference.md). Each `DEFENSE_IN_DEPTH.md` item names its section.
+The implementation spec — doc templates, the lockdown script's settings table, the Safe Chain
+cloud-bootstrap files, the pnpm baseline, the Socket Firewall step, the `check-workflows.yaml`
+template, the staged-publishing model, tooling links — lives in [reference.md](./reference.md).
+Each `DEFENSE_IN_DEPTH.md` item names its section.
