@@ -353,10 +353,11 @@ whole setup, and each item is verified by its check appearing on PRs.
 
 ## 7. Repository lockdown
 
-**Always last.** Do not apply until every preceding applicable catalog item is checked and on
-`main`. File items first so `--required-checks` names the real CI jobs, the Actions allowlist matches
-`uses:` in the landed workflows, and CODEOWNERS exists before `require_code_owner_review` is
-enforced. `--check` during audit is always allowed; apply mode is not.
+**Always last.** Do not apply until every preceding auto-implementable catalog item is checked and
+on `main`. `(manual)` items (npm-side settings, account 2FA) do not block it. File items first so
+`--required-checks` names the real CI jobs, the Actions allowlist matches `uses:` in the landed
+workflows, and CODEOWNERS exists before `require_code_owner_review` is enforced. `--check` during
+audit is always allowed; apply mode is not.
 
 One admin, one script: [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (bundled with this
 skill) applies every GitHub-side setting in this section idempotently via `gh`, and audits them with
@@ -366,7 +367,7 @@ skill) applies every GitHub-side setting in this section idempotently via `gh`, 
 # audit — safe anywhere, changes nothing, exits 1 if anything is off
 lockdown-repo.sh jaredwray/keyv --check --required-checks "test,zizmor"
 
-# apply — requires gh authenticated as a repo admin; only after § 1–6
+# apply — requires gh authenticated as a repo admin; only after earlier auto items
 lockdown-repo.sh jaredwray/keyv --required-checks "test,zizmor" --allowed-actions "changesets/*"
 ```
 

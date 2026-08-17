@@ -53,7 +53,8 @@ Classify the repo before scaffolding; the profile decides which sections apply. 
 
 Sections in `DEFENSE_IN_DEPTH.md`, in execution order — pick the first unchecked applicable item
 top-to-bottom. **`lockdown-repo.sh` apply is always last.** Never run it in apply mode until every
-preceding applicable item is checked. `--check` during audit does not change that.
+preceding auto-implementable applicable item is checked. `(manual)` items do not block it.
+`--check` during audit does not change that.
 
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
 2. **§ 2 CODEOWNERS and cloud bootstrap** — `.github/CODEOWNERS` (file PR); Aikido Safe Chain on
@@ -65,8 +66,8 @@ preceding applicable item is checked. `--check` during audit does not change tha
    Drydock review; npm-side items are `(manual)`.
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 7. **§ 7 Repository lockdown** — GitHub settings via
-   [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Apply only after § 1–6. Account/UI
-   leftovers are `(manual)`.
+   [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Apply after every earlier auto item.
+   Account/UI leftovers are `(manual)`.
 
 ## Workflow
 
@@ -93,7 +94,7 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      `SECURITY.md` again.
    - Reconcile every checkbox against actual repo state per `security-status-tracking`. For § 7 run
      `lockdown-repo.sh <owner/repo> --check` (audit only — never apply here). A clean `--check` means
-     the lockdown item is done; a FAIL does not make § 7 the next item while earlier items remain.
+     the lockdown item is done; a FAIL does not make § 7 the next item while earlier auto items remain.
      Skip the Safe Chain item when `pnpm-lock.yaml` is absent. Never silently uncheck a regression —
      stop and report it.
 
@@ -117,8 +118,8 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
        VM-egress line is dropped in that PR.
    - **`(manual)` items:** report what the maintainer needs to do — from the matching reference
      section — and continue past them; the maintainer ticks them off.
-   - **§ 7 lockdown (always last):** do not pick this item while any earlier applicable item is
-     unchecked. Working tree must be clean. Show `--check` and ask before applying; then run
+   - **§ 7 lockdown (always last):** do not pick this item while any earlier auto-implementable
+     applicable item is unchecked. `(manual)` leftovers do not block it. Working tree must be clean. Show `--check` and ask before applying; then run
      `lockdown-repo.sh <owner/repo>` with `--required-checks` and `--allowed-actions` taken from the
      repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (or hand the
      command to a repo admin if `gh` here isn't one). Re-run `--check`. Record the result in a PR
