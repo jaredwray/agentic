@@ -59,6 +59,40 @@ if (!/Safe Chain/i.test(agents) || !/never bypass/i.test(agents)) {
 }
 
 const reference = readFileSync(REFERENCE, 'utf8');
+const scaffoldIdx = reference.indexOf('### DEFENSE_IN_DEPTH.md scaffold');
+if (scaffoldIdx === -1) {
+  err('reference.md missing DEFENSE_IN_DEPTH.md scaffold');
+} else {
+  const fence = reference.slice(scaffoldIdx).match(/```md\n([\s\S]*?)```/);
+  if (!fence) {
+    err('reference.md scaffold missing md fence');
+  } else {
+    const sections = fence[1].split(/^## /m).filter(Boolean);
+    const last = sections.at(-1) ?? '';
+    if (!last.startsWith('7. Repository lockdown')) {
+      err(`catalog last section must be "## 7. Repository lockdown", got "## ${last.split('\n')[0]}"`);
+    }
+    if (!last.includes('lockdown-repo.sh')) {
+      err('catalog last section must mention lockdown-repo.sh');
+    }
+    for (const section of sections.slice(0, -1)) {
+      if (section.includes('lockdown-repo.sh')) {
+        err(`catalog section before last mentions lockdown-repo.sh: ${section.split('\n')[0]}`);
+      }
+    }
+  }
+}
+
+const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
+if (!/always last/.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {
+  err('SKILL.md must say lockdown-repo.sh apply is always last');
+}
+const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
+const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
+if (!/§ 7 Repository lockdown/.test(lastPriority)) {
+  err(`SKILL.md Item priority last item must be § 7 Repository lockdown, got "${lastPriority}"`);
+}
+
 if (!reference.includes(BOOTSTRAP)) {
   err(`reference.md must invoke the bootstrap with ${BOOTSTRAP}`);
 }

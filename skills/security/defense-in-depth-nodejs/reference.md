@@ -54,21 +54,8 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `SECURITY.md` present — contact info + "How this repository is secured" summary
 - [ ] `DEFENSE_IN_DEPTH.md` present (this file)
 
-## 2. Repository lockdown
+## 2. CODEOWNERS and cloud bootstrap
 - [ ] `.github/CODEOWNERS` covers `/.github/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with owners the maintainer names
-- [ ] Lockdown script run; `lockdown-repo.sh --check` passes clean
-- [ ] Pull requests required on the default branch (0 required approving reviews, last-push approval off, code-owner review of owned paths, Restrict updates off; the owner may merge without a review); force pushes and deletion blocked
-- [ ] Merges blocked unless required status checks pass (`--required-checks "<repo's CI jobs>"`)
-- [ ] Tag ruleset "Tags only by admins" active
-- [ ] Workflow runs from all outside collaborators require approval
-- [ ] Default workflow token read-only; Actions cannot create or approve PRs
-- [ ] Actions allowlist: GitHub-owned + verified + explicit patterns only (`--allowed-actions`)
-- [ ] Secret scanning + push protection enabled *(plan-gated on private repos)*
-- [ ] Private vulnerability reporting enabled *(public repos only)*
-- [ ] Dependabot alerts enabled
-- [ ] Dependabot rule: auto-dismiss low + medium (manual)
-- [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
-- [ ] Recovery codes stored offline in a password manager (manual)
 - [ ] Codespaces and Cursor Cloud Agents bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
 
 ## 3. Dependencies (pnpm)
@@ -101,94 +88,53 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Aikido runs on every build
 - [ ] Aikido release gate: the release workflow's stage-publish job `needs:` a passing `scan-release`
 - [ ] Socket reviews every PR that changes dependencies
+
+## 7. Repository lockdown
+- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot alerts, private vulnerability reporting as applicable)
+- [ ] Dependabot rule: auto-dismiss low + medium (manual)
+- [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
+- [ ] Recovery codes stored offline in a password manager (manual)
 ```
 
 Profile adjustments when scaffolding:
 
 - **website/app** — omit § 5 entirely.
-- **private** — omit the private-vulnerability-reporting item; keep the plan-gated items only if the
-  plan supports them (the lockdown script reports this); omit § 5 unless the repo actually publishes
-  a package.
+- **private** — omit the private-vulnerability-reporting clause from the lockdown item; keep the
+  plan-gated settings only if the plan supports them (the lockdown script reports this); omit § 5
+  unless the repo actually publishes a package.
 - **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item.
 
-## 2. Repository lockdown
+## 2. CODEOWNERS and cloud bootstrap
 
-One admin, one script: [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (bundled with this
-skill) applies every GitHub-side setting in § 2 idempotently via `gh`, and audits them with
-`--check`.
+File PRs. GitHub repo settings are § 7 and run last.
 
-```bash
-# audit — safe anywhere, changes nothing, exits 1 if anything is off
-lockdown-repo.sh jaredwray/keyv --check --required-checks "test,zizmor"
+### CODEOWNERS
 
-# apply — requires gh authenticated as a repo admin
-lockdown-repo.sh jaredwray/keyv --required-checks "test,zizmor" --allowed-actions "changesets/*"
+Copy this template into `.github/CODEOWNERS`. **Ask who the owners are** (`@user` and/or
+`@org/team`, one or more) and substitute `{{OWNERS}}`. Never hardcode a username and never guess
+from the repo owner login; if the user already named owners in this conversation, use those.
+
+```
+# High-risk paths. Last matching pattern wins.
+# Root-anchored so nested copies (e.g. skills/**/scripts/) are not owned here.
+/.github/ {{OWNERS}}
+/.cursor/ {{OWNERS}}
+/.devcontainer/ {{OWNERS}}
+/scripts/ {{OWNERS}}
 ```
 
-What it sets:
+Cover `.cursor/` and `.devcontainer/` even before those directories exist so a later add is already
+owned. Pair with a second trusted reviewer when the bus factor allows.
 
-| Setting | Value |
-| --- | --- |
-| Default workflow token | `read` only, and Actions cannot create or approve PRs |
-| Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
-| Branch ruleset "Pull requests required" | PR required on the default branch with **0 required approving reviews**, **last-push approval off**, **code owner review** of owned paths, and **Restrict updates off**. The owner is on the bypass list in **pull request** mode: they may merge without a review but still cannot push directly. Force pushes and deletion blocked |
-| CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is a PR. Without it `require_code_owner_review` is a no-op |
-| Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
-| Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
-| Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
-| Private vulnerability reporting | enabled (public repos only) |
-| Dependabot alerts | enabled |
-| Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
-
-Notes:
-
-- The agent never runs the apply mode on its own: run `--check` freely for reconciliation, but stop
-  and ask before changing repo settings, or hand the command to the maintainer.
-- Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
-  types, review count (0), last-push approval off, code-owner review, Restrict updates off, targets,
-  and the bypass list, and apply mode overwrites a same-name ruleset with the canonical config — a
-  pre-existing weak ruleset can't pass as compliant.
-- The PR ruleset does not require an approving review (`required_approving_review_count: 0`) and
-  does not require approval of the most recent push (`require_last_push_approval: false`). A PR is
-  still required — no direct pushes. It does require a code-owner review (`require_code_owner_review`)
-  of any path listed in `.github/CODEOWNERS`. **Restrict updates** is off (`update` rule absent);
-  `--check` fails if it is on. The owner is on the bypass list: on a user-owned repo that is the
-  owner user (`actor_type: User`); on an org-owned repo it is organization owners
-  (`OrganizationAdmin`). The owner's bypass is **pull request** mode: they can merge without a
-  review (including without a code-owner review) but still cannot push directly to the default
-  branch.
-- `--check` fails if the default branch has no CODEOWNERS file with at least one owner (looks in
-  `.github/CODEOWNERS`, then `CODEOWNERS`, then `docs/CODEOWNERS`). The script never writes that
-  file — add it as a PR from this template. **Ask who the owners are** (`@user` and/or `@org/team`,
-  one or more) and substitute `{{OWNERS}}`. Never hardcode a username and never guess from the repo
-  owner login; if the user already named owners in this conversation, use those.
-
-  ```
-  # High-risk paths. Last matching pattern wins.
-  # Root-anchored so nested copies (e.g. skills/**/scripts/) are not owned here.
-  /.github/ {{OWNERS}}
-  /.cursor/ {{OWNERS}}
-  /.devcontainer/ {{OWNERS}}
-  /scripts/ {{OWNERS}}
-  ```
-
-  Cover `.cursor/` and `.devcontainer/` even before those directories exist so a later add is
-  already owned. Pair with a second trusted reviewer when the bus factor allows.
-- Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
-  Protection add-on — the script reports these instead of failing.
-- Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
-  name `Tags only by admins`, Enforcement **Active**, add **Repository admins** to the bypass list,
-  target **All tags**, enable **Restrict creations**.
-- Dependabot high/critical only (manual): Settings → Advanced Security → Dependabot rules →
-  **New rule** → target severity **low** and **medium** → **Dismiss alerts**. The script dismisses
-  existing low/medium alerts; this rule covers new ones (no public API for rules).
+`lockdown-repo.sh --check` (§ 7) fails if the default branch has no CODEOWNERS file with at least
+one owner (looks in `.github/CODEOWNERS`, then `CODEOWNERS`, then `docs/CODEOWNERS`). The script
+never writes that file.
 
 ### Safe Chain on Codespaces and Cursor Cloud Agents
 
-File PR (`chore/defense-safe-chain-cloud`) — not a lockdown-script setting and not `(manual)`. Skip
-when the target repo has no `pnpm-lock.yaml`. Copy the bundled
-[`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) to the target's
-`scripts/setup-cloud-environment.sh`, and copy from this skill's `templates/`:
+File PR (`chore/defense-safe-chain-cloud`). Skip when the target repo has no `pnpm-lock.yaml`. Copy
+the bundled [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) to the
+target's `scripts/setup-cloud-environment.sh`, and copy from this skill's `templates/`:
 
 | Source | Target path |
 | --- | --- |
@@ -280,7 +226,8 @@ allowBuilds: {}
   names npm, and a poisoned Actions cache can run attacker-controlled code in a job that holds
   publish credentials. Regular CI may still cache.
 - No npm tokens in Actions secrets — publishing is OIDC-only (§ 5).
-- CODEOWNERS for workflow and script paths is § 2 — the branch ruleset requires the review.
+- CODEOWNERS for workflow and script paths is § 2 — the branch ruleset that requires the review is
+  § 7, applied last.
 
 ### Socket Firewall on every job
 
@@ -402,7 +349,78 @@ whole setup, and each item is verified by its check appearing on PRs.
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI
   install-time blocking is Socket Firewall in § 4, not this GitHub-app item.
 - Secret scanning, push protection, and Dependabot alerts (high/critical only) are repo
-  settings — § 2 owns them.
+  settings — § 7 owns them.
+
+## 7. Repository lockdown
+
+**Always last.** Do not apply until every preceding auto-implementable catalog item is checked and
+on `main`. `(manual)` items (npm-side settings, account 2FA) do not block it. File items first so
+`--required-checks` names the real CI jobs, the Actions allowlist matches `uses:` in the landed
+workflows, and CODEOWNERS exists before `require_code_owner_review` is enforced. `--check` during
+audit is always allowed; apply mode is not.
+
+One admin, one script: [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (bundled with this
+skill) applies every GitHub-side setting in this section idempotently via `gh`, and audits them with
+`--check`.
+
+```bash
+# audit — safe anywhere, changes nothing, exits 1 if anything is off
+lockdown-repo.sh jaredwray/keyv --check --required-checks "test,zizmor"
+
+# apply — requires gh authenticated as a repo admin; only after earlier auto items
+lockdown-repo.sh jaredwray/keyv --required-checks "test,zizmor" --allowed-actions "changesets/*"
+```
+
+Before apply, take both flags from the repo as it stands on `main`:
+
+- `--required-checks` — the job names from `.github/workflows/` (e.g. `test,zizmor`).
+- `--allowed-actions` — extra `uses:` owners not already covered (GitHub-owned, verified creators,
+  `zizmorcore/*`, and `SocketDev/*` are always allowed). Grep `uses:` first.
+
+What it sets:
+
+| Setting | Value |
+| --- | --- |
+| Default workflow token | `read` only, and Actions cannot create or approve PRs |
+| Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
+| Branch ruleset "Pull requests required" | PR required on the default branch with **0 required approving reviews**, **last-push approval off**, **code owner review** of owned paths, and **Restrict updates off**. The owner is on the bypass list in **pull request** mode: they may merge without a review but still cannot push directly. Force pushes and deletion blocked |
+| CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is the § 2 PR. Without it `require_code_owner_review` is a no-op |
+| Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
+| Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
+| Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
+| Private vulnerability reporting | enabled (public repos only) |
+| Dependabot alerts | enabled |
+| Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
+
+Notes:
+
+- The agent never runs apply mode on its own: run `--check` with `--required-checks` and
+  `--allowed-actions` freely for reconciliation, but stop and ask before changing repo settings, or
+  hand the command to the maintainer.
+- Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
+  types, review count (0), last-push approval off, code-owner review, Restrict updates off, targets,
+  and the bypass list, and apply mode overwrites a same-name ruleset with the canonical config — a
+  pre-existing weak ruleset can't pass as compliant.
+- The PR ruleset does not require an approving review (`required_approving_review_count: 0`) and
+  does not require approval of the most recent push (`require_last_push_approval: false`). A PR is
+  still required — no direct pushes. It does require a code-owner review (`require_code_owner_review`)
+  of any path listed in `.github/CODEOWNERS`. **Restrict updates** is off (`update` rule absent);
+  `--check` fails if it is on. The owner is on the bypass list: on a user-owned repo that is the
+  owner user (`actor_type: User`); on an org-owned repo it is organization owners
+  (`OrganizationAdmin`). The owner's bypass is **pull request** mode: they can merge without a
+  review (including without a code-owner review) but still cannot push directly to the default
+  branch.
+- Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
+  Protection add-on — the script reports these instead of failing.
+- Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
+  name `Tags only by admins`, Enforcement **Active**, add **Repository admins** to the bypass list,
+  target **All tags**, enable **Restrict creations**.
+- Dependabot high/critical only (manual): Settings → Advanced Security → Dependabot rules →
+  **New rule** → target severity **low** and **medium** → **Dismiss alerts**. GitHub has no public
+  API for those rules; this catalog item is maintainer-owned.
+- After apply, re-run `--check` with the same `--required-checks` and `--allowed-actions` and open a
+  PR whose file change is checking off the lockdown item in `DEFENSE_IN_DEPTH.md` and adding the
+  matching bullets to the `SECURITY.md` summary.
 
 ## References
 
