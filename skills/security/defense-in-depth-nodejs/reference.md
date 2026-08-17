@@ -60,7 +60,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 3. Dependencies (pnpm)
 - [ ] `packageManager: pnpm@11.3+` pinned in `package.json`
-- [ ] 7-day cooldown: `minimumReleaseAge: 10080`, `minimumReleaseAgeStrict: true`, `minimumReleaseAgeIgnoreMissingTime: false`
+- [ ] 7-day cooldown: `minimumReleaseAge: 10080`, `minimumReleaseAgeStrict: true`, `minimumReleaseAgeIgnoreMissingTime: false`; no first-party `minimumReleaseAgeExclude` / `trustPolicyExclude`
 - [ ] Lifecycle scripts blocked: `strictDepBuilds: true`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}` baseline
 - [ ] `blockExoticSubdeps: true`
 - [ ] Lockfile committed; CI installs with `pnpm install --frozen-lockfile`
@@ -197,6 +197,17 @@ allowBuilds: {}
 - Pin the package manager in `package.json` (e.g. `"packageManager": "pnpm@11.3.0"`).
 - The 7-day window (`minimumReleaseAge: 10080`) is the single highest-leverage control: almost every
   npm supply-chain attack is caught and unpublished within days.
+- No first-party excludes. `minimumReleaseAgeExclude` and `trustPolicyExclude` must not list
+  packages this GitHub owner publishes (workspace `package.json` `name` values, or
+  `npm view <pkg> repository.url` / `npm view <pkg> maintainers` matching
+  `gh repo view --json owner --jq .owner.login`) nor globs that cover them (`@scope/*`). A hijacked
+  maintainer account shipping a malicious version of *our* package is what the window catches;
+  skipping it because "we published it" removes the control. When applying this item, drop matching
+  entries; omit the key if the list is then empty. Do not add an exclude to unblock a too-new
+  version — pin to a version that already meets `minimumReleaseAge`. Leave unrelated third-party
+  entries as they are.
+- Reconcile the cooldown item as done when the three `minimumReleaseAge*` keys match the baseline
+  and neither exclude list contains a first-party package (absent keys are fine).
 - `allowBuilds` replaces the older `onlyBuiltDependencies` / `neverBuiltDependencies` /
   `ignoredBuiltDependencies` settings. Every entry added to it is a security exception that gets code
   review; run `pnpm approve-builds` only during dependency review, never in CI.
