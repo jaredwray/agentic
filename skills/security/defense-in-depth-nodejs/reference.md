@@ -90,7 +90,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Socket reviews every PR that changes dependencies
 
 ## 7. Repository lockdown
-- [ ] `lockdown-repo.sh` applied; `--check` passes (PRs required on the default branch, tag ruleset, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot alerts, private vulnerability reporting as applicable)
+- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot alerts, private vulnerability reporting as applicable)
 - [ ] Dependabot rule: auto-dismiss low + medium (manual)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
@@ -394,8 +394,9 @@ What it sets:
 
 Notes:
 
-- The agent never runs apply mode on its own: run `--check` freely for reconciliation, but stop and
-  ask before changing repo settings, or hand the command to the maintainer.
+- The agent never runs apply mode on its own: run `--check` with `--required-checks` and
+  `--allowed-actions` freely for reconciliation, but stop and ask before changing repo settings, or
+  hand the command to the maintainer.
 - Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
   types, review count (0), last-push approval off, code-owner review, Restrict updates off, targets,
   and the bypass list, and apply mode overwrites a same-name ruleset with the canonical config — a
@@ -417,8 +418,9 @@ Notes:
 - Dependabot high/critical only (manual): Settings → Advanced Security → Dependabot rules →
   **New rule** → target severity **low** and **medium** → **Dismiss alerts**. GitHub has no public
   API for those rules; this catalog item is maintainer-owned.
-- After apply, re-run `--check` and open a PR whose file change is checking off the lockdown item in
-  `DEFENSE_IN_DEPTH.md` and adding the matching bullets to the `SECURITY.md` summary.
+- After apply, re-run `--check` with the same `--required-checks` and `--allowed-actions` and open a
+  PR whose file change is checking off the lockdown item in `DEFENSE_IN_DEPTH.md` and adding the
+  matching bullets to the `SECURITY.md` summary.
 
 ## References
 

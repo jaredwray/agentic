@@ -93,8 +93,10 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      block — it moves over untouched. The move is one-shot: afterwards status is never read from
      `SECURITY.md` again.
    - Reconcile every checkbox against actual repo state per `security-status-tracking`. For § 7 run
-     `lockdown-repo.sh <owner/repo> --check` (audit only — never apply here). A clean `--check` means
-     the lockdown item is done; a FAIL does not make § 7 the next item while earlier auto items remain.
+     `lockdown-repo.sh <owner/repo> --check` with `--required-checks` and `--allowed-actions` taken
+     from the repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (audit
+     only — never apply here). A clean `--check` means the lockdown item is done; a FAIL does not
+     make § 7 the next item while earlier auto items remain.
      Skip the Safe Chain item when `pnpm-lock.yaml` is absent. Never silently uncheck a regression —
      stop and report it.
 
@@ -119,10 +121,11 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
    - **`(manual)` items:** report what the maintainer needs to do — from the matching reference
      section — and continue past them; the maintainer ticks them off.
    - **§ 7 lockdown (always last):** do not pick this item while any earlier auto-implementable
-     applicable item is unchecked. `(manual)` leftovers do not block it. Working tree must be clean. Show `--check` and ask before applying; then run
-     `lockdown-repo.sh <owner/repo>` with `--required-checks` and `--allowed-actions` taken from the
-     repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (or hand the
-     command to a repo admin if `gh` here isn't one). Re-run `--check`. Record the result in a PR
+     applicable item is unchecked. `(manual)` leftovers do not block it. Working tree must be clean.
+     Show `--check` with `--required-checks` and `--allowed-actions` and ask before applying; then
+     run `lockdown-repo.sh <owner/repo>` with those flags taken from the repo's workflows per
+     [reference.md § 7](./reference.md#7-repository-lockdown) (or hand the command to a repo admin
+     if `gh` here isn't one). Re-run `--check` with the same flags. Record the result in a PR
      that updates `DEFENSE_IN_DEPTH.md` and the `SECURITY.md` summary. The script audits CODEOWNERS
      and requires `require_code_owner_review` on the branch ruleset; it does not write the file.
 
