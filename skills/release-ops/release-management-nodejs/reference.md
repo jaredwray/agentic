@@ -633,16 +633,24 @@ jobs:
           pnpm --filter "$PKG" pack --pack-destination "$PWD/dist"
           sha256sum dist/*.tgz > dist/SHA256SUMS
 
+      - name: Ensure npm CLI for staged publishing
+        # zizmor: ignore[adhoc-packages] pin npm 11.19.0 so `npm stage publish` is available
+        run: sfw npm install --global npm@11.19.0
+
       # npm ≥ 11.15: lands in the npm staging queue via trusted publishing — it does
       # NOT go live. A maintainer promotes with 2FA after Drydock review
       # (defense-in-depth-nodejs § 5).
+      # Prefix with ./ so npm treats the tarball as a local file. A bare
+      # dist/*.tgz path is parsed as GitHub owner/repo shorthand (npm npa),
+      # which then fails with git ls-remote Permission denied (publickey).
       - name: Stage publish through npm trusted publishing
-        run: npm stage publish dist/*.tgz --access public
+        run: npm stage publish ./dist/*.tgz --access public --provenance
 ```
 
 Important release-job rules:
 
 - [ ] CI only stages (`npm stage publish`) — it never publishes a version live. Promotion is a human action with 2FA after the staged artifact passes Drydock review.
+- [ ] Tarball arguments to `npm stage publish` are prefixed with `./` (a bare `dir/*.tgz` is GitHub owner/repo shorthand on npm 11+).
 - [ ] The Aikido release gate passes before anything is staged; its CI key is a plain repo secret with no publish authority.
 - [ ] Socket Firewall installed (SHA-pinned `SocketDev/action`, `firewall-version` pinned) before any package-manager command; `pnpm install` / `npm install` use the `sfw` prefix.
 - [ ] No npm token.

@@ -28,8 +28,8 @@ Make compromise require multiple independent failures, and shrink the blast radi
 failure: no direct pushes or tags, no long-lived publish credentials, no fresh-off-the-registry
 dependencies, no unreviewed workflow changes, and no release that a human didn't approve.
 
-Out of scope: the publish workflow's internals (`release-management-nodejs`), governance boilerplate
-(`project-templates`).
+Out of scope: signer policy, release-intent, and verification-gate internals
+(`release-management-nodejs`); governance boilerplate (`project-templates`).
 
 ## Two files in the target repo
 
@@ -62,8 +62,8 @@ preceding auto-implementable applicable item is checked. `(manual)` items do not
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on
    every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
-5. **§ 5 npm publishing** *(npm libraries only)* — OIDC trusted publishing + staged publishing +
-   Drydock review; npm-side items are `(manual)`.
+5. **§ 5 npm publishing** *(npm libraries only)* — `release.yaml` stages with
+   `npm stage publish ./packed/*.tgz`; npmjs.com / Drydock / 2FA settings are `(manual)`.
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 7. **§ 7 Repository lockdown** — GitHub settings via
    [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Apply after every earlier auto item.
@@ -118,6 +118,10 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
        (merge existing `.devcontainer` / `.cursor` config; never overwrite it). Skip when
        `pnpm-lock.yaml` is absent. Branch `chore/defense-safe-chain-cloud`. A leftover PMG /
        VM-egress line is dropped in that PR.
+     - Release workflow (npm libraries): copy `.github/workflows/release.yaml` from
+       [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only). If a publish
+       workflow already exists, switch it to pack + `npm stage publish ./packed/*.tgz` rather
+       than replacing a custom pipeline. Branch `chore/defense-release-stage-publish`.
    - **`(manual)` items:** report what the maintainer needs to do — from the matching reference
      section — and continue past them; the maintainer ticks them off.
    - **§ 7 lockdown (always last):** do not pick this item while any earlier auto-implementable

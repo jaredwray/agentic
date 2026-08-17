@@ -79,7 +79,8 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 5. npm publishing — npm libraries only
 - [ ] OIDC trusted publishing configured **stage-only** on npmjs.com for the publish workflow — it can stage, never publish live (manual)
-- [ ] Staged publishing: CI runs `npm stage publish`; a maintainer promotes with 2FA (manual)
+- [ ] `.github/workflows/release.yaml` packs then stages with `npm stage publish ./packed/*.tgz`
+- [ ] Maintainer promotes staged versions with 2FA (manual)
 - [ ] Drydock connected — staged releases reviewed before promotion (manual)
 - [ ] No direct publish rights: package requires 2FA and disallows tokens (manual)
 - [ ] `package.json` `repository.url` accurate so provenance maps to this repo
@@ -312,8 +313,14 @@ the artifact in between.**
    configured **stage-only** on npmjs.com, so even a tampered workflow cannot publish live. No npm
    tokens exist anywhere: not in Actions secrets, not on laptops. Provenance is generated
    automatically.
-2. **Staged publishing** — CI runs `npm stage publish` (npm CLI ≥ 11.15) instead of `npm publish`.
-   The version lands in a staging queue, not on the registry.
+2. **Staged publishing** — CI packs a tarball and runs `npm stage publish ./packed/*.tgz` (npm CLI
+   ≥ 11.15) instead of `npm publish`. The version lands in a staging queue, not on the registry.
+   **The `./` prefix is required.** npm 11+ parses a bare `dir/file.tgz` path as GitHub
+   `owner/repo` shorthand (npm npa). A glob that expands to `packed/<name>-<version>.tgz`
+   without a leading `./` makes CI run
+   `git ls-remote ssh://git@github.com/packed/<name>-<version>.tgz.git` and die with
+   `Permission denied (publickey)`. That is not an OIDC or SSH-key failure — prefix the
+   tarball with `./`. Any pack directory is fine (`packed/`, `dist/`); the prefix is not.
 3. **Drydock review** — [Drydock](https://drydock.org) (free for npm maintainers) picks up the
    staged tarball with a read-only token, diffs it against the last published version, and flags
    what malware relies on: new lifecycle scripts, unexpected files, network/process calls, added
@@ -324,12 +331,124 @@ the artifact in between.**
    publisher is the only automated path in, so a compromised laptop or CI run cannot skip the stage.
 
 npmjs.com setup (manual, per package): configure the trusted publisher (GitHub Actions provider →
-exact repo, workflow filename, environment) as **stage-only**, switch CI to `npm stage publish`,
-connect Drydock, then set **Require two-factor authentication and disallow tokens**. Keep
-`repository.url` accurate so provenance maps to the repo.
+exact repo, workflow filename matching the file that stages — `release.yaml` for the template
+below — and environment if the job uses one) as **stage-only**, connect Drydock, then set
+**Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
+provenance maps to the repo.
 
-The publish workflow itself (build steps, environments, verification gates) belongs to the
-`release-management-nodejs` skill — this section owns the policy and the registry-side settings.
+Signer policy, release-intent, and verification gates belong to the `release-management-nodejs`
+skill. This section owns the stage-publish workflow below plus the registry-side settings.
+
+### release.yaml
+
+File PR. Copy into `.github/workflows/release.yaml`. Adapt the test script (`pnpm test:ci` vs
+`pnpm test`), Node version, and pack command to the repo. After copying, run `npx actions-up` so
+the action pins are current rather than trusting this file's snapshot, and look up the current
+reviewed sfw-free version for `firewall-version`. Pin a current npm 11.15+ for `npm stage publish`.
+
+If the repo already has a publish workflow, do not replace a custom pipeline wholesale — switch its
+publish step to pack + `npm stage publish ./<dir>/*.tgz`. A new workflow includes the Aikido gate
+so the stage-publish job is never ungated; when a publish workflow already exists, § 6 adds the
+gate as its own PR.
+
+```yaml
+name: release
+
+on:
+  workflow_dispatch:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+
+jobs:
+  aikido-gate:
+    name: Aikido release gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Install Socket Firewall
+        uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: "1.15.0"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Aikido CI client
+        # zizmor: ignore[adhoc-packages] pinned Aikido CI client for the release gate
+        run: sfw npm install --global @aikidosec/ci-api-client@1.0.17
+
+      # Fails on new SAST/IaC/secrets findings. The API key comes from Aikido's
+      # Continuous Integration settings — it grants no publish authority.
+      - name: Run Aikido release scan
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          AIKIDO_CLIENT_API_KEY: ${{ secrets.AIKIDO_CLIENT_API_KEY }}
+        run: >
+          aikido-api-client scan-release
+          "$REPO_NAME" "$GITHUB_SHA"
+          --apikey "$AIKIDO_CLIENT_API_KEY"
+          --fail-on-sast-scan --fail-on-iac-scan --fail-on-secrets-scan
+
+  build:
+    needs: [aikido-gate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Socket Firewall
+        uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: "1.15.0"
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Prepare pnpm
+        run: corepack prepare
+
+      - name: Install Dependencies
+        run: sfw pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Testing
+        run: pnpm test:ci
+
+      - name: Pack
+        run: |
+          mkdir -p packed
+          pnpm pack --pack-destination packed
+          ls -la packed
+
+      - name: Ensure npm CLI for staged publishing
+        # zizmor: ignore[adhoc-packages] pin npm 11.19.0 so `npm stage publish` is available
+        run: sfw npm install --global npm@11.19.0
+
+      - name: Stage publish
+        # Prefix with ./ so npm treats the tarball as a local file. A bare
+        # packed/*.tgz path is parsed as GitHub owner/repo shorthand (npm npa),
+        # which then fails with git ls-remote Permission denied (publickey).
+        run: npm stage publish ./packed/*.tgz --access public --provenance
+```
 
 Background: [Publishing packages with less anxiety](https://jovidecroock.com/blog/secure-npm-publishing/)
 and [Two places to stop a bad release](https://jovidecroock.com/blog/drydock-release-defenses/).
@@ -344,7 +463,8 @@ whole setup, and each item is verified by its check appearing on PRs.
   findings. Code its release gate into the release workflow (`release.yaml` / `publish.yml`): an
   `aikido-gate` job runs `aikido-api-client scan-release … --fail-on-sast-scan --fail-on-iac-scan
   --fail-on-secrets-scan` and the stage-publish job `needs:` it, so nothing is staged while new
-  findings are open — full job template in the `release-management-nodejs` reference § 14.
+  findings are open — the job is in the § 5 `release.yaml` template (signed-release variant in
+  the `release-management-nodejs` reference § 14).
 - **Socket** ([socket.dev](https://socket.dev)) is the dependency security linter: it reviews every
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI
