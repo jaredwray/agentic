@@ -7,8 +7,8 @@
 #   2. Workflow runs from ALL outside collaborators require owner approval
 #   3. Branch ruleset on the default branch: pull request required with 0
 #      approving reviews and last-push approval off, plus a code-owner review of
-#      owned paths; only the repository owner can merge (and they may merge
-#      without a review, but cannot push directly); force pushes and deletion
+#      owned paths; Restrict updates off; the owner may merge without a review
+#      (pull-request bypass) but cannot push directly; force pushes and deletion
 #      blocked; with --required-checks, merges are also blocked unless those
 #      status checks pass.
 #      CODEOWNERS must exist on the default branch (the review flag is a no-op
@@ -121,9 +121,9 @@ fi
 # A ruleset is judged by its contents, never by its name alone — a pre-existing
 # weak ruleset with the right name must not pass the audit. Check mode fetches the
 # ruleset and validates enforcement, rule types, review count (0), last-push
-# approval off, code-owner review, owner-only merge, targets, and bypass list;
-# apply mode always writes the canonical config (create or overwrite), which
-# also heals a weak same-name ruleset.
+# approval off, code-owner review, Restrict updates off, targets, and bypass
+# list; apply mode always writes the canonical config (create or overwrite),
+# which also heals a weak same-name ruleset.
 
 ruleset_id() { # $1=name → repo-level ruleset id, or empty
   gh api "repos/$REPO/rulesets?includes_parents=false" --paginate \
@@ -179,10 +179,10 @@ if [[ -n "$REQUIRED_CHECKS" ]]; then
       } }"
 fi
 
-# Restrict updates so only the bypass actor can merge. GitHub has no "merge
-# permission" rule; the update rule blocks PR merges for everyone not on the
-# bypass list. pull_request mode still forbids a direct push by that actor.
-# User-owned repo → the owner user; org-owned repo → organization owners.
+# Owner on the bypass list in pull_request mode: they can merge without a
+# code-owner review, but cannot push directly. Restrict updates stays off so
+# other writers can still merge once the remaining rules pass. User-owned
+# repo → the owner user; org-owned repo → organization owners.
 case "$OWNER_TYPE" in
   Organization)
     BR_BYPASS_JSON='{ "actor_id": 1, "actor_type": "OrganizationAdmin", "bypass_mode": "pull_request" }'
@@ -202,7 +202,8 @@ esac
 BR_COMPLIANT='([.rules[] | select(.type == "required_status_checks")
     | .parameters.required_status_checks[].context]) as $ctxs
   | if .enforcement == "active"
-  and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward") and index("update"))
+  and ([.rules[].type] | index("pull_request") and index("deletion") and index("non_fast_forward"))
+  and (([.rules[].type] | index("update")) == null)
   and (any(.rules[]; .type == "pull_request"
     and (.parameters.required_approving_review_count // 0) == 0
     and .parameters.require_code_owner_review == true
@@ -227,15 +228,15 @@ if [[ "$RULESETS_OK" -eq 0 ]]; then
 elif [[ "$CHECK" -eq 1 ]]; then
   BR_ID=$(ruleset_id "$BR_NAME")
   if ruleset_compliant "$BR_ID" "$BR_COMPLIANT"; then
-    pass "ruleset \"$BR_NAME\" is active with 0 required reviews, last-push approval off, code-owner review, owner-only merge, PR/deletion/force-push rules on the default branch"
+    pass "ruleset \"$BR_NAME\" is active with 0 required reviews, last-push approval off, code-owner review, Restrict updates off, PR/deletion/force-push rules on the default branch"
   elif [[ -n "$BR_ID" ]]; then
-    fail "ruleset \"$BR_NAME\" exists but does not match the canonical config (rules, review count, last-push approval, code-owner review, owner-only merge, target, enforcement, or bypass list)"
+    fail "ruleset \"$BR_NAME\" exists but does not match the canonical config (rules, review count, last-push approval, code-owner review, Restrict updates, target, enforcement, or bypass list)"
   else
     fail "no ruleset \"$BR_NAME\""
   fi
 else
-  # Restrict updates + owner on the bypass list = only the owner can merge.
-  # pull_request mode: they can merge without a review, but cannot push directly.
+  # Restrict updates off. Owner on the bypass list in pull_request mode: they
+  # can merge without a review, but cannot push directly.
   BR_JSON=$(cat <<JSON
 {
   "name": "Pull requests required",
@@ -255,7 +256,6 @@ else
         "required_review_thread_resolution": false,
         "allowed_merge_methods": ["merge", "squash", "rebase"]
       } },
-    { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } },
     { "type": "deletion" },
     { "type": "non_fast_forward" }$BR_CHECKS_RULE
   ]
