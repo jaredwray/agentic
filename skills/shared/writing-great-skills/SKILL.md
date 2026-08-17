@@ -151,5 +151,6 @@ node scripts/validate-skills.mjs
 
 It checks: required frontmatter and kebab-case name matching the folder; the description budget;
 unique names; that every relative link and `reference.md`/`scripts/` pointer resolves; that
-supporting files aren't orphaned; that the manifests parse; and that orchestration-category skills
-are manual-only.
+supporting files aren't orphaned; that the manifests parse; that orchestration-category skills
+are manual-only; and that `npm publish` / `npm stage publish` tarball paths in skills are prefixed
+with `./` (npm 11+ otherwise treats `dir/file.tgz` as GitHub `owner/repo` shorthand).

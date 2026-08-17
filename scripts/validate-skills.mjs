@@ -12,6 +12,8 @@
 //  7. plugin.json / marketplace.json parse and their referenced paths exist.
 //  8. Orchestration-category skills (release-ops, security, growth, project-setup) set
 //     `disable-model-invocation: true` so a mutating/expensive loop never auto-fires.
+//  9. `npm publish` / `npm stage publish` tarball args in skills/ are prefixed with `./` (npm 11+
+//     parses a bare dir/file.tgz as GitHub owner/repo shorthand).
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
@@ -258,11 +260,56 @@ function discoverableSkillFiles() {
   return found;
 }
 
+// npm 11+ (npa) treats a slashed arg without a leading ./ or / as GitHub owner/repo shorthand,
+// so `npm stage publish packed/foo.tgz` becomes git ls-remote of packed/foo.tgz.git and dies
+// with Permission denied (publickey). Workflow templates must prefix local tarballs with ./.
+const SKILL_DOC_EXT = new Set(['.md', '.yml', '.yaml']);
+
+function npmPublishArgSegments(line) {
+  const segments = [];
+  const re = /npm (?:stage )?publish\b/g;
+  let m;
+  while ((m = re.exec(line))) {
+    const before = line.slice(0, m.index);
+    const after = line.slice(m.index + m[0].length);
+    const ticksBefore = (before.match(/`/g) || []).length;
+    let args = after;
+    if (ticksBefore % 2 === 1) {
+      const close = after.indexOf('`');
+      args = close === -1 ? after : after.slice(0, close);
+    }
+    segments.push(args);
+  }
+  return segments;
+}
+
+function validateNpmPublishTarballPaths() {
+  const skillRoot = join(ROOT, 'skills');
+  for (const file of walk(skillRoot)) {
+    const ext = file.slice(file.lastIndexOf('.'));
+    if (!SKILL_DOC_EXT.has(ext)) continue;
+    const content = readFileSync(file, 'utf8');
+    const lines = content.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      for (const args of npmPublishArgSegments(lines[i])) {
+        for (const raw of args.split(/\s+/)) {
+          const tok = raw.replace(/^['"`]+|['"`]+$/g, '');
+          if (!tok || tok.startsWith('-')) continue;
+          if (tok.includes('/') && !tok.startsWith('./') && !tok.startsWith('/') && !/^[a-z][a-z0-9+.-]*:/i.test(tok)) {
+            err(file, `line ${i + 1}: npm publish tarball path "${tok}" must be prefixed with ./ (npm 11+ parses dir/file.tgz as GitHub owner/repo shorthand)`);
+          }
+        }
+      }
+    }
+  }
+}
+
 // --- run ---
 const skillFiles = walk(join(ROOT, 'skills')).filter((f) => basename(f) === 'SKILL.md');
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validateManifests();
+validateNpmPublishTarballPaths();
 
 const discoverable = discoverableSkillFiles();
 for (const file of skillFiles) {
