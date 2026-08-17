@@ -75,6 +75,12 @@ if (scaffoldIdx === -1) {
     if (!last.includes('lockdown-repo.sh')) {
       err('catalog last section must mention lockdown-repo.sh');
     }
+    if (!last.includes('Dependabot disabled')) {
+      err('catalog last section must require Dependabot disabled');
+    }
+    if (/Dependabot alerts enabled|Dependabot rule: auto-dismiss/.test(last)) {
+      err('catalog last section must not require Dependabot alerts');
+    }
     for (const section of sections.slice(0, -1)) {
       if (section.includes('lockdown-repo.sh')) {
         err(`catalog section before last mentions lockdown-repo.sh: ${section.split('\n')[0]}`);
@@ -120,6 +126,17 @@ if (/\|\s*true\b/.test(script) || /\|\s*:(\s|$)/.test(script)) {
 }
 if (/curl[^\n]*\|\s*sh/.test(script)) {
   err('setup-cloud-environment.sh must not pipe curl into sh');
+}
+
+const lockdown = readFileSync(join(SKILL, 'scripts/lockdown-repo.sh'), 'utf8');
+if (!lockdown.includes('-X DELETE "repos/$REPO/vulnerability-alerts"')) {
+  err('lockdown-repo.sh must disable Dependabot alerts');
+}
+if (!lockdown.includes('-X DELETE "repos/$REPO/automated-security-fixes"')) {
+  err('lockdown-repo.sh must disable Dependabot security updates');
+}
+if (lockdown.includes('-X PUT "repos/$REPO/vulnerability-alerts"')) {
+  err('lockdown-repo.sh must not enable Dependabot alerts');
 }
 
 const dir = mkdtempSync(join(tmpdir(), 'safe-chain-setup-'));

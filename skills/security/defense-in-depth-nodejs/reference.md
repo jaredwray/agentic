@@ -64,7 +64,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Lifecycle scripts blocked: `strictDepBuilds: true`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}` baseline
 - [ ] `blockExoticSubdeps: true`
 - [ ] Lockfile committed; CI installs with `pnpm install --frozen-lockfile`
-- [ ] Dependency-update tooling opens PRs only — never auto-merge
+- [ ] No `.github/dependabot.yml`; other dependency-update tools (if any) open PRs only — never auto-merge
 - [ ] New direct dependencies get human review; prefer `~` ranges over `^`
 
 ## 4. GitHub Actions
@@ -90,8 +90,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Socket reviews every PR that changes dependencies
 
 ## 7. Repository lockdown
-- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot alerts, private vulnerability reporting as applicable)
-- [ ] Dependabot rule: auto-dismiss low + medium (manual)
+- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting as applicable)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 ```
@@ -202,9 +201,11 @@ allowBuilds: {}
   review; run `pnpm approve-builds` only during dependency review, never in CI.
 - CI installs use `--frozen-lockfile` so CI fails if the lockfile would change. Once Socket Firewall
   is on the job (§ 4), the command is `sfw pnpm install --frozen-lockfile`.
-- If a dependency-update tool is already configured (Renovate, Dependabot), it opens PRs that go
-  through normal review — never auto-merge. Don't add one where none exists; tool choice is the
-  maintainer's call.
+- No Dependabot. Do not add `.github/dependabot.yml`. GitHub-native alerts and security-update
+  PRs are disabled in § 7. Aikido already does CVE/SCA and Socket already reviews dependency
+  diffs; a third overlapping scanner is noise, not an independent control. If another updater
+  (Renovate) is already configured, it opens PRs through normal review — never auto-merge. Don't
+  add one where none exists.
 - New direct dependencies need human review — extra scrutiny for install scripts, native builds,
   binary downloads, or recent ownership changes. Prefer `~` over `^` for runtime deps; keep peer
   ranges consumer-friendly.
@@ -348,8 +349,9 @@ whole setup, and each item is verified by its check appearing on PRs.
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI
   install-time blocking is Socket Firewall in § 4, not this GitHub-app item.
-- Secret scanning, push protection, and Dependabot alerts (high/critical only) are repo
-  settings — § 7 owns them.
+- Secret scanning and push protection are repo settings — § 7 owns them. Dependabot stays off
+  (alerts, security-update PRs, and `.github/dependabot.yml`) for the same reason: Aikido and
+  Socket already cover that ground.
 
 ## 7. Repository lockdown
 
@@ -389,7 +391,7 @@ What it sets:
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
-| Dependabot alerts | enabled |
+| Dependabot | disabled: alerts off, security-update PRs off, no `.github/dependabot.yml`. Aikido + Socket already cover CVE/SCA and supply-chain review |
 | Actions allowlist | only GitHub-owned actions, verified creators, and explicit patterns can run (`zizmorcore/*` and `SocketDev/*` always included; extend with `--allowed-actions`). Workflows using anything else fail — grep `uses:` before applying |
 
 Notes:
@@ -415,9 +417,9 @@ Notes:
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
   name `Tags only by admins`, Enforcement **Active**, add **Repository admins** to the bypass list,
   target **All tags**, enable **Restrict creations**.
-- Dependabot high/critical only (manual): Settings → Advanced Security → Dependabot rules →
-  **New rule** → target severity **low** and **medium** → **Dismiss alerts**. GitHub has no public
-  API for those rules; this catalog item is maintainer-owned.
+- Dependabot: the script disables alerts and security-update PRs via the API. It cannot delete
+  files, so `--check` fails while `.github/dependabot.yml` (or `.yaml`) is on the default branch —
+  remove that file in a PR (the § 3 item, or the lockdown recording PR).
 - After apply, re-run `--check` with the same `--required-checks` and `--allowed-actions` and open a
   PR whose file change is checking off the lockdown item in `DEFENSE_IN_DEPTH.md` and adding the
   matching bullets to the `SECURITY.md` summary.

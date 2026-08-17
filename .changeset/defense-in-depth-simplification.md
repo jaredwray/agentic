@@ -20,8 +20,9 @@ skip public-only items and plan-gated settings degrade gracefully).
 `scripts/lockdown-repo.sh`: a gh-authed admin one-shot that requires PRs on the default branch
 (force pushes and deletion blocked), restricts tag creation to repository admins via a ruleset,
 requires approval for every outside collaborator's workflow run, sets workflow tokens read-only and
-blocks Actions from creating/approving PRs, and enables secret scanning, push protection, private
-vulnerability reporting, and Dependabot alerts. `--required-checks` additionally blocks merging
+blocks Actions from creating/approving PRs, and enables secret scanning, push protection, and private
+vulnerability reporting. Dependabot stays off — Aikido and Socket already cover CVE/SCA
+and supply-chain review. `--required-checks` additionally blocks merging
 unless the named status checks pass, and the script enforces an Actions allowlist (GitHub-owned +
 verified creators + explicit patterns, extendable with `--allowed-actions`). `--check` mode audits
 without changing anything — including rule contents and allowlist patterns — and powers
