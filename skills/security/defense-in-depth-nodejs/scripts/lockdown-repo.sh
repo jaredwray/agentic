@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # lockdown-repo.sh — one-shot GitHub repo lockdown for the defense-in-depth-nodejs skill.
 #
-# Applies the "Repository lockdown" settings (DEFENSE_IN_DEPTH.md § 2) to a repo:
+# The skill applies this last (DEFENSE_IN_DEPTH.md § 7), after file items are on main.
+# Applies the "Repository lockdown" settings to a repo:
 #
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
 #   2. Workflow runs from ALL outside collaborators require owner approval
@@ -433,10 +434,9 @@ if [[ "$CHECK" -eq 1 ]]; then
   fi
   echo "Audit: all applicable settings are in the desired state."
 else
-  echo "Done. Settings GitHub cannot script — configure these on npmjs.com (npm libraries only):"
-  echo "  · Trusted publishing (OIDC) configured STAGE-ONLY — the publisher can stage, never publish live"
-  echo "  · Staged publishing: CI runs 'npm stage publish'; a maintainer promotes with 2FA"
-  echo "  · Package access: require 2FA and disallow tokens (no direct publish rights)"
-  echo "  · Connect Drydock (https://drydock.org) to review staged releases before promotion"
+  echo "Done. Re-run with --check to confirm. Remaining catalog items are maintainer-owned:"
+  echo "  · Dependabot rule: auto-dismiss low + medium (GitHub UI)"
+  echo "  · Phishing-resistant 2FA on GitHub and npm accounts"
+  echo "  · Recovery codes stored offline"
   [[ "$FAILS" -gt 0 ]] && { echo; echo "warning: $FAILS setting(s) could not be applied — see above."; exit 1; }
 fi
