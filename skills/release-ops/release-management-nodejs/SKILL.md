@@ -48,7 +48,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 ### Phase 1: Baseline hardening
 - [ ] CI installs use `pnpm install --frozen-lockfile`
 - [ ] `pnpm-workspace.yaml` security baseline added (`minimumReleaseAge`, `minimumReleaseAgeStrict`, `minimumReleaseAgeIgnoreMissingTime`, `blockExoticSubdeps`, `strictDepBuilds`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}`)
-- [ ] pnpm 11 pinned via `packageManager` in `package.json`
+- [ ] pnpm 11.3+ pinned via `packageManager` in `package.json`
 - [ ] All GitHub Actions pinned to full commit SHAs
 - [ ] Every workflow job installs Socket Firewall via SHA-pinned `SocketDev/action` (`firewall-version` pinned); `pnpm install` / `npm install` run as `sfw pnpm install` / `sfw npm install`
 - [ ] `permissions: contents: read` default on all workflows
