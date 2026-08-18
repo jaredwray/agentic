@@ -27,7 +27,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - All changes land through pull requests — direct pushes to `main` are blocked, and merging requires passing status checks.
 - Tags (and therefore releases) can only be created by repository admins.
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
-- CI runs with read-only permissions; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
+- CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
@@ -69,6 +69,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 4. GitHub Actions
 - [ ] `permissions: contents: read` (or `{}` + per-job grants) on every workflow
+- [ ] No `contents: write` except jobs whose purpose is mutating the repo (GitHub Release, Changesets version PR); generated output is a workflow artifact, never committed back from CI
 - [ ] Every action pinned to a full commit SHA (`npx actions-up`)
 - [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned); `pnpm install` / `npm install` run as `sfw pnpm install` / `sfw npm install`
 - [ ] `.github/workflows/check-workflows.yaml` lints workflows with zizmor on every PR
@@ -226,6 +227,9 @@ allowBuilds: {}
 
 - Default every workflow to least privilege: top-level `permissions: contents: read` (or
   `permissions: {}` with per-job grants). `id-token: write` appears only on a publish job.
+- No `contents: write` except jobs whose purpose is mutating the repo. Generated output is a
+  workflow artifact, never committed back from CI — a compromised action in that job then cannot
+  push `main`. `id-token: write` on a publish job is OIDC (§ 5), not repo write.
 - **Pin by SHA with [actions-up](https://github.com/azat-io/actions-up):** `npx actions-up` scans
   every workflow and composite action, updates to the latest release, and pins to the full commit
   SHA with a version comment. Use it for the initial pinning PR; afterwards pin refresh rides the
@@ -241,6 +245,62 @@ allowBuilds: {}
 - No npm tokens in Actions secrets — publishing is OIDC-only (§ 5).
 - CODEOWNERS for workflow and script paths is § 2 — the branch ruleset that requires the review is
   § 7, applied last.
+
+### No CI commit-back
+
+File PR (`chore/defense-actions-no-commit-back`). Inventory, classify, convert; do not add a new
+workflow just to dogfood artifacts.
+
+1. **Inventory** `.github/workflows/` for `contents: write`, `git commit`, `git push`, and
+   auto-commit actions (`stefanzweifel/git-auto-commit-action`, `EndBug/add-and-commit`,
+   `peaceiris/actions-gh-pages`, and similar).
+2. **Classify each hit.** Mutating the repo **is** the job → keep `contents: write` on **that job
+   only** (creating a GitHub Release; Changesets opening a version PR). Anything else (docs,
+   `llms.txt`, formatters, generated catalogs, a built site pushed to `gh-pages`) is generated
+   output → strip write.
+3. **Convert generated-output jobs.** Gitignore the files. Upload with SHA-pinned
+   `actions/upload-artifact` and `persist-credentials: false` on checkout. Prefer
+   `actions/upload-pages-artifact` + `actions/deploy-pages` over pushing `gh-pages`. Pin new `uses:`
+   with `npx actions-up` in the same PR. Do not wrap the job in an org composite action, and do not
+   add `npm install` for a stdlib script. If Socket Firewall is already on the job, leave it.
+4. **Stop and report** if something downstream consumed the old commit (a deploy repo, Pages from a
+   branch). Do not invent that wiring.
+
+```yaml
+name: Build generated files
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Generate
+        run: node scripts/build-generated.js
+      - name: Upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: generated
+          path: generated/
+          if-no-files-found: error
+```
+
+After adapting the sketch, run `npx actions-up` so the action pins are current rather than trusting
+this file's snapshot.
+
+Reconcile as done when no workflow has `contents: write`, `git commit` / `git push`, or an
+auto-commit action except the documented exceptions. If every remaining write job is a real
+exception, check the item off with `— verified <date>` and do not open a no-op PR.
 
 ### Socket Firewall on every job
 

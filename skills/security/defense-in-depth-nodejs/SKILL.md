@@ -25,8 +25,9 @@ target repo's `DEFENSE_IN_DEPTH.md`.
 ## Goal and scope
 
 Make compromise require multiple independent failures, and shrink the blast radius of any one
-failure: no direct pushes or tags, no long-lived publish credentials, no fresh-off-the-registry
-dependencies, no unreviewed workflow changes, and no release that a human didn't approve.
+failure: no direct pushes or tags, no write token on jobs that only generate files, no long-lived
+publish credentials, no fresh-off-the-registry dependencies, no unreviewed workflow changes, and no
+release that a human didn't approve.
 
 Out of scope: signer policy, release-intent, and verification-gate internals
 (`release-management-nodejs`); governance boilerplate (`project-templates`).
@@ -61,8 +62,8 @@ preceding auto-implementable applicable item is checked. `(manual)` items do not
    Codespaces and Cursor Cloud Agents (file PR; skip without `pnpm-lock.yaml`).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown with no first-party excludes, blocked lifecycle
    scripts, frozen lockfile.
-4. **§ 4 GitHub Actions** — least-privilege permissions, actions-up SHA pinning, Socket Firewall on
-   every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
+4. **§ 4 GitHub Actions** — least-privilege permissions, no CI commit-back, actions-up SHA pinning,
+   Socket Firewall on every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
 5. **§ 5 npm publishing** *(npm libraries only)* — `release.yaml` stages with
    `pnpm stage publish ./packed/*.tgz --no-git-checks`; npmjs.com / Drydock / 2FA settings are
    `(manual)`.
@@ -104,7 +105,8 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
 
 4. **Implement the next item.**
    - **File items** (§ 1–6): branch from `main` as `chore/defense-<section-key>-<item-key>` (e.g.
-     `chore/defense-pnpm-cooldown`, `chore/defense-actions-socket-firewall`), make only the change
+     `chore/defense-pnpm-cooldown`, `chore/defense-actions-no-commit-back`,
+     `chore/defense-actions-socket-firewall`), make only the change
      the item requires, update its checkbox to `(PR #<n> pending)`, run the section's local
      verification (`sfw pnpm install --frozen-lockfile`, `pnpm test`/`pnpm build` where they exist),
      open the PR per [PR rules](#pull-request-rules). Specs live in [reference.md](./reference.md)
