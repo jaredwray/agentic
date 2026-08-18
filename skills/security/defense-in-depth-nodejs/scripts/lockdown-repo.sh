@@ -15,10 +15,11 @@
 #      CODEOWNERS must exist on the default branch (the review flag is a no-op
 #      without it)
 #   4. Tag ruleset "Tags only by admins": only repository admins can create tags
-#   5. Secret scanning + push protection (plan-gated on private repos)
-#   6. Private vulnerability reporting (public repos only)
-#   7. Dependabot off (alerts, security updates, no version-update config)
-#   8. Actions allowlist: GitHub-owned + verified creators + explicit patterns only
+#   5. Immutable GitHub Releases: published assets and tags cannot be changed
+#   6. Secret scanning + push protection (plan-gated on private repos)
+#   7. Private vulnerability reporting (public repos only)
+#   8. Dependabot off (alerts, security updates, no version-update config)
+#   9. Actions allowlist: GitHub-owned + verified creators + explicit patterns only
 #
 # Requires: gh (https://cli.github.com) authenticated as a repository admin.
 # Everything it does is idempotent — safe to re-run any time.
@@ -329,8 +330,28 @@ JSON
   fi
 fi
 
-# 5. Secret scanning + push protection ------------------------------------------
-step 5 "Secret scanning + push protection"
+# 5. Immutable GitHub Releases ---------------------------------------------------
+# GET 200 + enabled=true is on (including owner-enforced). GET 404 is off.
+# Unknown GET errors fail closed. PUT 409 (already on / owner-enforced) is a
+# pass if a follow-up GET shows enabled.
+step 5 "Immutable GitHub Releases"
+IR_OUT=$(gh api "repos/$REPO/immutable-releases" --jq .enabled 2>&1) && IR_RC=0 || IR_RC=$?
+if [[ "$IR_RC" -eq 0 && "$IR_OUT" == "true" ]]; then
+  pass "immutable releases enabled (published assets and tags cannot be changed)"
+elif [[ "$IR_RC" -ne 0 ]] && ! grep -q "HTTP 404" <<<"$IR_OUT"; then
+  fail "could not confirm immutable releases are enabled"
+elif [[ "$CHECK" -eq 1 ]]; then
+  fail "immutable releases disabled"
+elif gh api -X PUT "repos/$REPO/immutable-releases" >/dev/null 2>&1; then
+  pass "enabled immutable releases"
+elif [[ "$(gh api "repos/$REPO/immutable-releases" --jq .enabled 2>/dev/null || echo "")" == "true" ]]; then
+  pass "immutable releases enabled"
+else
+  fail "could not enable immutable releases"
+fi
+
+# 6. Secret scanning + push protection ------------------------------------------
+step 6 "Secret scanning + push protection"
 # "disabled but available" must fail the audit; only genuine unavailability (the
 # security_and_analysis key is absent — no Secret Protection on this plan) is a skip.
 SS=$(gh api "repos/$REPO" --jq \
@@ -358,8 +379,8 @@ JSON
   fi
 fi
 
-# 6. Private vulnerability reporting (public repos only) -------------------------
-step 6 "Private vulnerability reporting"
+# 7. Private vulnerability reporting (public repos only) -------------------------
+step 7 "Private vulnerability reporting"
 if [[ "$PRIVATE" == "true" ]]; then
   skip "private vulnerability reporting" "public repos only — use the SECURITY.md email contact"
 else
@@ -374,13 +395,13 @@ else
   fi
 fi
 
-# 7. Dependabot off ---------------------------------------------------------------
+# 8. Dependabot off ---------------------------------------------------------------
 # Aikido already does CVE/SCA and Socket already reviews dependency diffs. A third
 # overlapping scanner is alert noise, not an independent control.
 # These GETs require admin. 204/enabled = on; only HTTP 404 is a confirmed off.
 # 403, rate limits, and network errors are unknown and must fail — a failed GET
 # is not proof Dependabot is disabled (--check is allowed without admin).
-step 7 "Dependabot disabled (alerts, security updates, version-update config)"
+step 8 "Dependabot disabled (alerts, security updates, version-update config)"
 if VA_OUT=$(gh api "repos/$REPO/vulnerability-alerts" 2>&1); then
   if [[ "$CHECK" -eq 1 ]]; then
     fail "Dependabot alerts enabled"
@@ -430,8 +451,8 @@ else
   pass "no .github/dependabot.yml"
 fi
 
-# 8. Actions allowlist -------------------------------------------------------------
-step 8 "Actions allowlist (GitHub-owned + verified + explicit patterns)"
+# 9. Actions allowlist -------------------------------------------------------------
+step 9 "Actions allowlist (GitHub-owned + verified + explicit patterns)"
 ALLOWED_PATTERNS=("zizmorcore/*" "SocketDev/*")
 if [[ -n "$EXTRA_PATTERNS" ]]; then
   IFS=',' read -ra _pats <<<"$EXTRA_PATTERNS"

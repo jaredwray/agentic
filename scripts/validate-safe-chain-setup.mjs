@@ -138,6 +138,9 @@ if (!lockdown.includes('-X DELETE "repos/$REPO/automated-security-fixes"')) {
 if (lockdown.includes('-X PUT "repos/$REPO/vulnerability-alerts"')) {
   err('lockdown-repo.sh must not enable Dependabot alerts');
 }
+if (!lockdown.includes('-X PUT "repos/$REPO/immutable-releases"')) {
+  err('lockdown-repo.sh must enable immutable releases');
+}
 
 const dir = mkdtempSync(join(tmpdir(), 'safe-chain-setup-'));
 try {
