@@ -25,7 +25,7 @@ This repository follows the [defense-in-depth](https://github.com/jaredwray/agen
 hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_DEPTH.md). Measures currently in place:
 
 - All changes land through pull requests — direct pushes to `main` are blocked, and merging requires passing status checks.
-- Tags (and therefore releases) can only be created by repository admins.
+- Tags can only be created by repository admins; published GitHub Releases are immutable (assets and tags cannot be changed after publish).
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
 - CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
@@ -92,7 +92,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Socket reviews every PR that changes dependencies
 
 ## 7. Repository lockdown
-- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting as applicable)
+- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, immutable releases, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting as applicable)
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 ```
@@ -575,6 +575,7 @@ What it sets:
 | CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is the § 2 PR. Without it `require_code_owner_review` is a no-op |
 | Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
+| Immutable GitHub Releases | enabled: published release assets cannot be added, replaced, or deleted; the release tag cannot be moved or deleted while the release exists. Existing releases stay mutable until republished. Attach assets on a draft, then publish |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
 | Private vulnerability reporting | enabled (public repos only) |
 | Dependabot | disabled: alerts off, security-update PRs off, no `.github/dependabot.yml`. Aikido + Socket already cover CVE/SCA and supply-chain review |
@@ -606,6 +607,9 @@ Notes:
 - Dependabot: the script disables alerts and security-update PRs via the API. It cannot delete
   files, so `--check` fails while `.github/dependabot.yml` (or `.yaml`) is on the default branch —
   remove that file in a PR (the § 3 item, or the lockdown recording PR).
+- Immutable releases: `--check` treats GET 404 as disabled. Owner-enforced org policy (`enabled`
+  with `enforced_by_owner`) counts as done. Publish as a draft, attach assets, then publish — you
+  cannot add files after a release is live. Existing releases stay mutable until republished.
 - After apply, re-run `--check` with the same `--required-checks` and `--allowed-actions` and open a
   PR whose file change is checking off the lockdown item in `DEFENSE_IN_DEPTH.md` and adding the
   matching bullets to the `SECURITY.md` summary.
