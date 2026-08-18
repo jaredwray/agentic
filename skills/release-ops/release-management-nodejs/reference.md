@@ -479,9 +479,11 @@ Notes:
 - `allowBuilds` is the pnpm 11 policy surface for explicitly allowing or disallowing dependency script execution.
 - `blockExoticSubdeps: true` prevents transitive dependencies from using untrusted exotic sources.
 - `dangerouslyAllowAllBuilds` must remain false.
+- `trustPolicy: no-downgrade` fails the install if a later-published version has weaker trust
+  evidence than an earlier one (trusted publisher → provenance-only → none).
 - No first-party `minimumReleaseAgeExclude` / `trustPolicyExclude` — same rule as
   `defense-in-depth-nodejs` § 3. Drop matching entries if present; omit the key when the list is
-  empty. Do not add an exclude to unblock a too-new version.
+  empty. Do not add an exclude to unblock a too-new or weaker-trust version.
 
 ## 14. GitHub Actions Publish Workflow
 

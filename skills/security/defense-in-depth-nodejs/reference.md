@@ -29,7 +29,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
 - CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
-- Dependencies install through pnpm with a 7-day cooldown on new versions, and lifecycle scripts are blocked by default. Socket reviews every dependency change; Aikido scans every build.
+- Dependencies install through pnpm with a 7-day cooldown on new versions, lifecycle scripts blocked by default, and `trustPolicy: no-downgrade`. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
 ```
 
@@ -60,7 +60,8 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 3. Dependencies (pnpm)
 - [ ] `packageManager: pnpm@11.3+` pinned in `package.json`
-- [ ] 7-day cooldown: `minimumReleaseAge: 10080`, `minimumReleaseAgeStrict: true`, `minimumReleaseAgeIgnoreMissingTime: false`; no first-party `minimumReleaseAgeExclude` / `trustPolicyExclude`
+- [ ] 7-day cooldown: `minimumReleaseAge: 10080`, `minimumReleaseAgeStrict: true`, `minimumReleaseAgeIgnoreMissingTime: false`; no first-party `minimumReleaseAgeExclude`
+- [ ] `trustPolicy: no-downgrade`; no first-party `trustPolicyExclude`
 - [ ] Lifecycle scripts blocked: `strictDepBuilds: true`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}` baseline
 - [ ] `blockExoticSubdeps: true`
 - [ ] Lockfile committed; CI installs with `pnpm install --frozen-lockfile`
@@ -189,7 +190,7 @@ minimumReleaseAgeIgnoreMissingTime: false # missing publish-time metadata fails 
 blockExoticSubdeps: true
 strictDepBuilds: true
 dangerouslyAllowAllBuilds: false
-trustPolicy: no-downgrade
+trustPolicy: no-downgrade # fail if a later version has weaker trust evidence
 
 allowBuilds: {}
 ```
@@ -201,13 +202,17 @@ allowBuilds: {}
   packages this GitHub owner publishes (workspace `package.json` `name` values, or
   `npm view <pkg> repository.url` / `npm view <pkg> maintainers` matching
   `gh repo view --json owner --jq .owner.login`) nor globs that cover them (`@scope/*`). A hijacked
-  maintainer account shipping a malicious version of *our* package is what the window catches;
-  skipping it because "we published it" removes the control. When applying this item, drop matching
-  entries; omit the key if the list is then empty. Do not add an exclude to unblock a too-new
-  version — pin to a version that already meets `minimumReleaseAge`. Leave unrelated third-party
-  entries as they are.
+  maintainer account shipping a malicious version of *our* package is what those gates catch;
+  skipping them because "we published it" removes the control. When applying the cooldown or
+  trust-policy item, drop matching entries; omit the key if the list is then empty. Do not add an
+  exclude to unblock a too-new or weaker-trust version — pin to a version that already meets the
+  gate. Leave unrelated third-party entries as they are.
 - Reconcile the cooldown item as done when the three `minimumReleaseAge*` keys match the baseline
-  and neither exclude list contains a first-party package (absent keys are fine).
+  and `minimumReleaseAgeExclude` contains no first-party package (absent key is fine).
+- `trustPolicy: no-downgrade` fails the install if a later-published version has weaker trust
+  evidence than an earlier one (trusted publisher → provenance-only → none). Reconcile as done
+  when the key is `no-downgrade` and `trustPolicyExclude` contains no first-party package
+  (absent key is fine).
 - `allowBuilds` replaces the older `onlyBuiltDependencies` / `neverBuiltDependencies` /
   `ignoredBuiltDependencies` settings. Every entry added to it is a security exception that gets code
   review; run `pnpm approve-builds` only during dependency review, never in CI.
