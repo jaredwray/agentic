@@ -65,7 +65,6 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `blockExoticSubdeps: true`
 - [ ] Lockfile committed; CI installs with `pnpm install --frozen-lockfile`
 - [ ] No `.github/dependabot.yml`; other dependency-update tools (if any) open PRs only — never auto-merge
-- [ ] New direct dependencies get human review; prefer `~` ranges over `^`
 
 ## 4. GitHub Actions
 - [ ] `permissions: contents: read` (or `{}` + per-job grants) on every workflow
@@ -219,9 +218,6 @@ allowBuilds: {}
   diffs; a third overlapping scanner is noise, not an independent control. If another updater
   (Renovate) is already configured, it opens PRs through normal review — never auto-merge. Don't
   add one where none exists.
-- New direct dependencies need human review — extra scrutiny for install scripts, native builds,
-  binary downloads, or recent ownership changes. Prefer `~` over `^` for runtime deps; keep peer
-  ranges consumer-friendly.
 
 ## 4. GitHub Actions
 
