@@ -23,6 +23,10 @@
 #
 # Requires: gh (https://cli.github.com) authenticated as a repository admin.
 # Everything it does is idempotent — safe to re-run any time.
+#
+# On start, compares this file to jaredwray/agentic@main and warns if this copy
+# is not the latest. The warning does not fail the run — a stale copy can still
+# audit or apply.
 
 set -euo pipefail
 
@@ -39,6 +43,7 @@ Usage: lockdown-repo.sh [owner/repo] [--check] [--required-checks "<c1,c2>"] [--
                       GitHub-owned, verified creators, zizmorcore/*, and SocketDev/* are always allowed.
 
 Requires gh authenticated as a repository admin. Idempotent — safe to re-run.
+Warns (does not fail) if this copy is not the latest from jaredwray/agentic.
 EOF
 }
 
@@ -58,6 +63,33 @@ while [[ $# -gt 0 ]]; do
 done
 
 command -v gh >/dev/null || { echo "error: gh CLI is required (https://cli.github.com)"; exit 1; }
+
+# Canonical source of this script. A stale plugin cache or copied file can apply
+# outdated rules. Warn and continue — never fail the run on this check.
+UPSTREAM_REPO="jaredwray/agentic"
+UPSTREAM_PATH="skills/security/defense-in-depth-nodejs/scripts/lockdown-repo.sh"
+
+check_upstream_script() {
+  local tmp
+  tmp=$(mktemp) || {
+    echo "warning: could not verify this lockdown-repo.sh is the latest from ${UPSTREAM_REPO} — continuing"
+    return 0
+  }
+  if gh api -H "Accept: application/vnd.github.raw" \
+       "repos/${UPSTREAM_REPO}/contents/${UPSTREAM_PATH}?ref=main" \
+       >"$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+    if ! cmp -s "$tmp" "${BASH_SOURCE[0]}"; then
+      echo "warning: this lockdown-repo.sh is not the latest from ${UPSTREAM_REPO}."
+      echo "         Update the agentic skill (plugin update, or git pull) and re-run."
+      echo "         https://github.com/${UPSTREAM_REPO}/blob/main/${UPSTREAM_PATH}"
+    fi
+  else
+    echo "warning: could not verify this lockdown-repo.sh is the latest from ${UPSTREAM_REPO} — continuing"
+  fi
+  rm -f "$tmp"
+}
+
+check_upstream_script
 
 if [[ -z "$REPO" ]]; then
   REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) ||

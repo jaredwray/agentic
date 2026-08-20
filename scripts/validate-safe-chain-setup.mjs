@@ -3,7 +3,7 @@
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -129,8 +129,90 @@ if (/curl[^\n]*\|\s*sh/.test(script)) {
 }
 
 const lockdown = readFileSync(join(SKILL, 'scripts/lockdown-repo.sh'), 'utf8');
+if (!lockdown.includes('UPSTREAM_REPO="jaredwray/agentic"')) {
+  err('lockdown-repo.sh must compare itself to jaredwray/agentic');
+}
+if (!lockdown.includes('warning: this lockdown-repo.sh is not the latest')) {
+  err('lockdown-repo.sh must warn when it is not the latest copy');
+}
+if (!/check_upstream_script/.test(lockdown)) {
+  err('lockdown-repo.sh must call check_upstream_script');
+}
+const lockdownSyntax = spawnSync('bash', ['-n', join(SKILL, 'scripts/lockdown-repo.sh')], {
+  encoding: 'utf8',
+});
+if (lockdownSyntax.status !== 0) {
+  err(`lockdown-repo.sh failed bash -n: ${lockdownSyntax.stderr || lockdownSyntax.stdout}`);
+}
 if (!lockdown.includes('-X DELETE "repos/$REPO/vulnerability-alerts"')) {
   err('lockdown-repo.sh must disable Dependabot alerts');
+}
+
+const lockdownPath = join(SKILL, 'scripts/lockdown-repo.sh');
+const lockdownHelp = spawnSync('bash', [lockdownPath, '--help'], { encoding: 'utf8' });
+if (lockdownHelp.status !== 0) {
+  err(`lockdown-repo.sh --help exited ${lockdownHelp.status}`);
+} else if (/warning:/.test(`${lockdownHelp.stdout}${lockdownHelp.stderr}`)) {
+  err('lockdown-repo.sh --help must not check upstream (would require network)');
+}
+
+const upstreamDir = mkdtempSync(join(tmpdir(), 'lockdown-upstream-'));
+try {
+  const fakeGh = join(upstreamDir, 'gh');
+  writeFileSync(
+    fakeGh,
+    `#!/bin/sh
+if printf '%s' "$*" | grep -q 'application/vnd.github.raw'; then
+  printf 'not-the-real-lockdown-repo.sh\\n'
+  exit 0
+fi
+exit 1
+`,
+    { mode: 0o755 },
+  );
+  const stale = spawnSync('bash', [lockdownPath], {
+    encoding: 'utf8',
+    env: { PATH: `${upstreamDir}:${process.env.PATH}`, LANG: 'C', HOME: upstreamDir },
+  });
+  const staleOut = `${stale.stdout}${stale.stderr}`;
+  if (!/not the latest from jaredwray\/agentic/.test(staleOut)) {
+    err(`lockdown-repo.sh must warn when it differs from upstream (got: ${staleOut})`);
+  }
+
+  writeFileSync(
+    fakeGh,
+    `#!/bin/sh
+if printf '%s' "$*" | grep -q 'application/vnd.github.raw'; then
+  cat '${lockdownPath.replace(/'/g, `'\\''`)}'
+  exit 0
+fi
+exit 1
+`,
+    { mode: 0o755 },
+  );
+  const current = spawnSync('bash', [lockdownPath], {
+    encoding: 'utf8',
+    env: { PATH: `${upstreamDir}:${process.env.PATH}`, LANG: 'C', HOME: upstreamDir },
+  });
+  const currentOut = `${current.stdout}${current.stderr}`;
+  if (/not the latest from jaredwray\/agentic/.test(currentOut)) {
+    err(`lockdown-repo.sh must not warn when it matches upstream (got: ${currentOut})`);
+  }
+
+  writeFileSync(fakeGh, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const offline = spawnSync('bash', [lockdownPath], {
+    encoding: 'utf8',
+    env: { PATH: `${upstreamDir}:${process.env.PATH}`, LANG: 'C', HOME: upstreamDir },
+  });
+  const offlineOut = `${offline.stdout}${offline.stderr}`;
+  if (!/could not verify this lockdown-repo\.sh is the latest/.test(offlineOut)) {
+    err(`lockdown-repo.sh must warn and continue when upstream is unreachable (got: ${offlineOut})`);
+  }
+  if (/not the latest from jaredwray\/agentic/.test(offlineOut)) {
+    err(`lockdown-repo.sh must not claim it is stale when upstream could not be fetched (got: ${offlineOut})`);
+  }
+} finally {
+  rmSync(upstreamDir, { recursive: true, force: true });
 }
 if (!lockdown.includes('-X DELETE "repos/$REPO/automated-security-fixes"')) {
   err('lockdown-repo.sh must disable Dependabot security updates');

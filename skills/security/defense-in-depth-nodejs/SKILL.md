@@ -134,9 +134,11 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      Show `--check` with `--required-checks` and `--allowed-actions` and ask before applying; then
      run `lockdown-repo.sh <owner/repo>` with those flags taken from the repo's workflows per
      [reference.md § 7](./reference.md#7-repository-lockdown) (or hand the command to a repo admin
-     if `gh` here isn't one). Re-run `--check` with the same flags. Record the result in a PR
-     that updates `DEFENSE_IN_DEPTH.md` and the `SECURITY.md` summary. The script audits CODEOWNERS
-     and requires `require_code_owner_review` on the branch ruleset; it does not write the file.
+     if `gh` here isn't one). A warning that this copy is not the latest from jaredwray/agentic is
+     not a stop — update the skill and re-run before applying. Re-run `--check` with the same flags.
+     Record the result in a PR that updates `DEFENSE_IN_DEPTH.md` and the `SECURITY.md` summary. The
+     script audits CODEOWNERS and requires `require_code_owner_review` on the branch ruleset; it does
+     not write the file.
 
 5. **Drive CI to green.** Diagnose, fix, and push until every check passes. Do not stop on a red PR.
 

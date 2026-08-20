@@ -583,6 +583,9 @@ What it sets:
 
 Notes:
 
+- On start the script compares itself to `jaredwray/agentic@main` and warns if this copy is stale
+  (marketplace cache, old clone). The warning does not fail `--check` or apply — update the skill
+  and re-run before applying.
 - The agent never runs apply mode on its own: run `--check` with `--required-checks` and
   `--allowed-actions` freely for reconciliation, but stop and ask before changing repo settings, or
   hand the command to the maintainer.
