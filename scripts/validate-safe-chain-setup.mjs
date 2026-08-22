@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Validates the defense-in-depth-nodejs catalog version, Safe Chain cloud-bootstrap
-// templates, and lockdown script. Zero dependencies. Does not download or install Safe Chain.
+// Validates the defense-in-depth-nodejs catalog (DEFENSE_IN_DEPTH.md), Safe Chain
+// cloud-bootstrap templates, and lockdown script. Zero dependencies. Does not download
+// or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
@@ -15,44 +16,12 @@ const DEVCONTAINER = join(SKILL, 'templates/.devcontainer/devcontainer.json');
 const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
-const VERSION_PATH = join(SKILL, 'VERSION');
-const CHANGELOG_PATH = join(SKILL, 'CHANGELOG.md');
+const CATALOG = join(ROOT, 'DEFENSE_IN_DEPTH.md');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
 
 const errors = [];
 const err = (msg) => errors.push(msg);
-
-function readCatalogVersion() {
-  if (!existsSync(VERSION_PATH)) {
-    err('VERSION file missing');
-    return '';
-  }
-  const raw = readFileSync(VERSION_PATH, 'utf8');
-  const version = raw.trim();
-  if (!/^\d+\.\d+\.\d+$/.test(version)) {
-    err(`VERSION must be semver x.y.z, got ${JSON.stringify(raw)}`);
-    return '';
-  }
-  if (raw.trimEnd() !== version) {
-    err('VERSION must be a single semver line');
-    return version;
-  }
-  return version;
-}
-
-const catalogVersion = readCatalogVersion();
-if (catalogVersion) {
-  if (!existsSync(CHANGELOG_PATH)) {
-    err('CHANGELOG.md missing');
-  } else {
-    const changelog = readFileSync(CHANGELOG_PATH, 'utf8');
-    const heading = new RegExp(`^## ${catalogVersion.replace(/\./g, '\\.')}\\b`, 'm');
-    if (!heading.test(changelog)) {
-      err(`CHANGELOG.md must have a "## ${catalogVersion}" heading`);
-    }
-  }
-}
 
 function readJson(path) {
   try {
@@ -92,51 +61,43 @@ if (!/Safe Chain/i.test(agents) || !/never bypass/i.test(agents)) {
 }
 
 const reference = readFileSync(REFERENCE, 'utf8');
-const scaffoldIdx = reference.indexOf('### DEFENSE_IN_DEPTH.md scaffold');
-if (scaffoldIdx === -1) {
-  err('reference.md missing DEFENSE_IN_DEPTH.md scaffold');
+if (!existsSync(CATALOG)) {
+  err('DEFENSE_IN_DEPTH.md missing at repo root');
 } else {
-  const fence = reference.slice(scaffoldIdx).match(/```md\n([\s\S]*?)```/);
-  if (!fence) {
-    err('reference.md scaffold missing md fence');
-  } else {
-    const sections = fence[1].split(/^## /m).filter(Boolean);
-    const last = sections.at(-1) ?? '';
-    if (!last.startsWith('7. Repository lockdown')) {
-      err(`catalog last section must be "## 7. Repository lockdown", got "## ${last.split('\n')[0]}"`);
-    }
-    if (!last.includes('lockdown-repo.sh')) {
-      err('catalog last section must mention lockdown-repo.sh');
-    }
-    if (!last.includes('Dependabot disabled')) {
-      err('catalog last section must require Dependabot disabled');
-    }
-    if (/Dependabot alerts enabled|Dependabot rule: auto-dismiss/.test(last)) {
-      err('catalog last section must not require Dependabot alerts');
-    }
-    for (const section of sections.slice(0, -1)) {
-      if (section.includes('lockdown-repo.sh')) {
-        err(`catalog section before last mentions lockdown-repo.sh: ${section.split('\n')[0]}`);
-      }
-    }
-    if (catalogVersion) {
-      const catalogLine = `Catalog: defense-in-depth-nodejs@${catalogVersion}`;
-      if (!fence[1].includes(catalogLine)) {
-        err(`scaffold must contain "${catalogLine}"`);
-      }
+  const catalog = readFileSync(CATALOG, 'utf8');
+  if (!/^Version: \d+\.\d+\.\d+\s*$/m.test(catalog)) {
+    err('DEFENSE_IN_DEPTH.md must have a Version: x.y.z line');
+  }
+  const sections = catalog.split(/^## /m).filter(Boolean);
+  const last = sections.at(-1) ?? '';
+  if (!last.startsWith('7. Repository lockdown')) {
+    err(`catalog last section must be "## 7. Repository lockdown", got "## ${last.split('\n')[0]}"`);
+  }
+  if (!last.includes('lockdown-repo.sh')) {
+    err('catalog last section must mention lockdown-repo.sh');
+  }
+  if (!last.includes('Dependabot disabled')) {
+    err('catalog last section must require Dependabot disabled');
+  }
+  if (/Dependabot alerts enabled|Dependabot rule: auto-dismiss/.test(last)) {
+    err('catalog last section must not require Dependabot alerts');
+  }
+  for (const section of sections.slice(0, -1)) {
+    if (section.includes('lockdown-repo.sh')) {
+      err(`catalog section before last mentions lockdown-repo.sh: ${section.split('\n')[0]}`);
     }
   }
+}
+if (!reference.includes('DEFENSE_IN_DEPTH.md')) {
+  err('reference.md must point at DEFENSE_IN_DEPTH.md');
 }
 
 const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
 if (!/always last/.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {
   err('SKILL.md must say lockdown-repo.sh apply is always last');
 }
-if (!/Catalog: defense-in-depth-nodejs@/.test(skillMd)) {
-  err('SKILL.md must record Catalog: defense-in-depth-nodejs@<semver> in DEFENSE_IN_DEPTH.md');
-}
-if (!skillMd.includes('VERSION') || !/stale/.test(skillMd)) {
-  err('SKILL.md must compare the recorded catalog version to VERSION and stop when this copy is stale');
+if (!/Version:/.test(skillMd) || !skillMd.includes('DEFENSE_IN_DEPTH.md')) {
+  err('SKILL.md must keep Version: in the target DEFENSE_IN_DEPTH.md in sync with this repo');
 }
 const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
 const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
