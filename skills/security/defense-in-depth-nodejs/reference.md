@@ -357,7 +357,10 @@ jobs:
     permissions:
       contents: read
       actions: read
-      security-events: write # SARIF upload to code scanning
+      # SARIF upload. GitHub grants read-only on fork PRs regardless; permission
+      # values cannot be expressions, so the write grant stays and the zizmor
+      # step below skips Advanced Security on forks.
+      security-events: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -370,10 +373,24 @@ jobs:
           firewall-version: "1.15.0"
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          # Fork PRs cannot upload SARIF (read-only token). Lint with annotations instead.
+          advanced-security: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          annotations: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
 ```
 
-Private repos without Advanced Security can't upload SARIF — add `with: advanced-security: false`
-to the zizmor step (findings become annotations and fail the job) and drop `security-events: write`.
+Fork PRs from public repos receive a read-only `GITHUB_TOKEN`, so the default SARIF upload
+fails even when the workflow requests `security-events: write`. Permission *values* cannot
+be expressions (GitHub rejects `${{ github.… }}` there as an unrecognized named-value), and
+GitHub already ignores the write grant on those runs. The template keeps `security-events:
+write` for same-repo PRs and pushes, and sets `advanced-security: false` plus `annotations:
+true` on forks (the two inputs are mutually exclusive). Annotation mode fails the job on
+findings.
+
+Private repos without Advanced Security can't upload SARIF on any event — set
+`advanced-security: false` and `annotations: true` on the zizmor step, drop the
+`security-events` grant, and omit the fork expressions.
+
 After copying the template, run `npx actions-up` so the action pins are current rather than trusting
 this file's snapshot, and look up the current reviewed sfw-free version for `firewall-version`.
 
