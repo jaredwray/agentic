@@ -99,12 +99,14 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      Catalog line.
    - If the recorded version is **newer** than VERSION, stop and report: this skill copy is stale —
      update it before continuing.
-   - If the recorded version is **missing or older** than VERSION, or the defense-in-depth sections
-     don't match the current catalog: set `Catalog: defense-in-depth-nodejs@<VERSION>`. When sections
-     don't match, replace them with the catalog in [reference.md § 1](./reference.md#1-security-docs)
-     (leave any `Release Management status` block untouched; do not map old checkboxes). When only
-     the Catalog line is behind, keep existing checkboxes. Name both versions in the PR body and
-     summarize new items from [./CHANGELOG.md](./CHANGELOG.md). Then reconcile against repo state.
+   - If `DEFENSE_IN_DEPTH.md` exists and either the recorded version is **missing or older** than
+     VERSION or the defense-in-depth sections don't match the current catalog: set
+     `Catalog: defense-in-depth-nodejs@<VERSION>`. When sections don't match, replace them with the
+     catalog in [reference.md § 1](./reference.md#1-security-docs), dropping sections the profile
+     excludes (leave any `Release Management status` block untouched; do not map old checkboxes).
+     When only the Catalog line is behind, keep existing checkboxes. Name both versions in the PR
+     body and summarize new items from [./CHANGELOG.md](./CHANGELOG.md). Then reconcile against
+     repo state.
    - **Migration (rides the § 1 PR):** if `SECURITY.md` contains an old `Defense in Depth status`
      block, move its state into `DEFENSE_IN_DEPTH.md` (map matching items; list dropped ones in the
      PR body) and cut `SECURITY.md` down to the simple shape. Same for a `Release Management status`
