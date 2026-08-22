@@ -91,10 +91,11 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      in that item's PR in Step 4, never during the audit.
    - If the target `Version:` is **ahead**, stop and report: this skill copy is old — update it.
    - If the target file exists and `Version:` is missing or behind, or the sections don't match
-     the catalog: set `Version:` to match this repo's file. When sections don't match, replace them
-     from [DEFENSE_IN_DEPTH.md](../../../DEFENSE_IN_DEPTH.md) (leave any `Release Management status`
-     block untouched; do not map old checkboxes). When only `Version:` is behind, keep existing
-     checkboxes. Then reconcile against repo state.
+     the catalog after dropping sections the profile excludes: set `Version:` to match this repo's
+     file. When sections don't match, replace them from
+     [DEFENSE_IN_DEPTH.md](../../../DEFENSE_IN_DEPTH.md), dropping sections the profile excludes
+     (leave any `Release Management status` block untouched; do not map old checkboxes). When only
+     `Version:` is behind, keep existing checkboxes. Then reconcile against repo state.
    - **Migration (rides the § 1 PR):** if `SECURITY.md` contains an old `Defense in Depth status`
      block, move its state into `DEFENSE_IN_DEPTH.md` (map matching items; list dropped ones in the
      PR body) and cut `SECURITY.md` down to the simple shape. Same for a `Release Management status`
