@@ -39,7 +39,9 @@ that completes a section. A `SECURITY.md` that advertises controls the repo does
 than none. Keep the whole file under ~40 lines.
 
 Private repos: drop the GitHub private-vulnerability-reporting bullet from the boilerplate (the
-feature is public-only) — the email contact is the reporting channel.
+feature is public-only) — the email contact is the reporting channel. Drop the "outside
+collaborators require maintainer approval" clause from the summary (GitHub does not allow fork PR
+approval on private repositories); keep the Actions allowlist clause.
 
 ### DEFENSE_IN_DEPTH.md scaffold
 
@@ -92,7 +94,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Socket reviews every PR that changes dependencies
 
 ## 7. Repository lockdown
-- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, immutable releases, fork-PR approval, read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting as applicable)
+- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, immutable releases, fork-PR approval (public repos), read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting (public repos))
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 ```
@@ -100,9 +102,9 @@ Profile: <npm library | website/app> · <public | private>
 Profile adjustments when scaffolding:
 
 - **website/app** — omit § 5 entirely.
-- **private** — omit the private-vulnerability-reporting clause from the lockdown item; keep the
-  plan-gated settings only if the plan supports them (the lockdown script reports this); omit § 5
-  unless the repo actually publishes a package.
+- **private** — omit the private-vulnerability-reporting and fork-PR approval clauses from the
+  lockdown item; keep the plan-gated settings only if the plan supports them (the lockdown script
+  reports this); omit § 5 unless the repo actually publishes a package.
 - **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item.
 
 ## 2. CODEOWNERS and cloud bootstrap
@@ -570,7 +572,7 @@ What it sets:
 | Setting | Value |
 | --- | --- |
 | Default workflow token | `read` only, and Actions cannot create or approve PRs |
-| Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run |
+| Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run (public repos only) |
 | Branch ruleset "Pull requests required" | PR required on the default branch with **0 required approving reviews**, **last-push approval off**, **code owner review** of owned paths, and **Restrict updates off**. The owner is on the bypass list in **pull request** mode: they may merge without a review but still cannot push directly. Force pushes and deletion blocked |
 | CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is the § 2 PR. Without it `require_code_owner_review` is a no-op |
 | Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
@@ -602,8 +604,9 @@ Notes:
   (`OrganizationAdmin`). The owner's bypass is **pull request** mode: they can merge without a
   review (including without a code-owner review) but still cannot push directly to the default
   branch.
-- Private repos on a free plan: rulesets need GitHub Pro/Team, secret scanning needs the Secret
-  Protection add-on — the script reports these instead of failing.
+- Private repos: fork-PR workflow approval and private vulnerability reporting are skipped (GitHub
+  does not offer either on private repositories). On a free plan, rulesets need GitHub Pro/Team and
+  secret scanning needs the Secret Protection add-on — the script reports these instead of failing.
 - Manual fallback for the tag ruleset (GitHub UI): Settings → Rules → Rulesets → New tag ruleset;
   name `Tags only by admins`, Enforcement **Active**, add **Repository admins** to the bypass list,
   target **All tags**, enable **Restrict creations**.

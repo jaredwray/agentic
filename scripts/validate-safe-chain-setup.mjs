@@ -224,6 +224,113 @@ if (!lockdown.includes('-X PUT "repos/$REPO/immutable-releases"')) {
   err('lockdown-repo.sh must enable immutable releases');
 }
 
+const forkStepIdx = lockdown.indexOf('step 2 "Workflow run approval for fork PRs"');
+if (forkStepIdx === -1) {
+  err('lockdown-repo.sh must have step 2 Workflow run approval for fork PRs');
+} else {
+  const nextStepIdx = lockdown.indexOf('\nstep 3 ', forkStepIdx);
+  const forkStep = lockdown.slice(forkStepIdx, nextStepIdx === -1 ? undefined : nextStepIdx);
+  if (!forkStep.includes('[[ "$PRIVATE" == "true" ]]')) {
+    err('lockdown-repo.sh must skip fork-PR approval when the repo is private');
+  }
+  if (!forkStep.includes('public repos only')) {
+    err('lockdown-repo.sh must explain that fork-PR approval is public-repos-only');
+  }
+  if (!forkStep.includes('fork-pr-contributor-approval')) {
+    err('lockdown-repo.sh must set fork-PR approval on public repos');
+  }
+}
+
+function writeLockdownGhStub(dir, { privateRepo, callLog, lockdownPath }) {
+  const escapedPath = lockdownPath.replace(/'/g, `'\\''`);
+  const escapedLog = callLog.replace(/'/g, `'\\''`);
+  writeFileSync(
+    join(dir, 'gh'),
+    `#!/bin/sh
+printf '%s\\n' "$*" >> '${escapedLog}'
+jq=""
+prev=""
+path=""
+for a in "$@"; do
+  if [ "$prev" = "--jq" ]; then jq=$a; fi
+  case "$a" in
+    repos/*) path=$a ;;
+  esac
+  prev=$a
+done
+case "$path" in
+  repos/jaredwray/agentic/contents/*)
+    cat '${escapedPath}'
+    exit 0
+    ;;
+  repos/owner/test)
+    case "$jq" in
+      .full_name) printf 'owner/test\\n'; exit 0 ;;
+      .private) printf '${privateRepo ? 'true' : 'false'}\\n'; exit 0 ;;
+      .default_branch) printf 'main\\n'; exit 0 ;;
+      .owner.type) printf 'User\\n'; exit 0 ;;
+      .owner.id) printf '1\\n'; exit 0 ;;
+      '.permissions.admin // false') printf 'true\\n'; exit 0 ;;
+    esac
+    exit 1
+    ;;
+  *fork-pr-contributor-approval*)
+    printf 'all_external_contributors\\n'
+    exit 0
+    ;;
+esac
+exit 1
+`,
+    { mode: 0o755 },
+  );
+}
+
+const forkDir = mkdtempSync(join(tmpdir(), 'lockdown-fork-skip-'));
+try {
+  const privateLog = join(forkDir, 'private-calls.log');
+  const publicLog = join(forkDir, 'public-calls.log');
+  writeLockdownGhStub(forkDir, {
+    privateRepo: true,
+    callLog: privateLog,
+    lockdownPath,
+  });
+  const privateCheck = spawnSync('bash', [lockdownPath, 'owner/test', '--check'], {
+    encoding: 'utf8',
+    env: { PATH: `${forkDir}:${process.env.PATH}`, LANG: 'C', HOME: forkDir },
+  });
+  const privateOut = `${privateCheck.stdout}${privateCheck.stderr}`;
+  const privateCalls = readFileSync(privateLog, 'utf8');
+  if (!/skipped: public repos only — GitHub does not allow fork PR approval on private repositories/.test(privateOut)) {
+    err(`lockdown-repo.sh --check on a private repo must skip fork-PR approval (got: ${privateOut})`);
+  }
+  if (/want approval_policy=all_external_contributors/.test(privateOut)) {
+    err(`lockdown-repo.sh --check on a private repo must not fail fork-PR approval (got: ${privateOut})`);
+  }
+  if (privateCalls.includes('fork-pr-contributor-approval')) {
+    err('lockdown-repo.sh must not call the fork-PR approval API on a private repo');
+  }
+
+  writeLockdownGhStub(forkDir, {
+    privateRepo: false,
+    callLog: publicLog,
+    lockdownPath,
+  });
+  const publicCheck = spawnSync('bash', [lockdownPath, 'owner/test', '--check'], {
+    encoding: 'utf8',
+    env: { PATH: `${forkDir}:${process.env.PATH}`, LANG: 'C', HOME: forkDir },
+  });
+  const publicOut = `${publicCheck.stdout}${publicCheck.stderr}`;
+  const publicCalls = readFileSync(publicLog, 'utf8');
+  if (/skipped: public repos only — GitHub does not allow fork PR approval on private repositories/.test(publicOut)) {
+    err(`lockdown-repo.sh --check on a public repo must not skip fork-PR approval (got: ${publicOut})`);
+  }
+  if (!publicCalls.includes('fork-pr-contributor-approval')) {
+    err('lockdown-repo.sh must call the fork-PR approval API on a public repo');
+  }
+} finally {
+  rmSync(forkDir, { recursive: true, force: true });
+}
+
 const dir = mkdtempSync(join(tmpdir(), 'safe-chain-setup-'));
 try {
   const result = spawnSync('bash', [SCRIPT], {

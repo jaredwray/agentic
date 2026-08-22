@@ -5,7 +5,7 @@
 # Applies the "Repository lockdown" settings to a repo:
 #
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
-#   2. Workflow runs from ALL outside collaborators require owner approval
+#   2. Workflow runs from ALL outside collaborators require owner approval (public repos only)
 #   3. Branch ruleset on the default branch: pull request required with 0
 #      approving reviews and last-push approval off, plus a code-owner review of
 #      owned paths; Restrict updates off; the owner may merge without a review
@@ -135,19 +135,23 @@ else
   pass "set token read-only; Actions can no longer create/approve PRs"
 fi
 
-# 2. Approval required for all outside collaborators ---------------------------
+# 2. Approval required for all outside collaborators (public repos only) --------
 step 2 "Workflow run approval for fork PRs"
-AP=$(gh api "repos/$REPO/actions/permissions/fork-pr-contributor-approval" --jq .approval_policy 2>/dev/null || echo "")
-if [[ "$AP" == "all_external_contributors" ]]; then
-  pass "all outside collaborators require approval to run workflows"
-elif [[ "$CHECK" -eq 1 ]]; then
-  fail "want approval_policy=all_external_contributors, have ${AP:-unset}"
+if [[ "$PRIVATE" == "true" ]]; then
+  skip "workflow run approval for fork PRs" "public repos only — GitHub does not allow fork PR approval on private repositories"
 else
-  if gh api -X PUT "repos/$REPO/actions/permissions/fork-pr-contributor-approval" \
-       -f approval_policy=all_external_contributors >/dev/null 2>&1; then
-    pass "owner approval now required for every outside collaborator's workflow run"
+  AP=$(gh api "repos/$REPO/actions/permissions/fork-pr-contributor-approval" --jq .approval_policy 2>/dev/null || echo "")
+  if [[ "$AP" == "all_external_contributors" ]]; then
+    pass "all outside collaborators require approval to run workflows"
+  elif [[ "$CHECK" -eq 1 ]]; then
+    fail "want approval_policy=all_external_contributors, have ${AP:-unset}"
   else
-    fail "could not set fork-PR approval policy (endpoint may be unavailable on this plan)"
+    if gh api -X PUT "repos/$REPO/actions/permissions/fork-pr-contributor-approval" \
+         -f approval_policy=all_external_contributors >/dev/null 2>&1; then
+      pass "owner approval now required for every outside collaborator's workflow run"
+    else
+      fail "could not set fork-PR approval policy (endpoint may be unavailable on this plan)"
+    fi
   fi
 fi
 

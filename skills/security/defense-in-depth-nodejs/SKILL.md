@@ -48,7 +48,7 @@ Classify the repo before scaffolding; the profile decides which sections apply. 
 | Question | Signal | Consequence |
 | --- | --- | --- |
 | Does it publish to npm? | `package.json` without `"private": true` and with a publishable name/exports (workspaces: any published package) | **npm library** → full catalog. **Website/app** (site, service, docs, internal tool) → skip § 5 npm publishing; everything else applies. |
-| Is the repo private? | `gh repo view --json isPrivate` | **Private** → the lockdown script skips private-vulnerability-reporting; plan-gated settings (rulesets, secret scanning) tracked only if available — the script reports this; skip § 5 unless it actually publishes; SECURITY.md keeps the email contact only. |
+| Is the repo private? | `gh repo view --json isPrivate` | **Private** → the lockdown script skips private-vulnerability-reporting and fork-PR workflow approval; plan-gated settings (rulesets, secret scanning) tracked only if available — the script reports this; skip § 5 unless it actually publishes; SECURITY.md keeps the email contact only. |
 
 ## Item priority
 
