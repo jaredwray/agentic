@@ -1,6 +1,6 @@
 ---
 name: security-status-tracking
-description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs and release-management-nodejs skills. Use when recording or reconciling security-hardening progress.
+description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the Catalog version line, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs and release-management-nodejs skills. Use when recording or reconciling security-hardening progress.
 user-invocable: true
 ---
 
@@ -34,10 +34,16 @@ the source of truth for what's done, pending, deferred, or manual.
 - Items only a human can perform (registry and account settings, hardware keys) carry an inline
   `(manual)` marker at the end of the item text and keep their place in the catalog order — there is
   no separate manual section. The agent reports them and moves on; the maintainer ticks them off.
-- On first run, the agent **scaffolds** the file from the consumer skill's catalog, including a line
-  linking back to the operation manual that owns it, e.g.:
+- Versioned catalogs write a `Catalog: <skill-name>@<semver>` line so you can see what version a
+  repo is on. `defense-in-depth-nodejs` puts it in the file header. Missing means unversioned.
+  Updating it is an audit change (rides along). The consumer skill owns the version number and when
+  to bump it; this skill only owns the line format.
+- On first run, the agent **scaffolds** the file from the consumer skill's catalog, including the
+  Catalog line (when the consumer versions) and a line linking back to the operation manual that
+  owns it, e.g.:
 
   ```md
+  Catalog: defense-in-depth-nodejs@<semver>
   Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md.
   ```
 

@@ -48,6 +48,7 @@ approval on private repositories); keep the Actions allowlist clause.
 ```md
 # Defense in Depth
 
+Catalog: defense-in-depth-nodejs@1.0.0
 Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md.
 
 Profile: <npm library | website/app> · <public | private>
@@ -98,6 +99,24 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 ```
+
+### Catalog version
+
+The catalog is versioned independently of the plugin. [VERSION](./VERSION) is the semver (`x.y.z`);
+this scaffold's `Catalog:` line must match it (CI checks). History is in [CHANGELOG.md](./CHANGELOG.md).
+Each target repo records `Catalog: defense-in-depth-nodejs@<version>`.
+
+Bump `VERSION` in the same PR that changes the catalog or a bundled script's required behavior,
+update this scaffold's `Catalog:` line, and add a CHANGELOG entry:
+
+| Bump | When |
+| --- | --- |
+| **major** | removed or incompatible item (a previously passing repo would fail the new check) |
+| **minor** | new catalog item or new requirement a repo satisfies by adding something |
+| **patch** | wording, script bugfix, or verification change that does not add/remove checklist items |
+
+Do not bump for skill prose, shared-skill, or plugin packaging changes that leave the catalog and
+required script behavior unchanged.
 
 Profile adjustments when scaffolding:
 

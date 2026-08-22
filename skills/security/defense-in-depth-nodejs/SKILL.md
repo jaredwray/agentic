@@ -38,7 +38,15 @@ Out of scope: signer policy, release-intent, and verification-gate internals
   repository is secured" summary that only lists measures actually in place.
 - **`DEFENSE_IN_DEPTH.md`** — the tracked checklist (three checkbox states per
   `security-status-tracking`). The catalog in [reference.md](./reference.md) defines the universe —
-  do not invent items.
+  do not invent items. Catalog version is recorded in the header (see below).
+
+## Catalog version
+
+The catalog is versioned independently of the plugin. Current version is the contents of
+[./VERSION](./VERSION); history is in [./CHANGELOG.md](./CHANGELOG.md). Target repos record
+`Catalog: defense-in-depth-nodejs@<semver>` in `DEFENSE_IN_DEPTH.md` — that line is how you see
+what each repo is on (`gh search code "Catalog: defense-in-depth-nodejs@" --filename DEFENSE_IN_DEPTH.md`,
+add `--owner <org>` to scope). Bump rules live in [reference.md § 1](./reference.md#1-security-docs).
 
 ## Repo profile
 
@@ -83,13 +91,20 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
    `DEFENSE_IN_DEPTH.md` and re-verify only if the repo changed shape.
 
 3. **Audit.**
+   - Read [./VERSION](./VERSION). Recorded version is the `Catalog: defense-in-depth-nodejs@<semver>`
+     line in `DEFENSE_IN_DEPTH.md` (missing → unversioned).
    - If `DEFENSE_IN_DEPTH.md` is missing, the next item is § 1. Scaffolding — from
      [reference.md § 1](./reference.md#1-security-docs), dropping sections the profile excludes —
-     happens in that item's PR in Step 4, never during the audit.
-   - If the defense-in-depth sections don't match the current catalog, replace those sections with
-     the catalog in [reference.md § 1](./reference.md#1-security-docs) (leave any
-     `Release Management status` block untouched), then reconcile against repo state. Do not map
-     old checkboxes.
+     happens in that item's PR in Step 4, never during the audit. The scaffold includes the current
+     Catalog line.
+   - If the recorded version is **newer** than VERSION, stop and report: this skill copy is stale —
+     update it before continuing.
+   - If the recorded version is **missing or older** than VERSION, or the defense-in-depth sections
+     don't match the current catalog: set `Catalog: defense-in-depth-nodejs@<VERSION>`. When sections
+     don't match, replace them with the catalog in [reference.md § 1](./reference.md#1-security-docs)
+     (leave any `Release Management status` block untouched; do not map old checkboxes). When only
+     the Catalog line is behind, keep existing checkboxes. Name both versions in the PR body and
+     summarize new items from [./CHANGELOG.md](./CHANGELOG.md). Then reconcile against repo state.
    - **Migration (rides the § 1 PR):** if `SECURITY.md` contains an old `Defense in Depth status`
      block, move its state into `DEFENSE_IN_DEPTH.md` (map matching items; list dropped ones in the
      PR body) and cut `SECURITY.md` down to the simple shape. Same for a `Release Management status`
@@ -157,7 +172,8 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
   `keyv - chore: defense - pin all GitHub Actions via actions-up`.
 - Body: one-sentence Summary naming the section, a Status update line
   (`DEFENSE_IN_DEPTH.md: <item> → (PR #<n> pending)`), Verification checklist of the commands run,
-  and `defense-in-depth-nodejs § <n>` as the reference.
+  and `defense-in-depth-nodejs § <n>` as the reference. Catalog version upgrades include
+  `Catalog: <old|unversioned> → defense-in-depth-nodejs@<VERSION>` in the Status line.
 
 ---
 

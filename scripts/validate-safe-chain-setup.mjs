@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Validates the defense-in-depth-nodejs Safe Chain cloud-bootstrap templates and script.
-// Zero dependencies. Does not download or install Safe Chain.
+// Validates the defense-in-depth-nodejs catalog version, Safe Chain cloud-bootstrap
+// templates, and lockdown script. Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,11 +15,44 @@ const DEVCONTAINER = join(SKILL, 'templates/.devcontainer/devcontainer.json');
 const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
+const VERSION_PATH = join(SKILL, 'VERSION');
+const CHANGELOG_PATH = join(SKILL, 'CHANGELOG.md');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
 
 const errors = [];
 const err = (msg) => errors.push(msg);
+
+function readCatalogVersion() {
+  if (!existsSync(VERSION_PATH)) {
+    err('VERSION file missing');
+    return '';
+  }
+  const raw = readFileSync(VERSION_PATH, 'utf8');
+  const version = raw.trim();
+  if (!/^\d+\.\d+\.\d+$/.test(version)) {
+    err(`VERSION must be semver x.y.z, got ${JSON.stringify(raw)}`);
+    return '';
+  }
+  if (raw.trimEnd() !== version) {
+    err('VERSION must be a single semver line');
+    return version;
+  }
+  return version;
+}
+
+const catalogVersion = readCatalogVersion();
+if (catalogVersion) {
+  if (!existsSync(CHANGELOG_PATH)) {
+    err('CHANGELOG.md missing');
+  } else {
+    const changelog = readFileSync(CHANGELOG_PATH, 'utf8');
+    const heading = new RegExp(`^## ${catalogVersion.replace(/\./g, '\\.')}\\b`, 'm');
+    if (!heading.test(changelog)) {
+      err(`CHANGELOG.md must have a "## ${catalogVersion}" heading`);
+    }
+  }
+}
 
 function readJson(path) {
   try {
@@ -86,12 +119,24 @@ if (scaffoldIdx === -1) {
         err(`catalog section before last mentions lockdown-repo.sh: ${section.split('\n')[0]}`);
       }
     }
+    if (catalogVersion) {
+      const catalogLine = `Catalog: defense-in-depth-nodejs@${catalogVersion}`;
+      if (!fence[1].includes(catalogLine)) {
+        err(`scaffold must contain "${catalogLine}"`);
+      }
+    }
   }
 }
 
 const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
 if (!/always last/.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {
   err('SKILL.md must say lockdown-repo.sh apply is always last');
+}
+if (!/Catalog: defense-in-depth-nodejs@/.test(skillMd)) {
+  err('SKILL.md must record Catalog: defense-in-depth-nodejs@<semver> in DEFENSE_IN_DEPTH.md');
+}
+if (!skillMd.includes('VERSION') || !/stale/.test(skillMd)) {
+  err('SKILL.md must compare the recorded catalog version to VERSION and stop when this copy is stale');
 }
 const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
 const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
