@@ -11,10 +11,12 @@ permissions: {}
 jobs:
   zizmor:
     runs-on: ubuntu-latest
+    # Fork PRs get a read-only token; SARIF upload needs security-events: write.
+    # Same-repo PRs and pushes keep write + Advanced Security. Forks lint only.
     permissions:
       contents: read
       actions: read
-      security-events: write # SARIF upload to code scanning
+      security-events: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'write' || 'read' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,3 +29,6 @@ jobs:
           firewall-version: "1.15.0"
       - name: Run zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          advanced-security: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          annotations: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
