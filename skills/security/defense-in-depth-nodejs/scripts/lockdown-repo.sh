@@ -42,6 +42,7 @@ Usage: lockdown-repo.sh [owner/repo] [--check] [--required-checks "<c1,c2>"] [--
                       Exits 1 if any applicable setting is not in the desired state.
   --required-checks   Comma-separated status-check names (job names) that must pass
                       before merging into the default branch, e.g. "test,zizmor".
+                      Names must not contain spaces.
   --allowed-actions   Extra action patterns for the allowlist, e.g. "changesets/*".
                       GitHub-owned, verified creators, zizmorcore/*, and SocketDev/* are always allowed.
 
@@ -65,6 +66,18 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ -n "$REQUIRED_CHECKS" ]]; then
+  IFS=',' read -ra _validate_checks <<<"$REQUIRED_CHECKS"
+  for c in "${_validate_checks[@]}"; do
+    c="${c# }"; c="${c% }"
+    [[ -z "$c" ]] && continue
+    if [[ "$c" == *" "* ]]; then
+      echo "error: --required-checks name must not contain spaces: \"$c\" (use the job id, e.g. test,zizmor)"
+      exit 1
+    fi
+  done
+fi
 
 command -v gh >/dev/null || { echo "error: gh CLI is required (https://cli.github.com)"; exit 1; }
 

@@ -63,7 +63,8 @@ applicable item including every `(manual)` task. `--check` during audit does not
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown with no first-party excludes,
    `trustPolicy: no-downgrade`, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, no CI commit-back, actions-up SHA pinning,
-   Socket Firewall on every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting.
+   Socket Firewall on every job with `sfw`-prefixed installs, `check-workflows.yaml` zizmor linting,
+   kebab-case workflow and job names (no spaces, so they can be required checks).
 5. **§ 5 npm publishing** *(npm libraries only)* — `release.yaml` stages with
    `pnpm stage publish ./packed/*.tgz --no-git-checks`; npmjs.com / Drydock / 2FA settings are
    `(manual)`.

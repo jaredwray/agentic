@@ -3,7 +3,7 @@
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,6 +84,10 @@ if (scaffoldIdx === -1) {
     }
     if (!last.includes('Dependabot disabled')) {
       err('catalog last section must require Dependabot disabled');
+    }
+    const actions = sections.find((s) => s.startsWith('4. GitHub Actions')) ?? '';
+    if (!/no spaces/.test(actions) || !/kebab-case/.test(actions)) {
+      err('catalog § 4 must require kebab-case workflow/job names with no spaces');
     }
     if (/Dependabot alerts enabled|Dependabot rule: auto-dismiss/.test(last)) {
       err('catalog last section must not require Dependabot alerts');
@@ -185,6 +189,61 @@ if (lockdownHelp.status !== 0) {
   err(`lockdown-repo.sh --help exited ${lockdownHelp.status}`);
 } else if (/warning:/.test(`${lockdownHelp.stdout}${lockdownHelp.stderr}`)) {
   err('lockdown-repo.sh --help must not check upstream (would require network)');
+} else if (!/must not contain spaces/.test(lockdownHelp.stdout)) {
+  err('lockdown-repo.sh --help must say required-check names must not contain spaces');
+}
+
+const spaceChecks = spawnSync('bash', [lockdownPath, '--required-checks', 'foo bar'], {
+  encoding: 'utf8',
+});
+const spaceOut = `${spaceChecks.stdout}${spaceChecks.stderr}`;
+if (spaceChecks.status === 0) {
+  err('lockdown-repo.sh must reject --required-checks names that contain spaces');
+} else if (!/must not contain spaces/.test(spaceOut)) {
+  err(`lockdown-repo.sh space rejection message missing (got: ${spaceOut})`);
+}
+
+function spacedWorkflowOrJobNames(md) {
+  const bad = [];
+  for (const [, body] of md.matchAll(/```ya?ml\n([\s\S]*?)```/g)) {
+    if (!/^name:/m.test(body) && !/^on:/m.test(body) && !/^jobs:/m.test(body)) continue;
+    const wm = body.match(/^name:\s*(.+)$/m);
+    if (wm) {
+      const n = wm[1].trim().replace(/^['"]|['"]$/g, '');
+      if (/\s/.test(n)) bad.push(n);
+    }
+    for (const jm of body.matchAll(/^ {4}name:\s*(.+)$/gm)) {
+      const n = jm[1].trim().replace(/^['"]|['"]$/g, '');
+      if (/\s/.test(n)) bad.push(n);
+    }
+  }
+  return bad;
+}
+
+const spacedRef = spacedWorkflowOrJobNames(reference);
+if (spacedRef.length) {
+  err(`reference.md workflow/job names must not contain spaces: ${spacedRef.join(', ')}`);
+}
+
+const releaseRef = readFileSync(join(ROOT, 'skills/release-ops/release-management-nodejs/reference.md'), 'utf8');
+const spacedRelease = spacedWorkflowOrJobNames(releaseRef);
+if (spacedRelease.length) {
+  err(`release-management reference.md workflow/job names must not contain spaces: ${spacedRelease.join(', ')}`);
+}
+
+const wfDir = join(ROOT, '.github/workflows');
+for (const file of readdirSync(wfDir)) {
+  if (!/\.ya?ml$/.test(file)) continue;
+  const text = readFileSync(join(wfDir, file), 'utf8');
+  const m = text.match(/^name:\s*(.+)$/m);
+  if (!m) {
+    err(`.github/workflows/${file}: workflow missing name:`);
+    continue;
+  }
+  const name = m[1].trim().replace(/^['"]|['"]$/g, '');
+  if (/\s/.test(name)) {
+    err(`.github/workflows/${file}: workflow name "${name}" must not contain spaces`);
+  }
 }
 
 const upstreamDir = mkdtempSync(join(tmpdir(), 'lockdown-upstream-'));
