@@ -1,6 +1,6 @@
 ---
 name: defense-in-depth-nodejs
-description: Harden a Node.js repo against supply-chain compromise one PR at a time — pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, staged OIDC npm publishing reviewed in Drydock, then a gh lockdown script last for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs). Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
+description: Harden a Node.js repo against supply-chain compromise one PR at a time — pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, staged OIDC npm publishing reviewed in Drydock, then a repo admin runs lockdown-repo.sh last (never checked into the target repo; all manual tasks last too) for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs). Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -53,9 +53,9 @@ Classify the repo before scaffolding; the profile decides which sections apply. 
 ## Item priority
 
 Sections in `DEFENSE_IN_DEPTH.md`, in execution order — pick the first unchecked applicable item
-top-to-bottom. **`lockdown-repo.sh` apply is always last.** Never run it in apply mode until every
-preceding auto-implementable applicable item is checked. `(manual)` items do not block it.
-`--check` during audit does not change that.
+top-to-bottom. **`lockdown-repo.sh` is never checked into a repo.** It lives only in this skill;
+never copy or commit it into the target. **A repo admin runs apply last**, after every earlier
+applicable item including every `(manual)` task. `--check` during audit does not change that.
 
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
 2. **§ 2 CODEOWNERS and cloud bootstrap** — `.github/CODEOWNERS` (file PR); Aikido Safe Chain on
@@ -69,8 +69,9 @@ preceding auto-implementable applicable item is checked. `(manual)` items do not
    `(manual)`.
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 7. **§ 7 Repository lockdown** — GitHub settings via
-   [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Apply after every earlier auto item.
-   Account/UI leftovers are `(manual)`.
+   [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Never copy it into the target repo.
+   A repo admin runs it last, after every earlier item including all `(manual)` tasks.
+   Account/UI leftovers are `(manual)` and are last-phase admin work with the script.
 
 ## Workflow
 
@@ -99,7 +100,7 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      `lockdown-repo.sh <owner/repo> --check` with `--required-checks` and `--allowed-actions` taken
      from the repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (audit
      only — never apply here). A clean `--check` means the lockdown item is done; a FAIL does not
-     make § 7 the next item while earlier auto items remain.
+     make § 7 the next item while earlier applicable items (auto or `(manual)`) remain.
      Skip the Safe Chain item when `pnpm-lock.yaml` is absent. Never silently uncheck a regression —
      stop and report it.
 
@@ -128,17 +129,21 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
        `pnpm stage publish ./packed/*.tgz --no-git-checks` rather than replacing a custom pipeline.
        Branch `chore/defense-release-stage-publish`.
    - **`(manual)` items:** report what the maintainer needs to do — from the matching reference
-     section — and continue past them; the maintainer ticks them off.
-   - **§ 7 lockdown (always last):** do not pick this item while any earlier auto-implementable
-     applicable item is unchecked. `(manual)` leftovers do not block it. Working tree must be clean.
-     Show `--check` with `--required-checks` and `--allowed-actions` and ask before applying; then
-     run `lockdown-repo.sh <owner/repo>` with those flags taken from the repo's workflows per
-     [reference.md § 7](./reference.md#7-repository-lockdown) (or hand the command to a repo admin
-     if `gh` here isn't one). A warning that this copy is not the latest from jaredwray/agentic is
-     not a stop — update the skill and re-run before applying. Re-run `--check` with the same flags.
-     Record the result in a PR that updates `DEFENSE_IN_DEPTH.md` and the `SECURITY.md` summary. The
-     script audits CODEOWNERS and requires `require_code_owner_review` on the branch ruleset; it does
-     not write the file.
+     section — and continue past them for later auto items; do not treat them as done. All
+     `(manual)` tasks and lockdown are last-phase admin work: after every auto-implementable
+     applicable item is checked, stop and hand the remaining manuals plus the lockdown command to
+     the admin. The maintainer ticks manuals off.
+   - **§ 7 lockdown (always last, admin only):** do not pick this item while any earlier applicable
+     item — auto or `(manual)` — is unchecked. Never copy `lockdown-repo.sh` into the target repo
+     and never commit it. The agent never runs apply mode. Working tree must be clean. Show
+     `--check` with `--required-checks` and `--allowed-actions`. Hand the apply command to a repo
+     admin: `lockdown-repo.sh <owner/repo>` with those flags taken from the repo's workflows per
+     [reference.md § 7](./reference.md#7-repository-lockdown). A warning that this copy is not the
+     latest from jaredwray/agentic is not a stop — update the skill and re-run `--check` before the
+     admin applies. After the admin applies, re-run `--check` with the same flags. Record the result
+     in a PR that updates `DEFENSE_IN_DEPTH.md` and the `SECURITY.md` summary. The script audits
+     CODEOWNERS and requires `require_code_owner_review` on the branch ruleset; it does not write
+     the file.
 
 5. **Drive CI to green.** Diagnose, fix, and push until every check passes. Do not stop on a red PR.
 
@@ -146,8 +151,9 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
    Step 1 immediately. Otherwise stop and report in four lines: PR URL and item; CI state; what's
    next (plus any `(manual)` items waiting on the maintainer); and a literal resume prompt —
    *"Merge the PR when you're ready, then reply `continue` (or `next`) and I'll open the next
-   defense-in-depth PR."* If nothing applicable is left unchecked, report the rollout complete with
-   any `(manual)` leftovers.
+   defense-in-depth PR."* If only `(manual)` items and/or § 7 remain, report the last-phase admin
+   handoff: remaining manuals, then `lockdown-repo.sh` last (never committed). If nothing applicable
+   is left unchecked, report the rollout complete.
 
 ## Pull request rules
 

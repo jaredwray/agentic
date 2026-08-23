@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # lockdown-repo.sh — one-shot GitHub repo lockdown for the defense-in-depth-nodejs skill.
 #
-# The skill applies this last (DEFENSE_IN_DEPTH.md § 7), after file items are on main.
+# NEVER check this file into a target repo. It lives only in this skill.
+# A repo admin runs it last (DEFENSE_IN_DEPTH.md § 7), after every earlier
+# catalog item including every (manual) task.
+#
 # Applies the "Repository lockdown" settings to a repo:
 #
 #   1. Default workflow token permissions: read-only; Actions cannot create/approve PRs
@@ -43,6 +46,7 @@ Usage: lockdown-repo.sh [owner/repo] [--check] [--required-checks "<c1,c2>"] [--
                       GitHub-owned, verified creators, zizmorcore/*, and SocketDev/* are always allowed.
 
 Requires gh authenticated as a repository admin. Idempotent — safe to re-run.
+Never check this file into a target repo. A repo admin runs apply last.
 Warns (does not fail) if this copy is not the latest from jaredwray/agentic.
 EOF
 }

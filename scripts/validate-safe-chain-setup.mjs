@@ -75,6 +75,13 @@ if (scaffoldIdx === -1) {
     if (!last.includes('lockdown-repo.sh')) {
       err('catalog last section must mention lockdown-repo.sh');
     }
+    if (!/never committed/.test(last) || !/repo admin/.test(last)) {
+      err('catalog last section must say a repo admin applies lockdown-repo.sh and never commits it');
+    }
+    const lastItem = [...last.matchAll(/^- \[ \] .+$/gm)].at(-1)?.[0] ?? '';
+    if (!lastItem.includes('lockdown-repo.sh')) {
+      err(`catalog last item must be lockdown-repo.sh, got "${lastItem}"`);
+    }
     if (!last.includes('Dependabot disabled')) {
       err('catalog last section must require Dependabot disabled');
     }
@@ -93,10 +100,28 @@ const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
 if (!/always last/.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {
   err('SKILL.md must say lockdown-repo.sh apply is always last');
 }
+if (!/never (?:checked|copy|commit)/i.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {
+  err('SKILL.md must say lockdown-repo.sh is never checked into a repo');
+}
+if (!/admin runs (?:apply|it) last/i.test(skillMd)) {
+  err('SKILL.md must say a repo admin runs lockdown-repo.sh last');
+}
+if (!/\(manual\).*last/is.test(skillMd)) {
+  err('SKILL.md must say all (manual) tasks are last with lockdown');
+}
+if (/do not block/i.test(skillMd)) {
+  err('SKILL.md must not say (manual) items do not block lockdown');
+}
 const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
 const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
 if (!/§ 7 Repository lockdown/.test(lastPriority)) {
   err(`SKILL.md Item priority last item must be § 7 Repository lockdown, got "${lastPriority}"`);
+}
+if (/do not block/i.test(reference)) {
+  err('reference.md must not say (manual) items do not block lockdown');
+}
+if (!/Never copy or commit/.test(reference) || !/admin runs it last/.test(reference)) {
+  err('reference.md must say lockdown-repo.sh is never committed and a repo admin runs it last');
 }
 
 if (!reference.includes(BOOTSTRAP)) {
@@ -129,6 +154,12 @@ if (/curl[^\n]*\|\s*sh/.test(script)) {
 }
 
 const lockdown = readFileSync(join(SKILL, 'scripts/lockdown-repo.sh'), 'utf8');
+if (!/NEVER check this file into a target repo/.test(lockdown)) {
+  err('lockdown-repo.sh must say it is never checked into a target repo');
+}
+if (!/repo admin runs it last/.test(lockdown)) {
+  err('lockdown-repo.sh must say a repo admin runs it last');
+}
 if (!lockdown.includes('UPSTREAM_REPO="jaredwray/agentic"')) {
   err('lockdown-repo.sh must compare itself to jaredwray/agentic');
 }
