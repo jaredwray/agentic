@@ -494,7 +494,7 @@ release (no `v` prefix) before use.
 `.github/workflows/publish.yml`:
 
 ```yaml
-name: Publish npm package
+name: publish-npm-package
 
 on:
   push:
@@ -509,7 +509,6 @@ permissions:
 
 jobs:
   verify-release-approval:
-    name: Verify release approval
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -557,7 +556,6 @@ jobs:
         run: ./scripts/verify-release-intent.sh "$PKG" "$VERSION"
 
   aikido-gate:
-    name: Aikido release gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -592,7 +590,6 @@ jobs:
           --fail-on-sast-scan --fail-on-iac-scan --fail-on-secrets-scan
 
   publish:
-    name: Stage publish to npm with provenance
     needs: [verify-release-approval, aikido-gate]
     runs-on: ubuntu-latest
     environment: npm-publish

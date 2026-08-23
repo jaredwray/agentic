@@ -75,6 +75,7 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Every action pinned to a full commit SHA (`npx actions-up`)
 - [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned); `pnpm install` / `npm install` run as `sfw pnpm install` / `sfw npm install`
 - [ ] `.github/workflows/check-workflows.yaml` lints workflows with zizmor on every PR
+- [ ] Workflow `name:` and job `name:` contain no spaces (kebab-case) so they can be set as required status checks
 - [ ] `persist-credentials: false` on checkouts that don't push
 - [ ] No `pull_request_target` on workflows that run untrusted PR code
 - [ ] Artifact-publishing workflows disable `actions/setup-node` default caching (`package-manager-cache: false`) to prevent cache poisoning
@@ -246,6 +247,9 @@ allowBuilds: {}
   names npm, and a poisoned Actions cache can run attacker-controlled code in a job that holds
   publish credentials. Regular CI may still cache.
 - No npm tokens in Actions secrets — publishing is OIDC-only (§ 5).
+- Workflow `name:` and job `name:` contain no spaces (kebab-case). GitHub rulesets cannot require
+  a status check whose name has a space, so `--required-checks` in § 7 can only name those
+  space-free checks. Step names may still have spaces. Details below.
 - CODEOWNERS for workflow and script paths is § 2 — the branch ruleset that requires the review is
   § 7, applied last.
 
@@ -270,7 +274,7 @@ workflow just to dogfood artifacts.
    branch). Do not invent that wiring.
 
 ```yaml
-name: Build generated files
+name: build-generated-files
 
 on:
   push:
@@ -342,7 +346,7 @@ Actions security linter — it catches template injections, excessive permission
 cache poisoning, and credential persistence:
 
 ```yaml
-name: Check Workflows
+name: check-workflows
 
 on:
   push:
@@ -393,6 +397,20 @@ Private repos without Advanced Security can't upload SARIF on any event — set
 
 After copying the template, run `npx actions-up` so the action pins are current rather than trusting
 this file's snapshot, and look up the current reviewed sfw-free version for `firewall-version`.
+
+### Workflow and job names
+
+File PR (`chore/defense-actions-workflow-names`). GitHub rulesets cannot require a status check
+whose name contains a space, so `--required-checks` in § 7 can only name checks that are
+space-free.
+
+- Workflow `name:` is kebab-case (`check-workflows`, `release`, `ci`). Rename any
+  `Check Workflows` / `CI Tests` style names.
+- Job `name:` (when set) is the check context, not the job id. Omit it (the job id is the
+  check) or use kebab-case. Step names may still have spaces — they are not status checks.
+
+Reconcile as done when every workflow `name:` and job `name:` in `.github/workflows/` has no
+spaces.
 
 ## 5. npm publishing — npm libraries only
 
@@ -454,7 +472,6 @@ permissions:
 
 jobs:
   aikido-gate:
-    name: Aikido release gate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -582,7 +599,9 @@ lockdown-repo.sh jaredwray/keyv --required-checks "test,zizmor" --allowed-action
 
 Before apply, take both flags from the repo as it stands on `main`:
 
-- `--required-checks` — the job names from `.github/workflows/` (e.g. `test,zizmor`).
+- `--required-checks` — the job names from `.github/workflows/` (e.g. `test,zizmor`). Names must
+  not contain spaces (GitHub cannot require a check whose name has a space); rename the
+  workflow/job first (§ 4).
 - `--allowed-actions` — extra `uses:` owners not already covered (GitHub-owned, verified creators,
   `zizmorcore/*`, and `SocketDev/*` are always allowed). Grep `uses:` first.
 
@@ -594,7 +613,7 @@ What it sets:
 | Fork-PR workflow approval | `all_external_contributors` — a maintainer approves every outside collaborator's run (public repos only) |
 | Branch ruleset "Pull requests required" | PR required on the default branch with **0 required approving reviews**, **last-push approval off**, **code owner review** of owned paths, and **Restrict updates off**. The owner is on the bypass list in **pull request** mode: they may merge without a review but still cannot push directly. Force pushes and deletion blocked |
 | CODEOWNERS | `.github/CODEOWNERS` on the default branch names at least one owner. The script audits this; adding the file is the § 2 PR. Without it `require_code_owner_review` is a no-op |
-| Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`) |
+| Required status checks | with `--required-checks "<c1,c2>"`, merging is blocked unless those checks pass — name the repo's CI jobs (e.g. `test,zizmor`); names must not contain spaces |
 | Tag ruleset "Tags only by admins" | tag creation restricted; only repository admins bypass |
 | Immutable GitHub Releases | enabled: published release assets cannot be added, replaced, or deleted; the release tag cannot be moved or deleted while the release exists. Existing releases stay mutable until republished. Attach assets on a draft, then publish |
 | Secret scanning + push protection | enabled (public repos; private needs GitHub Secret Protection) |
