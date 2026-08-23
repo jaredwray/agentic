@@ -94,9 +94,9 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Socket reviews every PR that changes dependencies
 
 ## 7. Repository lockdown
-- [ ] `lockdown-repo.sh` applied; `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, immutable releases, fork-PR approval (public repos), read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting (public repos))
 - [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
+- [ ] `lockdown-repo.sh` applied by a repo admin (never committed to this repo); `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, immutable releases, fork-PR approval (public repos), read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting (public repos))
 ```
 
 Profile adjustments when scaffolding:
@@ -109,7 +109,7 @@ Profile adjustments when scaffolding:
 
 ## 2. CODEOWNERS and cloud bootstrap
 
-File PRs. GitHub repo settings are § 7 and run last.
+File PRs. GitHub repo settings are § 7 and a repo admin runs them last. Never check `lockdown-repo.sh` into the target repo.
 
 ### CODEOWNERS
 
@@ -560,21 +560,23 @@ whole setup, and each item is verified by its check appearing on PRs.
 
 ## 7. Repository lockdown
 
-**Always last.** Do not apply until every preceding auto-implementable catalog item is checked and
-on `main`. `(manual)` items (npm-side settings, account 2FA) do not block it. File items first so
+**Always last. Never checked into a repo. Admin only.** Do not apply until every preceding
+applicable catalog item is checked and on `main` — auto-implementable file items and every
+`(manual)` task (npm-side settings, account 2FA, recovery codes). File items first so
 `--required-checks` names the real CI jobs, the Actions allowlist matches `uses:` in the landed
 workflows, and CODEOWNERS exists before `require_code_owner_review` is enforced. `--check` during
 audit is always allowed; apply mode is not.
 
-One admin, one script: [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) (bundled with this
-skill) applies every GitHub-side setting in this section idempotently via `gh`, and audits them with
-`--check`.
+**Never copy or commit [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh) into the target
+repo.** It lives only in this skill. A repo admin runs it last from the skill (or an uncommitted
+local copy), after every earlier item including all `(manual)` tasks. The script applies every
+GitHub-side setting in this section idempotently via `gh`, and audits them with `--check`.
 
 ```bash
 # audit — safe anywhere, changes nothing, exits 1 if anything is off
 lockdown-repo.sh jaredwray/keyv --check --required-checks "test,zizmor"
 
-# apply — requires gh authenticated as a repo admin; only after earlier auto items
+# apply — repo admin only; never committed to the target; only after every earlier item including manuals
 lockdown-repo.sh jaredwray/keyv --required-checks "test,zizmor" --allowed-actions "changesets/*"
 ```
 
@@ -605,9 +607,10 @@ Notes:
 - On start the script compares itself to `jaredwray/agentic@main` and warns if this copy is stale
   (marketplace cache, old clone). The warning does not fail `--check` or apply — update the skill
   and re-run before applying.
-- The agent never runs apply mode on its own: run `--check` with `--required-checks` and
-  `--allowed-actions` freely for reconciliation, but stop and ask before changing repo settings, or
-  hand the command to the maintainer.
+- The agent never runs apply mode and never copies the script into the target repo. Run `--check`
+  with `--required-checks` and `--allowed-actions` freely for reconciliation, then hand the apply
+  command to a repo admin. Apply is always last: after every earlier auto item and every `(manual)`
+  task.
 - Rulesets are judged by their contents, not their name: `--check` validates enforcement, rule
   types, review count (0), last-push approval off, code-owner review, Restrict updates off, targets,
   and the bypass list, and apply mode overwrites a same-name ruleset with the canonical config — a
