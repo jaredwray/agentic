@@ -439,6 +439,253 @@ try {
   rmSync(dir, { recursive: true, force: true });
 }
 
+const checkNpmjsPath = join(SKILL, 'scripts/check-npmjs.sh');
+const checkNpmjs = readFileSync(checkNpmjsPath, 'utf8');
+if (!/NEVER check this file into a target repo/.test(checkNpmjs)) {
+  err('check-npmjs.sh must say it is never checked into a target repo');
+}
+if (!/Check-only/.test(checkNpmjs) || /never applies settings/.test(checkNpmjs) === false) {
+  err('check-npmjs.sh must be check-only and must say it never applies settings');
+}
+if (!checkNpmjs.includes('UPSTREAM_REPO="jaredwray/agentic"')) {
+  err('check-npmjs.sh must compare itself to jaredwray/agentic');
+}
+if (!checkNpmjs.includes('warning: this check-npmjs.sh is not the latest')) {
+  err('check-npmjs.sh must warn when it is not the latest copy');
+}
+if (!/check_upstream_script/.test(checkNpmjs)) {
+  err('check-npmjs.sh must call check_upstream_script');
+}
+if (!checkNpmjs.includes('createStagedPackage') || !checkNpmjs.includes('createPackage')) {
+  err('check-npmjs.sh must require stage-only trusted publisher permissions');
+}
+const checkNpmjsSyntax = spawnSync('bash', ['-n', checkNpmjsPath], { encoding: 'utf8' });
+if (checkNpmjsSyntax.status !== 0) {
+  err(`check-npmjs.sh failed bash -n: ${checkNpmjsSyntax.stderr || checkNpmjsSyntax.stdout}`);
+}
+
+if (!/check-npmjs\.sh/.test(skillMd) || !/never copy it into the target repo/i.test(skillMd)) {
+  err('SKILL.md must tell the agent to run check-npmjs.sh and never copy it into the target repo');
+}
+if (!/check-npmjs\.sh/.test(reference) || !/Never copy or commit it into the/.test(reference)) {
+  err('reference.md must document check-npmjs.sh and say it is never copied into the target');
+}
+if (!/createStagedPackage/.test(reference) || !/legacy/.test(reference)) {
+  err('reference.md must require createStagedPackage-only permissions and treat legacy configs as fail');
+}
+
+const checkNpmjsHelp = spawnSync('bash', [checkNpmjsPath, '--help'], { encoding: 'utf8' });
+if (checkNpmjsHelp.status !== 0) {
+  err(`check-npmjs.sh --help exited ${checkNpmjsHelp.status}`);
+} else if (/warning:/.test(`${checkNpmjsHelp.stdout}${checkNpmjsHelp.stderr}`)) {
+  err('check-npmjs.sh --help must not check upstream (would require network)');
+} else if (!/Never check this file into a target repo/.test(checkNpmjsHelp.stdout)) {
+  err('check-npmjs.sh --help must say it is never checked into a target repo');
+}
+
+const workflowSpace = spawnSync('bash', [checkNpmjsPath, '--workflow', 'foo bar'], { encoding: 'utf8' });
+if (workflowSpace.status === 0 || !/must not contain spaces/.test(`${workflowSpace.stdout}${workflowSpace.stderr}`)) {
+  err('check-npmjs.sh must reject --workflow names that contain spaces');
+}
+const workflowPath = spawnSync('bash', [checkNpmjsPath, '--workflow', '.github/workflows/release.yaml'], {
+  encoding: 'utf8',
+});
+if (workflowPath.status === 0 || !/must be a filename/.test(`${workflowPath.stdout}${workflowPath.stderr}`)) {
+  err('check-npmjs.sh must reject --workflow paths');
+}
+const repoAsPkg = spawnSync('bash', [checkNpmjsPath, 'owner/repo'], { encoding: 'utf8' });
+if (repoAsPkg.status === 0 || !/looks like owner\/repo/.test(`${repoAsPkg.stdout}${repoAsPkg.stderr}`)) {
+  err('check-npmjs.sh must reject owner/repo as a package name');
+}
+
+function writeCheckNpmjsCurl(dir, { mode, scriptPath, callLog }) {
+  const escapedScript = scriptPath.replace(/'/g, `'\\''`);
+  const escapedLog = callLog.replace(/'/g, `'\\''`);
+  writeFileSync(
+    join(dir, 'curl'),
+    `#!/bin/sh
+printf '%s\\n' "$*" >> '${escapedLog}'
+out=""
+prev=""
+url=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then out=$a; fi
+  case "$a" in
+    http*) url=$a ;;
+  esac
+  prev=$a
+done
+args="$*"
+if printf '%s' "$args" | grep -q 'application/vnd.github.raw'; then
+  if [ "${mode}" = stale ]; then
+    printf 'not-the-real-check-npmjs.sh\\n' > "$out"
+    exit 0
+  fi
+  if [ "${mode}" = offline ]; then
+    exit 1
+  fi
+  if [ -n "$out" ]; then cat '${escapedScript}' > "$out"; else cat '${escapedScript}'; fi
+  exit 0
+fi
+code=200
+body='{}'
+case "$url" in
+  */-/package/keyv/trust|*/-/package/@scope%2Fpkg/trust)
+    if [ "${mode}" = publish ]; then
+      body='[{"id":"abc","type":"github","claims":{"repository":"owner/test","workflow_ref":{"file":"release.yaml"}},"permissions":["createPackage"]}]'
+    elif [ "${mode}" = legacy ]; then
+      body='[{"id":"abc","type":"github","claims":{"repository":"owner/test","workflow_ref":{"file":"release.yaml"}}}]'
+    else
+      body='[{"id":"abc","type":"github","claims":{"repository":"owner/test","workflow_ref":{"file":"release.yaml"}},"permissions":["createStagedPackage"]}]'
+    fi
+    ;;
+  */-/package/keyv/access|*/-/package/@scope%2Fpkg/access)
+    if [ "${mode}" = mfa ]; then
+      body='{"publish_requires_tfa":true,"automation_token_overrides_tfa":false}'
+      code=200
+    else
+      body='{"code":"MethodNotAllowedError"}'
+      code=405
+    fi
+    ;;
+  */-/package/keyv/visibility|*/-/package/@scope%2Fpkg/visibility)
+    body='{"public":true}'
+    ;;
+  */keyv|*/@scope%2Fpkg)
+    body='{"repository":{"type":"git","url":"git+https://github.com/owner/test.git"}}'
+    ;;
+  *)
+    body='{}'
+    code=404
+    ;;
+esac
+if [ -n "$out" ]; then
+  printf '%s' "$body" > "$out"
+  printf '%s' "$code"
+else
+  printf '%s' "$body"
+fi
+exit 0
+`,
+    { mode: 0o755 },
+  );
+}
+
+const npmjsDir = mkdtempSync(join(tmpdir(), 'check-npmjs-'));
+try {
+  const env = { PATH: `${npmjsDir}:${process.env.PATH}`, LANG: 'C', HOME: npmjsDir, NPM_TOKEN: 'npm_test' };
+  const run = (args, extraEnv = {}) =>
+    spawnSync('bash', [checkNpmjsPath, ...args], {
+      encoding: 'utf8',
+      env: { ...env, ...extraEnv },
+    });
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'pass',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'pass.log'),
+  });
+  const passRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const passOut = `${passRun.stdout}${passRun.stderr}`;
+  if (passRun.status !== 0) {
+    err(`check-npmjs.sh stage-only config must pass (got ${passRun.status}: ${passOut})`);
+  } else if (!/stage-only/.test(passOut) || !/skipped: registry has no GET/.test(passOut)) {
+    err(`check-npmjs.sh pass output missing stage-only pass or MFA skip (got: ${passOut})`);
+  }
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'publish',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'publish.log'),
+  });
+  const publishRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const publishOut = `${publishRun.stdout}${publishRun.stderr}`;
+  if (publishRun.status === 0 || !/createPackage/.test(publishOut)) {
+    err(`check-npmjs.sh must fail when trusted publisher can npm publish (got: ${publishOut})`);
+  }
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'legacy',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'legacy.log'),
+  });
+  const legacyRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const legacyOut = `${legacyRun.stdout}${legacyRun.stderr}`;
+  if (legacyRun.status === 0 || !/legacy/.test(legacyOut)) {
+    err(`check-npmjs.sh must fail a trusted publisher with no permissions field (got: ${legacyOut})`);
+  }
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'mfa',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'mfa.log'),
+  });
+  const mfaRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const mfaOut = `${mfaRun.stdout}${mfaRun.stderr}`;
+  if (mfaRun.status !== 0 || !/requires 2FA and disallows tokens/.test(mfaOut)) {
+    err(`check-npmjs.sh must pass when publishing access fields are readable (got: ${mfaOut})`);
+  }
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'pass',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'scoped.log'),
+  });
+  const scopedRun = run(['@scope/pkg', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const scopedCalls = readFileSync(join(npmjsDir, 'scoped.log'), 'utf8');
+  if (scopedRun.status !== 0) {
+    err(`check-npmjs.sh scoped package must pass (got: ${scopedRun.stdout}${scopedRun.stderr})`);
+  } else if (!scopedCalls.includes('/-/package/@scope%2Fpkg/trust')) {
+    err(`check-npmjs.sh must encode scoped names as @scope%2Fpkg (got: ${scopedCalls})`);
+  }
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'stale',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'stale.log'),
+  });
+  const staleRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const staleOut = `${staleRun.stdout}${staleRun.stderr}`;
+  if (!/not the latest from jaredwray\/agentic/.test(staleOut)) {
+    err(`check-npmjs.sh must warn when it differs from upstream (got: ${staleOut})`);
+  }
+
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'offline',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'offline.log'),
+  });
+  const offlineRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const offlineOut = `${offlineRun.stdout}${offlineRun.stderr}`;
+  if (!/could not verify this check-npmjs\.sh is the latest/.test(offlineOut)) {
+    err(`check-npmjs.sh must warn and continue when upstream is unreachable (got: ${offlineOut})`);
+  }
+  if (/not the latest from jaredwray\/agentic/.test(offlineOut)) {
+    err(`check-npmjs.sh must not claim it is stale when upstream could not be fetched (got: ${offlineOut})`);
+  }
+
+  writeFileSync(
+    join(npmjsDir, 'package.json'),
+    JSON.stringify({ name: 'site', private: true, version: '1.0.0' }),
+  );
+  writeCheckNpmjsCurl(npmjsDir, {
+    mode: 'pass',
+    scriptPath: checkNpmjsPath,
+    callLog: join(npmjsDir, 'empty.log'),
+  });
+  const emptyRun = spawnSync('bash', [checkNpmjsPath], {
+    encoding: 'utf8',
+    cwd: npmjsDir,
+    env: { PATH: `${npmjsDir}:${process.env.PATH}`, LANG: 'C', HOME: npmjsDir },
+  });
+  const emptyOut = `${emptyRun.stdout}${emptyRun.stderr}`;
+  if (emptyRun.status !== 0 || !/No publishable packages/.test(emptyOut)) {
+    err(`check-npmjs.sh must skip when the checkout has no publishable packages (got: ${emptyOut})`);
+  }
+} finally {
+  rmSync(npmjsDir, { recursive: true, force: true });
+}
+
 if (errors.length) {
   console.error(`\n❌ ${errors.length} error(s):`);
   for (const e of errors) console.error(`   - ${e}`);

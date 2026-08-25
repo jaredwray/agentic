@@ -443,6 +443,39 @@ below — and environment if the job uses one) as **stage-only**, connect Drydoc
 **Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
 provenance maps to the repo.
 
+Audit those registry settings with
+[`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh). **Never copy or commit it into the
+target repo.** It is check-only — trusted-publisher writes need interactive 2FA, so apply is
+not a mode. A maintainer still configures npmjs.com; the script is how the agent reconciles
+§ 5 during audit.
+
+```bash
+# from a package checkout, with npm login (or NPM_TOKEN; not a bypass-2FA granular token)
+check-npmjs.sh --repo jaredwray/keyv --workflow release.yaml
+
+# one package, or several:
+check-npmjs.sh keyv @keyv/redis --repo jaredwray/keyv --workflow release.yaml
+```
+
+`--repo` defaults to the current checkout (`gh`, `origin`, or `package.json`). `--workflow`
+defaults to the repo workflow that runs `stage publish`, or `release.yaml`. `--environment`
+is optional; when set, the trusted publisher must use that GitHub environment.
+
+What it checks, per publishable package:
+
+| Setting | Required value |
+| --- | --- |
+| Trusted publisher | exactly one, `type: github` |
+| `claims.repository` | this GitHub `owner/repo` |
+| `claims.workflow_ref.file` | the stage-publish workflow filename |
+| `permissions` | `["createStagedPackage"]` only — `createPackage` (live publish) fails; a missing permissions field is legacy publish-only and also fails |
+| Publishing access | `publish_requires_tfa=true` and `automation_token_overrides_tfa=false` when the registry exposes those fields. `GET /-/package/{pkg}/access` is not allowed on registry.npmjs.org, so this check is skipped with the npmjs.com URL rather than treated as passing |
+| Packument `repository.url` | maps to this GitHub repo |
+
+Drydock connection and human 2FA promotion are not npmjs API settings; they stay `(manual)`.
+A skip is not a pass. On start the script compares itself to `jaredwray/agentic@main` and
+warns if this copy is stale (does not fail the run).
+
 Signer policy, release-intent, and verification gates belong to the `release-management-nodejs`
 skill. This section owns the stage-publish workflow below plus the registry-side settings.
 
@@ -665,6 +698,8 @@ Notes:
 - npm staged publishing: https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/
 - npm trusted publishing (OIDC): https://docs.npmjs.com/trusted-publishers/
 - npm 2FA / disallow tokens: https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/
+- npm `trust` CLI: https://docs.npmjs.com/cli/v12/commands/npm-trust/
+- npm registry API (trust + access): https://api-docs.npmjs.com/
 - Drydock: https://drydock.org/
 - actions-up: https://github.com/azat-io/actions-up
 - zizmor: https://docs.zizmor.sh/
