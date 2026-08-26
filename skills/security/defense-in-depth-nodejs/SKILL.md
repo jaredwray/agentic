@@ -101,7 +101,8 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
    - Reconcile every checkbox against actual repo state per `security-status-tracking`. For § 5
      (npm libraries) run [`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh) with `--repo` and
      `--workflow` taken from the checkout per [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only).
-     Never copy it into the target repo; it is check-only and is never checked in. A clean run means
+     Requires `npm login`; `NPM_TOKEN` is not allowed. Never copy it into the target repo; it is
+     check-only and is never checked in. A clean run means
      the readable npmjs items match; a FAIL does not jump the queue. For § 7 run
      `lockdown-repo.sh <owner/repo> --check` with `--required-checks` and `--allowed-actions` taken
      from the repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (audit

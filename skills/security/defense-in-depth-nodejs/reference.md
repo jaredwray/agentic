@@ -450,7 +450,7 @@ not a mode. A maintainer still configures npmjs.com; the script is how the agent
 § 5 during audit.
 
 ```bash
-# from a package checkout, with npm login (or NPM_TOKEN; not a bypass-2FA granular token)
+# from a package checkout, after npm login (NPM_TOKEN is not allowed)
 check-npmjs.sh --repo jaredwray/keyv --workflow release.yaml
 
 # one package, or several:

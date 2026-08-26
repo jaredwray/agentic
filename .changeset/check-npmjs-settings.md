@@ -14,6 +14,7 @@ checked when the registry exposes those fields; `GET /-/package/{pkg}/access`
 is not allowed on registry.npmjs.org, so that item is skipped with the npmjs.com
 URL rather than treated as passing.
 
-Never copy it into a target repo. It never applies settings — trusted-publisher
-writes need interactive 2FA. Audit during the § 5 pass; Drydock and human 2FA
-promotion stay `(manual)`.
+Auth is an `npm login` session only — `NPM_TOKEN` is rejected. Never copy it
+into a target repo. It never applies settings — trusted-publisher writes need
+interactive 2FA. Audit during the § 5 pass; Drydock and human 2FA promotion
+stay `(manual)`.

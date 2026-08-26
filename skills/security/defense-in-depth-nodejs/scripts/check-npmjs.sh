@@ -19,8 +19,8 @@
 #
 # Drydock and human 2FA promotion are not npmjs API settings; they stay (manual).
 #
-# Requires: curl, node. Auth: npm login session, or NPM_TOKEN (not a bypass-2FA
-# granular token — GET /trust rejects those).
+# Requires: curl, node, npm. Auth: npm login session only. NPM_TOKEN is not
+# allowed — catalog § 5 forbids long-lived npm tokens.
 #
 # On start, compares this file to jaredwray/agentic@main and warns if this copy
 # is not the latest. The warning does not fail the run.
@@ -40,8 +40,8 @@ Usage: check-npmjs.sh [package...] [--repo owner/repo] [--workflow file.yaml] [-
   --otp               npm 2FA OTP if the registry challenges GET /trust.
   --registry          Registry URL. Defaults to https://registry.npmjs.org/.
 
-Requires curl, node, and an npm token with write access (npm login, or NPM_TOKEN).
-Granular tokens with bypass_2fa cannot read trust configs.
+Requires curl, node, and an npm login session with write access (run npm login).
+NPM_TOKEN is not allowed — catalog § 5 forbids long-lived npm tokens.
 Check-only — never changes npmjs settings. Never check this file into a target repo.
 Warns (does not fail) if this copy is not the latest from jaredwray/agentic.
 EOF
@@ -261,19 +261,22 @@ resolve_repo() {
 resolve_token() {
   local key val
   if [[ -n "${NPM_TOKEN:-}" ]]; then
-    TOKEN="$NPM_TOKEN"
+    echo "error: NPM_TOKEN is not allowed — unset it and run npm login"
+    echo "       catalog § 5: no npm tokens exist anywhere; this audit uses an npm login session only."
+    exit 1
+  fi
+  if ! command -v npm >/dev/null; then
+    echo "error: npm is required — run npm login"
+    exit 1
+  fi
+  key="//${REGISTRY_HOST}/:_authToken"
+  val=$(npm config get "$key" 2>/dev/null || true)
+  if [[ -n "$val" && "$val" != "undefined" && "$val" != "null" ]]; then
+    TOKEN="$val"
     return 0
   fi
-  if command -v npm >/dev/null; then
-    key="//${REGISTRY_HOST}/:_authToken"
-    val=$(npm config get "$key" 2>/dev/null || true)
-    if [[ -n "$val" && "$val" != "undefined" && "$val" != "null" ]]; then
-      TOKEN="$val"
-      return 0
-    fi
-  fi
-  echo "error: no npm token — run npm login, or set NPM_TOKEN"
-  echo "       GET /-/package/{pkg}/trust needs write access; bypass-2FA granular tokens are rejected."
+  echo "error: no npm login session — run npm login"
+  echo "       GET /-/package/{pkg}/trust needs write access from an interactive login."
   exit 1
 }
 
@@ -302,7 +305,7 @@ auth_hint() {
   if grep -qiE 'otp|one-time|2fa|webauthn' <<<"$body"; then
     echo "pass --otp <code> (or NPM_OTP) after completing the 2FA challenge"
   else
-    echo "log in with npm login (session token or GAT without bypass_2fa)"
+    echo "log in with npm login (NPM_TOKEN is not allowed)"
   fi
 }
 

@@ -459,6 +459,12 @@ if (!/check_upstream_script/.test(checkNpmjs)) {
 if (!checkNpmjs.includes('createStagedPackage') || !checkNpmjs.includes('createPackage')) {
   err('check-npmjs.sh must require stage-only trusted publisher permissions');
 }
+if (/TOKEN="\$NPM_TOKEN"/.test(checkNpmjs) || /or set NPM_TOKEN/.test(checkNpmjs)) {
+  err('check-npmjs.sh must not accept NPM_TOKEN as auth');
+}
+if (!checkNpmjs.includes('NPM_TOKEN is not allowed')) {
+  err('check-npmjs.sh must reject NPM_TOKEN');
+}
 const checkNpmjsSyntax = spawnSync('bash', ['-n', checkNpmjsPath], { encoding: 'utf8' });
 if (checkNpmjsSyntax.status !== 0) {
   err(`check-npmjs.sh failed bash -n: ${checkNpmjsSyntax.stderr || checkNpmjsSyntax.stdout}`);
@@ -467,11 +473,17 @@ if (checkNpmjsSyntax.status !== 0) {
 if (!/check-npmjs\.sh/.test(skillMd) || !/never copy it into the target repo/i.test(skillMd)) {
   err('SKILL.md must tell the agent to run check-npmjs.sh and never copy it into the target repo');
 }
+if (!/NPM_TOKEN`? is not allowed/.test(skillMd)) {
+  err('SKILL.md must say NPM_TOKEN is not allowed for check-npmjs.sh');
+}
 if (!/check-npmjs\.sh/.test(reference) || !/Never copy or commit it into the/.test(reference)) {
   err('reference.md must document check-npmjs.sh and say it is never copied into the target');
 }
 if (!/createStagedPackage/.test(reference) || !/legacy/.test(reference)) {
   err('reference.md must require createStagedPackage-only permissions and treat legacy configs as fail');
+}
+if (/or NPM_TOKEN/.test(reference) || !/NPM_TOKEN is not allowed/.test(reference)) {
+  err('reference.md must require npm login and must not offer NPM_TOKEN');
 }
 
 const checkNpmjsHelp = spawnSync('bash', [checkNpmjsPath, '--help'], { encoding: 'utf8' });
@@ -481,6 +493,8 @@ if (checkNpmjsHelp.status !== 0) {
   err('check-npmjs.sh --help must not check upstream (would require network)');
 } else if (!/Never check this file into a target repo/.test(checkNpmjsHelp.stdout)) {
   err('check-npmjs.sh --help must say it is never checked into a target repo');
+} else if (/or NPM_TOKEN/.test(checkNpmjsHelp.stdout) || !/NPM_TOKEN is not allowed/.test(checkNpmjsHelp.stdout)) {
+  err('check-npmjs.sh --help must require npm login and must not offer NPM_TOKEN');
 }
 
 const workflowSpace = spawnSync('bash', [checkNpmjsPath, '--workflow', 'foo bar'], { encoding: 'utf8' });
@@ -571,20 +585,51 @@ exit 0
   );
 }
 
+function writeCheckNpmjsNpm(dir, { token = 'npm_session_test' } = {}) {
+  writeFileSync(
+    join(dir, 'npm'),
+    `#!/bin/sh
+if [ "$1" = "config" ] && [ "$2" = "get" ]; then
+  printf '%s\\n' '${token}'
+  exit 0
+fi
+exit 1
+`,
+    { mode: 0o755 },
+  );
+}
+
 const npmjsDir = mkdtempSync(join(tmpdir(), 'check-npmjs-'));
 try {
-  const env = { PATH: `${npmjsDir}:${process.env.PATH}`, LANG: 'C', HOME: npmjsDir, NPM_TOKEN: 'npm_test' };
+  const env = { PATH: `${npmjsDir}:${process.env.PATH}`, LANG: 'C', HOME: npmjsDir };
   const run = (args, extraEnv = {}) =>
     spawnSync('bash', [checkNpmjsPath, ...args], {
       encoding: 'utf8',
       env: { ...env, ...extraEnv },
     });
-
+  writeCheckNpmjsNpm(npmjsDir);
   writeCheckNpmjsCurl(npmjsDir, {
     mode: 'pass',
     scriptPath: checkNpmjsPath,
     callLog: join(npmjsDir, 'pass.log'),
   });
+
+  const tokenRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml'], {
+    NPM_TOKEN: 'npm_test',
+  });
+  const tokenOut = `${tokenRun.stdout}${tokenRun.stderr}`;
+  if (tokenRun.status === 0 || !/NPM_TOKEN is not allowed/.test(tokenOut)) {
+    err(`check-npmjs.sh must reject NPM_TOKEN (got ${tokenRun.status}: ${tokenOut})`);
+  }
+
+  writeCheckNpmjsNpm(npmjsDir, { token: 'undefined' });
+  const noLoginRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
+  const noLoginOut = `${noLoginRun.stdout}${noLoginRun.stderr}`;
+  if (noLoginRun.status === 0 || !/no npm login session/.test(noLoginOut)) {
+    err(`check-npmjs.sh must fail without an npm login session (got ${noLoginRun.status}: ${noLoginOut})`);
+  }
+  writeCheckNpmjsNpm(npmjsDir);
+
   const passRun = run(['keyv', '--repo', 'owner/test', '--workflow', 'release.yaml']);
   const passOut = `${passRun.stdout}${passRun.stderr}`;
   if (passRun.status !== 0) {
