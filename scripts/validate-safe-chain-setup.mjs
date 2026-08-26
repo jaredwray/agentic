@@ -17,6 +17,8 @@ const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
+const GITHUB_CLI_FEATURE = 'ghcr.io/devcontainers/features/github-cli:1';
+const DOCKER_IN_DOCKER_FEATURE = 'ghcr.io/devcontainers/features/docker-in-docker:4';
 
 const errors = [];
 const err = (msg) => errors.push(msg);
@@ -40,6 +42,13 @@ if (devcontainer) {
   }
   if (devcontainer.postCreateCommand !== BOOTSTRAP) {
     err(`devcontainer.json postCreateCommand must be ${BOOTSTRAP}`);
+  }
+  const features = devcontainer.features ?? {};
+  if (!Object.hasOwn(features, GITHUB_CLI_FEATURE)) {
+    err(`devcontainer.json must install ${GITHUB_CLI_FEATURE}`);
+  }
+  if (!Object.hasOwn(features, DOCKER_IN_DOCKER_FEATURE)) {
+    err(`devcontainer.json must install ${DOCKER_IN_DOCKER_FEATURE}`);
   }
 }
 
@@ -130,6 +139,12 @@ if (!/Never copy or commit/.test(reference) || !/admin runs it last/.test(refere
 
 if (!reference.includes(BOOTSTRAP)) {
   err(`reference.md must invoke the bootstrap with ${BOOTSTRAP}`);
+}
+if (!reference.includes(GITHUB_CLI_FEATURE)) {
+  err(`reference.md must mention ${GITHUB_CLI_FEATURE}`);
+}
+if (!reference.includes(DOCKER_IN_DOCKER_FEATURE)) {
+  err(`reference.md must mention ${DOCKER_IN_DOCKER_FEATURE}`);
 }
 if (!reference.includes(SHIM_PATH_EXPORT)) {
   err('reference.md merge guidance must export Safe Chain shims onto PATH for follow-on commands');
