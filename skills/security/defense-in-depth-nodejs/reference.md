@@ -173,7 +173,7 @@ Merge — never blindly overwrite:
 | File | Missing | Already present |
 | --- | --- | --- |
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
-| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. If `features` is missing `github-cli:1` or `docker-in-docker:4`, add those IDs (skip `docker-in-docker` when another docker feature is already present). Do not add a Dockerfile. Do not force `javascript-node:latest` over an existing image. |
+| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4`. Do not add a second copy of either. Do not add a Dockerfile. Do not force `javascript-node:latest` over an existing image. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
 | `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
 
