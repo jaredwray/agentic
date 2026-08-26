@@ -156,6 +156,12 @@ if (/\|\s*true\b/.test(script) || /\|\s*:(\s|$)/.test(script)) {
 if (/curl[^\n]*\|\s*sh/.test(script)) {
   err('setup-cloud-environment.sh must not pipe curl into sh');
 }
+if (/\bpmg\b/i.test(script) || /safedep/i.test(script)) {
+  err('setup-cloud-environment.sh must not install PMG; Safe Chain is the only package-manager wrapper');
+}
+if (!/Do not add \[PMG\]/.test(reference) || !/second package-manager wrapper/.test(reference)) {
+  err('reference.md must forbid stacking PMG (or another wrapper) on Safe Chain');
+}
 
 const lockdown = readFileSync(join(SKILL, 'scripts/lockdown-repo.sh'), 'utf8');
 if (!/NEVER check this file into a target repo/.test(lockdown)) {

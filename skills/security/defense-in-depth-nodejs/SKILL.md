@@ -128,8 +128,9 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
        [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) and the files
        in `templates/` per [reference.md § 2](./reference.md#2-codeowners-and-cloud-bootstrap)
        (merge existing `.devcontainer` / `.cursor` config; never overwrite it). Skip when
-       `pnpm-lock.yaml` is absent. Branch `chore/defense-safe-chain-cloud`. A leftover PMG /
-       VM-egress line is dropped in that PR.
+       `pnpm-lock.yaml` is absent. Branch `chore/defense-safe-chain-cloud`. Do not add PMG
+       alongside Safe Chain (same PATH-shim / registry-proxy surface). A leftover PMG /
+       VM-egress catalog line is dropped in that PR.
      - Release workflow (npm libraries): copy `.github/workflows/release.yaml` from
        [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only). If a publish
        workflow already exists, switch it to pack +

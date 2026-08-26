@@ -159,6 +159,16 @@ directly (no Dockerfile). Cursor uses a managed environment with only `install` 
 Dockerfile, no snapshot). Both invoke `bash ./scripts/setup-cloud-environment.sh` so the copied
 script does not need the executable bit.
 
+Do not add [PMG](https://github.com/safedep/pmg) (or any second package-manager wrapper) on top of
+Safe Chain in the DevContainer or Cursor environment. Both sit on the same control: PATH shims plus
+a local registry proxy in front of `npm` / `pnpm`. Only one shim directory can be first on `PATH`;
+stacking them either bypasses one feed or nests two MITM proxies. Independent layers already cover
+install-time blocking: pnpm's 7-day cooldown (resolver, § 3), Safe Chain (Codespaces and Cursor),
+Socket Firewall (`sfw` on every CI job, § 4). PMG's Landlock sandbox is a different *kind* of
+control, but its proxy is mandatory and cannot be enabled alone — switching to PMG would mean
+replacing Safe Chain, not composing with it. PMG's system install is also a Dockerfile / `ENV PATH`
+story; this item stays Dockerfile-free.
+
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
 same `install` / `postCreateCommand` string must put the shims on `PATH` in that shell:
 
@@ -175,8 +185,9 @@ Merge — never blindly overwrite:
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
 | `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
 
-Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. A leftover catalog
-line about PMG / VM-egress filtering is dropped in this PR (list it in the body).
+Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. Do not install PMG
+into those files or the bootstrap script. A leftover catalog line about PMG / VM-egress filtering
+is dropped in this PR (list it in the body).
 
 Reconcile as done when the bootstrap script is present, both environment configs invoke it, and
 `AGENTS.md` has the Safe Chain section.
