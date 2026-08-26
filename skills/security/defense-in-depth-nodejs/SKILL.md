@@ -1,6 +1,6 @@
 ---
 name: defense-in-depth-nodejs
-description: Harden a Node.js repo against supply-chain compromise one PR at a time — pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, staged OIDC npm publishing reviewed in Drydock, then a repo admin runs lockdown-repo.sh last (never checked into the target repo; all manual tasks last too) for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs). Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, or pin and lint CI. Manual, resumable, one item per PR.
+description: Harden a Node.js repo against supply-chain compromise one PR at a time — pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, staged OIDC npm publishing reviewed in Drydock, check-npmjs.sh to audit npmjs trusted-publishing settings, then a repo admin runs lockdown-repo.sh last (never checked into the target repo; all manual tasks last too) for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs). Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, validate npmjs publishing settings, or pin and lint CI. Manual, resumable, one item per PR.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -67,7 +67,8 @@ applicable item including every `(manual)` task. `--check` during audit does not
    kebab-case workflow and job names (no spaces, so they can be required checks).
 5. **§ 5 npm publishing** *(npm libraries only)* — `release.yaml` stages with
    `pnpm stage publish ./packed/*.tgz --no-git-checks`; npmjs.com / Drydock / 2FA settings are
-   `(manual)`.
+   `(manual)`. Audit npmjs with [`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh) (never
+   copied into the target; check-only).
 6. **§ 6 Security tooling** — Aikido on every build; Socket on every dependency change.
 7. **§ 7 Repository lockdown** — GitHub settings via
    [`./scripts/lockdown-repo.sh`](./scripts/lockdown-repo.sh). Never copy it into the target repo.
@@ -97,7 +98,12 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      PR body) and cut `SECURITY.md` down to the simple shape. Same for a `Release Management status`
      block — it moves over untouched. The move is one-shot: afterwards status is never read from
      `SECURITY.md` again.
-   - Reconcile every checkbox against actual repo state per `security-status-tracking`. For § 7 run
+   - Reconcile every checkbox against actual repo state per `security-status-tracking`. For § 5
+     (npm libraries) run [`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh) with `--repo` and
+     `--workflow` taken from the checkout per [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only).
+     Requires `npm login`; `NPM_TOKEN` is not allowed. Never copy it into the target repo; it is
+     check-only and is never checked in. A clean run means
+     the readable npmjs items match; a FAIL does not jump the queue. For § 7 run
      `lockdown-repo.sh <owner/repo> --check` with `--required-checks` and `--allowed-actions` taken
      from the repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (audit
      only — never apply here). A clean `--check` means the lockdown item is done; a FAIL does not
@@ -153,8 +159,9 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
    next (plus any `(manual)` items waiting on the maintainer); and a literal resume prompt —
    *"Merge the PR when you're ready, then reply `continue` (or `next`) and I'll open the next
    defense-in-depth PR."* If only `(manual)` items and/or § 7 remain, report the last-phase admin
-   handoff: remaining manuals, then `lockdown-repo.sh` last (never committed). If nothing applicable
-   is left unchecked, report the rollout complete.
+   handoff: remaining manuals (run `check-npmjs.sh` for npmjs settings on libraries), then
+   `lockdown-repo.sh` last (never committed). If nothing applicable is left unchecked, report the
+   rollout complete.
 
 ## Pull request rules
 
