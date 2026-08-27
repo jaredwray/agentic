@@ -155,9 +155,11 @@ version and digest in the bundled script the same way Socket Firewall's `firewal
 bumped; do not fetch "latest" when applying.
 
 Greenfield templates: Codespaces uses `mcr.microsoft.com/devcontainers/javascript-node:latest`
-directly (no Dockerfile). Cursor uses a managed environment with only `install` (no `build`, no
-Dockerfile, no snapshot). Both invoke `bash ./scripts/setup-cloud-environment.sh` so the copied
-script does not need the executable bit.
+directly (no Dockerfile) and installs GitHub CLI plus Docker via Dev Container Features
+(`ghcr.io/devcontainers/features/github-cli:1` and
+`ghcr.io/devcontainers/features/docker-in-docker:4`). Cursor uses a managed environment with only
+`install` (no `build`, no Dockerfile, no snapshot). Both invoke
+`bash ./scripts/setup-cloud-environment.sh` so the copied script does not need the executable bit.
 
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
 same `install` / `postCreateCommand` string must put the shims on `PATH` in that shell:
@@ -171,7 +173,7 @@ Merge — never blindly overwrite:
 | File | Missing | Already present |
 | --- | --- | --- |
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
-| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Do not add a Dockerfile. Do not force `javascript-node:latest` over an existing image. |
+| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4`. Do not add a second copy of either. Do not add a Dockerfile. Do not force `javascript-node:latest` over an existing image. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
 | `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
 
