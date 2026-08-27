@@ -140,15 +140,15 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. |
 | `migrations` | Set up MongoDB migrations with migrate-mongo (changelog ledger, single-writer lock, file-hash change detection, dry-run/plan, `migrate:development`/`migrate:production` scripts) or conform to an existing tool, then author idempotent data/index migrations one PR at a time. |
 | `release-management-nodejs` | Roll out a hardened npm publish pipeline (signing, trusted publishing) one PR at a time. |
-| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — overrides first, then the dev phase before runtime. |
-| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time, respecting the toolchain pin. |
+| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — overrides first, then the dev phase before runtime, including digest-pinned Dev Container images on a 7-day age gate. |
+| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time, respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins. |
 | `resolve-merge-conflicts` | Resolve merge/rebase conflicts preserving both sides' intent, verified before continuing. |
 
 ### security/ — manual
 
 | Skill | Does |
 |---|---|
-| `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, Safe Chain on cloud agents, staged OIDC publishing — one item per PR. |
+| `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, digest-pinned Dev Container images, Safe Chain on cloud agents, staged OIDC publishing — one item per PR. |
 
 ### growth/ — manual
 
