@@ -19,6 +19,8 @@ const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
 const GITHUB_CLI_FEATURE = 'ghcr.io/devcontainers/features/github-cli:1';
 const DOCKER_IN_DOCKER_FEATURE = 'ghcr.io/devcontainers/features/docker-in-docker:4';
+const IMAGE_PIN_RE =
+  /^mcr\.microsoft\.com\/devcontainers\/javascript-node:\d+\.\d+\.\d+-[^:@]+@sha256:[a-f0-9]{64}$/;
 
 const errors = [];
 const err = (msg) => errors.push(msg);
@@ -34,8 +36,13 @@ function readJson(path) {
 
 const devcontainer = readJson(DEVCONTAINER);
 if (devcontainer) {
-  if (devcontainer.image !== 'mcr.microsoft.com/devcontainers/javascript-node:latest') {
-    err('devcontainer.json must use mcr.microsoft.com/devcontainers/javascript-node:latest');
+  if (!IMAGE_PIN_RE.test(devcontainer.image)) {
+    err(
+      'devcontainer.json image must be a versioned mcr.microsoft.com/devcontainers/javascript-node tag pinned by sha256 digest',
+    );
+  }
+  if (/:latest(?:@|$)/.test(devcontainer.image)) {
+    err('devcontainer.json must not use the latest tag');
   }
   if (devcontainer.dockerFile || devcontainer.dockerfile || devcontainer.build) {
     err('devcontainer.json must not define a Dockerfile or build');
@@ -94,6 +101,10 @@ if (scaffoldIdx === -1) {
     if (!last.includes('Dependabot disabled')) {
       err('catalog last section must require Dependabot disabled');
     }
+    const cloud = sections.find((s) => s.startsWith('2. CODEOWNERS')) ?? '';
+    if (!/pinned by digest/.test(cloud)) {
+      err('catalog § 2 must require Dev Container image digest pinning');
+    }
     const actions = sections.find((s) => s.startsWith('4. GitHub Actions')) ?? '';
     if (!/no spaces/.test(actions) || !/kebab-case/.test(actions)) {
       err('catalog § 4 must require kebab-case workflow/job names with no spaces');
@@ -125,6 +136,9 @@ if (!/\(manual\).*last/is.test(skillMd)) {
 if (/do not block/i.test(skillMd)) {
   err('SKILL.md must not say (manual) items do not block lockdown');
 }
+if (!/defense-devcontainer-pin/.test(skillMd) || !/digest-pinned Dev Container/.test(skillMd)) {
+  err('SKILL.md must include the Dev Container digest-pin item');
+}
 const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
 const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
 if (!/§ 7 Repository lockdown/.test(lastPriority)) {
@@ -145,6 +159,22 @@ if (!reference.includes(GITHUB_CLI_FEATURE)) {
 }
 if (!reference.includes(DOCKER_IN_DOCKER_FEATURE)) {
   err(`reference.md must mention ${DOCKER_IN_DOCKER_FEATURE}`);
+}
+if (!/@sha256:/.test(reference) || !/7-day age gate/.test(reference)) {
+  err('reference.md must pin Dev Container images by digest under a 7-day age gate');
+}
+if (/javascript-node:latest/.test(reference)) {
+  err('reference.md must not recommend javascript-node:latest');
+}
+
+for (const [label, rel] of [
+  ['dependency-management-node', 'skills/release-ops/dependency-management-node/SKILL.md'],
+  ['dependency-management-rust', 'skills/release-ops/dependency-management-rust/SKILL.md'],
+]) {
+  const dep = readFileSync(join(ROOT, rel), 'utf8');
+  if (!/Dev Container images/.test(dep) || !/7-day age gate/.test(dep) || !/chore\/devcontainer-images/.test(dep)) {
+    err(`${label} must refresh Dev Container image pins under a 7-day age gate`);
+  }
 }
 if (!reference.includes(SHIM_PATH_EXPORT)) {
   err('reference.md merge guidance must export Safe Chain shims onto PATH for follow-on commands');

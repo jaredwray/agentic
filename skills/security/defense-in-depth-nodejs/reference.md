@@ -29,6 +29,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
 - CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
+- The Codespaces Dev Container image is pinned by digest (`name:<tag>@sha256:<digest>`), not a floating tag.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, lifecycle scripts blocked by default, and `trustPolicy: no-downgrade`. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
 ```
@@ -59,6 +60,7 @@ Profile: <npm library | website/app> · <public | private>
 ## 2. CODEOWNERS and cloud bootstrap
 - [ ] `.github/CODEOWNERS` covers `/.github/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with owners the maintainer names
 - [ ] Codespaces and Cursor Cloud Agents bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
+- [ ] Dev Container `image` pinned by digest (`name:<tag>@sha256:<digest>`; not a floating tag)
 
 ## 3. Dependencies (pnpm)
 - [ ] `packageManager: pnpm@11.3+` pinned in `package.json`
@@ -107,6 +109,7 @@ Profile adjustments when scaffolding:
   lockdown item; keep the plan-gated settings only if the plan supports them (the lockdown script
   reports this); omit § 5 unless the repo actually publishes a package.
 - **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item.
+- **no `devcontainer.json`** — omit the Dev Container image-pin item.
 
 ## 2. CODEOWNERS and cloud bootstrap
 
@@ -154,12 +157,15 @@ shims, persists those shim paths, runs `pnpm safe-chain-verify`, and then `pnpm 
 version and digest in the bundled script the same way Socket Firewall's `firewall-version` is
 bumped; do not fetch "latest" when applying.
 
-Greenfield templates: Codespaces uses `mcr.microsoft.com/devcontainers/javascript-node:latest`
-directly (no Dockerfile) and installs GitHub CLI plus Docker via Dev Container Features
+Greenfield templates: Codespaces uses a **digest-pinned**
+`mcr.microsoft.com/devcontainers/javascript-node:<version>-<variant>@sha256:<digest>` image (no
+Dockerfile; never `:latest`) and installs GitHub CLI plus Docker via Dev Container Features
 (`ghcr.io/devcontainers/features/github-cli:1` and
 `ghcr.io/devcontainers/features/docker-in-docker:4`). Cursor uses a managed environment with only
 `install` (no `build`, no Dockerfile, no snapshot). Both invoke
 `bash ./scripts/setup-cloud-environment.sh` so the copied script does not need the executable bit.
+The template snapshot is already 7-day-aged; refresh of that pin later is
+`dependency-management-node`, not this item.
 
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
 same `install` / `postCreateCommand` string must put the shims on `PATH` in that shell:
@@ -173,15 +179,46 @@ Merge — never blindly overwrite:
 | File | Missing | Already present |
 | --- | --- | --- |
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
-| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4`. Do not add a second copy of either. Do not add a Dockerfile. Do not force `javascript-node:latest` over an existing image. |
+| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
 | `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
 
 Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. A leftover catalog
 line about PMG / VM-egress filtering is dropped in this PR (list it in the body).
 
-Reconcile as done when the bootstrap script is present, both environment configs invoke it, and
-`AGENTS.md` has the Safe Chain section.
+Reconcile Safe Chain as done when the bootstrap script is present, both environment configs invoke
+it, and `AGENTS.md` has the Safe Chain section. Image digest pinning is the next item — a greenfield
+copy of the template already satisfies it.
+
+### Pin Dev Container images
+
+File PR (`chore/defense-devcontainer-pin`). Skip when the repo has no `devcontainer.json`
+(`.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, or repo-root
+`devcontainer.json`). Features tags (`github-cli:1`, `docker-in-docker:4`) stay as they are.
+
+This is the Actions SHA-pin analog for Codespaces: a floating tag (`:latest`, `:24`) can be
+retagged to a compromised image; `name:<tag>@sha256:<digest>` is immutable. Use the **index**
+digest (manifest list), not a per-platform digest, so amd64 and arm64 stay under one pin.
+
+For each file's `image` property:
+
+1. Already `name:<tag>@sha256:<64 hex>` and `<tag>` is not `latest` → leave it. Refresh rides
+   `dependency-management-node` (and `dependency-management-rust`) under the same 7-day age gate.
+2. Missing (`build` / `dockerFile` instead) → skip that file. Dockerfile `FROM` pins are the
+   Docker image groups in those skills.
+3. Unpinned or floating → inspect with `skopeo` (or `crane`). The target is the newest digest in
+   the current lineage whose image `Created` is at least **7 days** ago — the same window as pnpm
+   `minimumReleaseAge: 10080`. A missing `Created` is ineligible (fail closed). Rewrite to
+   `name:<versioned-tag>@sha256:<index-digest>`. Never leave `:latest` as the tag, even with a
+   digest. On Microsoft Dev Container images, prefer the `version` + `dev.containers.variant`
+   labels (e.g. `5.0.2-24-trixie`). Lineage is Node major + OS family (`24-trixie`); a Node major
+   bump is breaking — stop and ask. If no digest in lineage is 7 days old, skip and report.
+4. Do not replace an existing image with the greenfield template image.
+
+Stop and report if a `devcontainer.json` is not valid JSON.
+
+Reconcile as done when every `image` value is digest-pinned with a non-`latest` tag, or there is
+no `image` key to pin.
 
 ## 3. Dependencies (pnpm)
 
@@ -711,6 +748,7 @@ Notes:
 - sfw-free releases: https://github.com/SocketDev/sfw-free/releases
 - Aikido: https://www.aikido.dev/
 - Aikido Safe Chain: https://github.com/AikidoSec/safe-chain
+- Dev Container javascript-node images: https://mcr.microsoft.com/artifact/mar/devcontainers/javascript-node
 - pnpm settings: https://pnpm.io/settings
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
 - GitHub Actions secure use: https://docs.github.com/en/actions/reference/security/secure-use

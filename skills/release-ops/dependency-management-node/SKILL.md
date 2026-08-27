@@ -1,6 +1,6 @@
 ---
 name: dependency-management-node
-description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — first reviewing pnpm overrides to remove or update them, then code-quality tooling, build tooling, monorepo tooling, GitHub Actions, Docker images, then runtime ecosystems — respecting pnpm minimumReleaseAge and the @types/node-versus-Node-major rule. Use when asked to update, upgrade, or bump dependencies on a Node or pnpm project. Manual and resumable; overrides first, then the dev phase before the runtime phase.
+description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — first reviewing pnpm overrides to remove or update them, then code-quality tooling, build tooling, monorepo tooling, GitHub Actions, Docker images, Dev Container images, then runtime ecosystems — respecting pnpm minimumReleaseAge, a 7-day age gate on container image pins, and the @types/node-versus-Node-major rule. Use when asked to update, upgrade, or bump dependencies on a Node or pnpm project. Manual and resumable; overrides first, then the dev phase before the runtime phase.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -34,7 +34,7 @@ Determine the repo shape first:
 Run the three phases in order. Do not interleave.
 
 1. **Overrides** — existing version pins (`pnpm.overrides`, `overrides`, Yarn `resolutions`). Exhaust every pin that can be removed or updated (one PR each) before starting the dev phase. See [Overrides](#overrides).
-2. **Dev phase** — devDependencies and GitHub Actions. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
+2. **Dev phase** — devDependencies, GitHub Actions, Docker build-time images, and Dev Container images. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
 3. **Runtime phase** — runtime ecosystems and standalone runtime deps. Begin only after every dev group has either been merged or documented as a deferral.
 
 ## Standard groups
@@ -69,6 +69,14 @@ Surface with `pnpm outdated --dev` (single-package) or `pnpm -r outdated --dev` 
    - PR title: e.g. `root - chore: upgrade Docker build-time images`; append `(breaking)` if any image's major version changed
    - See [Container image discovery](#container-image-discovery) for how to find and query image versions
    - See [Container image version agreement](#container-image-version-agreement) for cross-checking `.nvmrc` / `package.json engines.node`
+
+6. **Dev Container images → 1 PR** (only if `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, or repo-root `devcontainer.json` exists; not surfaced by `pnpm outdated`):
+   Every `image` value in those files. Pin floating tags and refresh digest pins to the newest digest in lineage that is at least 7 days old.
+   - Branch: `chore/devcontainer-images`
+   - PR title: e.g. `root - chore: upgrade Dev Container images` (or `pin` on a first digest pin)
+   - See [Container image discovery](#container-image-discovery) — including the [7-day age gate](#7-day-age-gate) and [Dev Container images](#dev-container-images)
+   - Skip files that use `build` / `dockerFile` instead of `image`; those `FROM` lines belong to the Docker groups
+   - Do not change Dev Container Features tags (`github-cli:1`, `docker-in-docker:4`) in this group
 
 **Exclude from dev groups even when they appear in `pnpm outdated --dev`** — these belong to runtime ecosystem groups and ship in the runtime phase: `@types/react`, `@types/react-dom`, `eslint-config-next`, the `prisma` CLI, and any other devDep that clearly belongs to a runtime ecosystem listed below.
 
@@ -128,7 +136,7 @@ Stop at the first pin that removes or updates. Kept pins are not deferrals; they
 
 ## Container image discovery
 
-Container images are not surfaced by `pnpm outdated`. Use this procedure when Docker build-time or runtime groups need upgrading.
+Container images are not surfaced by `pnpm outdated`. Use this procedure when Docker build-time, Docker runtime, or Dev Container groups need upgrading.
 
 ### Scan for image references
 
@@ -137,6 +145,7 @@ Search the repo for all container image references:
 - `Dockerfile*`, `*.dockerfile` — parse every `FROM` line, including `AS <name>` aliases.
 - `compose.yml`, `docker-compose.yml`, `compose.*.yml`, `docker-compose.*.yml` — parse `image:` keys and `build:` contexts.
 - `.github/workflows/*.yml` — parse `container:` and `services:` image references.
+- `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, repo-root `devcontainer.json` — parse each `image` value. These are the Dev Container group, not a Docker group.
 - `ARG` / `ENV` version indirection — resolve variables like `ARG NODE_VERSION=20` used in `FROM node:${NODE_VERSION}-alpine` to determine the actual image and version.
 
 ### Classify stages
@@ -151,22 +160,45 @@ In multi-stage Dockerfiles, identify builder vs runtime stages:
 
 Use `skopeo` (does not require a Docker daemon) to inspect and list tags. Use the full image reference — `docker.io/library/<image>` for official Docker Hub images, or the full registry path for others (e.g. `ghcr.io/<owner>/<image>`, `<org>/<image>`):
 
-- `skopeo inspect docker://<registry>/<image>:<tag>` — returns the digest and labels for the current tag.
+- `skopeo inspect docker://<registry>/<image>:<tag>` — returns the digest and labels for the current tag. `Created` is the image age; `Digest` is the multi-arch **index** digest to pin.
+- `skopeo inspect --format '{{.Digest}} {{.Created}}' docker://<registry>/<image>:<tag>` — digest + created in one call.
 - `skopeo list-tags docker://<registry>/<image>` — lists all available tags.
-- If `skopeo` is not available, install it or use `crane` as a fallback (`crane ls <image>`, `crane digest <image>:<tag>`).
+- If `skopeo` is not available, install it or use `crane` as a fallback (`crane ls <image>`, `crane digest <image>:<tag>`, `crane config <image>:<tag>` for `created`).
 
 ### Tag lineage targeting
 
-Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the latest tag sharing the same **major** and **variant family**. The variant family is the base variant name without its version — e.g. `alpine3.19` belongs to the `alpine` family, `bookworm` and `bullseye` are distinct families:
+Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the newest tag sharing the same **major** and **variant family** that passes the [7-day age gate](#7-day-age-gate). The variant family is the base variant name without its version — e.g. `alpine3.19` belongs to the `alpine` family, `bookworm` and `bullseye` are distinct families:
 
 - `node:20.11.1-alpine3.19` → latest `node:20.*-alpine*` (the Alpine OS version may advance, e.g. `alpine3.19` → `alpine3.21`)
 - `node:20-alpine` → this is a floating tag; upgrade means resolving to a pinned version (see [Floating tags](#tag-lineage-targeting) above)
 - `ubuntu:24.04` → latest `ubuntu:24.04` digest (point releases); `ubuntu:24.10` is a major upgrade
 - `postgres:16.2-alpine` → latest `postgres:16.*-alpine*` (Alpine version may advance)
+- `javascript-node:5.0.2-24-trixie` → newest `*.*.*-24-trixie` that passes the 7-day age gate (Node 24 + Debian trixie; `5.0.2` → `5.1.1` is a refresh, not a major)
 
-Major version bumps (`node:20` → `node:22`, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix.
+Major version bumps (`node:20` → `node:22`, `javascript-node` 22 → 24, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix.
 
-**Floating tags** (e.g. `node:20-alpine` without a digest pin) resolve to the latest image at pull time. Offer to upgrade them to a pinned version — resolve the floating tag to the current concrete version and rewrite the reference (e.g. `node:20-alpine` → `node:20.11.1-alpine3.19`). This makes builds reproducible and gives future upgrade runs a version to compare against. If the tag already has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
+**Floating tags** (e.g. `node:20-alpine` or `javascript-node:latest` without a digest pin) resolve to the latest image at pull time. Upgrade them to a digest pin — resolve the floating tag to a versioned tag and rewrite as `name:<tag>@sha256:<index-digest>` (e.g. `node:20-alpine` → `node:20.11.1-alpine3.19@sha256:…`). The digest is the pin; the tag is for humans. Never leave `latest` as the tag, even with a digest. If the reference already has a digest, the upgrade is refreshing it under the [7-day age gate](#7-day-age-gate).
+
+### 7-day age gate
+
+Container registries have no `minimumReleaseAge`. Apply the same 7-day window pnpm uses (`minimumReleaseAge: 10080`):
+
+1. The candidate is the newest tag in the current lineage ([Tag lineage targeting](#tag-lineage-targeting)).
+2. Inspect it. The pin is the **index** digest (manifest list), not a per-platform digest. `Created` is the image age.
+3. If `Created` is missing, that candidate is ineligible (fail closed — same idea as `minimumReleaseAgeIgnoreMissingTime: false`).
+4. If `Created` is less than 7 days ago, walk older tags in the same lineage until one is at least 7 days old. That digest is the target.
+5. If none qualify, skip and report. Do not pin or refresh to a digest younger than 7 days.
+
+The "latest" image for a group is this 7-day-aged digest, not whatever the registry's `latest` tag points at today.
+
+### Dev Container images
+
+Dev Container `image` values are one group (`chore/devcontainer-images`), not mixed into Docker build-time. Parse each `devcontainer.json` as JSON — stop and report if it is invalid. Skip files that use `build` / `dockerFile` instead of `image`.
+
+- Lineage for Microsoft `javascript-node` images is Node major + OS family (`24-trixie`), not the image-catalog major (`5.0.2` → `5.1.1` is a refresh). Prefer the `version` + `dev.containers.variant` labels when rewriting the tag (e.g. `5.0.2-24-trixie`).
+- A Node major bump (`22` → `24`) is breaking — stop and ask.
+- Verify the file still parses as JSON. Do not require the `devcontainer` CLI.
+- Features tags are not this group.
 
 ### System packages and script-installed tools
 
@@ -182,30 +214,31 @@ check for already-merged, stop and wait for `continue` — is `shipping-conventi
 stops on a dirty working tree — do not skip ahead to the numbered steps here, which are additions
 *inside* that loop, not a replacement for it:
 
-1. **Start test services if `local`.** Run `pnpm test:services:start` — idempotent, safe to run on every resume. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
+1. **Start test services if `local`.** Run `pnpm test:services:start` — idempotent, safe to run on every resume. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker or Dev Container image group, ensure `skopeo` is available (install if needed).
 
 2. **Review overrides first.** Follow [Overrides](#overrides). If a pin can be removed or updated, verify (if a `build` script exists, `pnpm build && pnpm test`; otherwise `pnpm test`) and open the PR — title e.g. `root - chore: remove <pkg> override` or `root - chore: update <pkg> override` (use `mono - ` when the pin lives at the workspace root). Hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration.
    If none can change, continue to step 3. Re-run this step on every resume — a merged parent upgrade often makes a kept pin removable.
 
 3. **Determine the active phase.**
-   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time images are outdated, the active phase is **dev**.
+   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps or Docker runtime/service images are outdated, the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs, any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred"), and any overrides that were kept, then stop.
 
 4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
 
-5. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
+5. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
    - Bump it — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the exact value from the "Latest" column of `pnpm outdated`. **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, `pnpm up --latest`, or adding the package to `minimumReleaseAgeExclude` / `trustPolicyExclude` — they bypass `minimumReleaseAge` and pull versions younger than the gate allows.
    - Verify the upgrade. Check the relevant `package.json` `scripts` (root for single-package, the affected workspace for monorepos):
      - If a `build` script exists, run `pnpm build && pnpm test` — building first catches type and bundler regressions that tests alone won't.
      - Otherwise run `pnpm test`.
    - **For Docker image groups**, the upgrade procedure differs:
      1. Query the registry for the latest tag within the same lineage (see [Container image discovery](#container-image-discovery)).
-     2. Update the tag (and digest if already pinned) in all matching locations across Dockerfiles, Compose files, and CI workflows.
+     2. Apply the [7-day age gate](#7-day-age-gate). Pin or refresh `name:<tag>@sha256:<index-digest>` in all matching locations across Dockerfiles, Compose files, and CI workflows.
      3. Update `ARG`/`ENV` version variables if the image is indirected through them.
      4. Check [Container image version agreement](#container-image-version-agreement) — `.nvmrc`, `package.json engines.node`, etc. must agree with the new image version.
      5. Verify: run `docker build` on affected Dockerfiles if Docker is available. If in sandbox without Docker, verify syntax only and note the limitation in the PR body.
      6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
+   - **For Dev Container image groups**, update every `image` value per [Dev Container images](#dev-container-images) and the [7-day age gate](#7-day-age-gate). Verify each file still parses as JSON.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
    Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
@@ -221,7 +254,7 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 **The "Latest" column from `pnpm outdated` is the exact target version — never upgrade past it.** This repo uses pnpm's `minimumReleaseAge` to gate freshly-published versions, so `pnpm outdated`'s "Latest" is already the curated upgrade target. Don't cross-reference npm, GitHub releases, or CHANGELOGs to pick a newer version. Don't add `minimumReleaseAgeExclude` or `trustPolicyExclude` entries to reach a younger version, including for first-party packages this GitHub owner publishes.
 
-**For Docker image groups**, there is no `pnpm outdated` equivalent. The target is the latest tag within the same lineage, as determined by [Container image discovery](#container-image-discovery). Do not cross-reference Docker Hub's "latest" tag — target the latest tag matching the current major and variant.
+**For Docker and Dev Container image groups**, there is no `pnpm outdated` equivalent. The target is the newest digest in the current lineage that is at least 7 days old, as determined by [Container image discovery](#container-image-discovery) and the [7-day age gate](#7-day-age-gate). Do not pin whatever the registry's `latest` tag points at today.
 
 **For override updates**, the package is usually transitive and will not appear in `pnpm outdated`. The target is the version `pnpm install` resolves from the registry after putting the override back as `>=<current>` on the post-remove lockfile — that resolution already applies `minimumReleaseAge`. Do not look up versions on npm, GitHub, or CHANGELOGs.
 
@@ -236,3 +269,4 @@ Examples:
 - `web-app - chore: upgrade TypeScript and build tooling`
 - `api - chore: upgrade Prisma dependencies`
 - `root - chore: upgrade Docker Node.js runtime image`
+- `root - chore: pin Dev Container images`

@@ -1,6 +1,6 @@
 ---
 name: defense-in-depth-nodejs
-description: Harden a Node.js repo against supply-chain compromise one PR at a time — pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, staged OIDC npm publishing reviewed in Drydock, check-npmjs.sh to audit npmjs trusted-publishing settings, then a repo admin runs lockdown-repo.sh last (never checked into the target repo; all manual tasks last too) for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs). Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, validate npmjs publishing settings, or pin and lint CI. Manual, resumable, one item per PR.
+description: Harden a Node.js repo against supply-chain compromise one PR at a time — pnpm's 7-day dependency cooldown, SHA-pinned actions via actions-up, digest-pinned Dev Container images, Socket Firewall on every CI job, zizmor workflow linting, Aikido Safe Chain on Codespaces and Cursor Cloud Agents, staged OIDC npm publishing reviewed in Drydock, check-npmjs.sh to audit npmjs trusted-publishing settings, then a repo admin runs lockdown-repo.sh last (never checked into the target repo; all manual tasks last too) for repo settings (PRs required on main, admin-only tags, approval for outside workflow runs). Keeps a simple public SECURITY.md and tracks progress in DEFENSE_IN_DEPTH.md. Adapts to what the repo is — npm library, website/app, public or private. Use when asked to harden a repo, improve supply-chain security, lock down GitHub settings, validate npmjs publishing settings, or pin and lint CI. Manual, resumable, one item per PR.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -59,7 +59,8 @@ applicable item including every `(manual)` task. `--check` during audit does not
 
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
 2. **§ 2 CODEOWNERS and cloud bootstrap** — `.github/CODEOWNERS` (file PR); Aikido Safe Chain on
-   Codespaces and Cursor Cloud Agents (file PR; skip without `pnpm-lock.yaml`).
+   Codespaces and Cursor Cloud Agents (file PR; skip without `pnpm-lock.yaml`); Dev Container
+   `image` digest pin (file PR; skip without a `devcontainer.json`).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown with no first-party excludes,
    `trustPolicy: no-downgrade`, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, no CI commit-back, actions-up SHA pinning,
@@ -108,7 +109,8 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      from the repo's workflows per [reference.md § 7](./reference.md#7-repository-lockdown) (audit
      only — never apply here). A clean `--check` means the lockdown item is done; a FAIL does not
      make § 7 the next item while earlier applicable items (auto or `(manual)`) remain.
-     Skip the Safe Chain item when `pnpm-lock.yaml` is absent. Never silently uncheck a regression —
+     Skip the Safe Chain item when `pnpm-lock.yaml` is absent. Skip the Dev Container image-pin
+     item when no `devcontainer.json` exists. Never silently uncheck a regression —
      stop and report it.
 
 4. **Implement the next item.**
@@ -130,6 +132,10 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
        (merge existing `.devcontainer` / `.cursor` config; never overwrite it). Skip when
        `pnpm-lock.yaml` is absent. Branch `chore/defense-safe-chain-cloud`. A leftover PMG /
        VM-egress line is dropped in that PR.
+     - Dev Container image pin: rewrite each `.devcontainer/**/devcontainer.json` (and repo-root
+       `devcontainer.json`) `image` to `name:<versioned-tag>@sha256:<digest>` per
+       [reference.md § 2](./reference.md#2-codeowners-and-cloud-bootstrap). Skip when no
+       `devcontainer.json` exists. Branch `chore/defense-devcontainer-pin`.
      - Release workflow (npm libraries): copy `.github/workflows/release.yaml` from
        [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only). If a publish
        workflow already exists, switch it to pack +

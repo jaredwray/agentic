@@ -1,6 +1,6 @@
 ---
 name: dependency-management-rust
-description: Upgrade a Rust project's dev, build, and runtime dependencies one grouped PR at a time, respecting the pinned toolchain and running the dev phase before the runtime phase. Use when asked to update, upgrade, or bump Cargo dependencies on a Rust project. Manual and resumable; one PR per group.
+description: Upgrade a Rust project's dev, build, and runtime dependencies one grouped PR at a time, respecting the pinned toolchain, a 7-day age gate on container and Dev Container image pins, and running the dev phase before the runtime phase. Use when asked to update, upgrade, or bump Cargo dependencies on a Rust project. Manual and resumable; one PR per group.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -33,7 +33,7 @@ Determine the repo shape first:
 
 Run the two phases in order. Do not interleave.
 
-1. **Dev phase** — `[dev-dependencies]`, `[build-dependencies]`, and GitHub Actions. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
+1. **Dev phase** — `[dev-dependencies]`, `[build-dependencies]`, GitHub Actions, Docker build-time images, and Dev Container images. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
 2. **Runtime phase** — `[dependencies]` ecosystems and standalone runtime crates. Begin only after every dev group has either been merged or documented as a deferral.
 
 ## Standard groups
@@ -68,6 +68,14 @@ Surface with `cargo outdated --depth 1` (single-crate) or `cargo outdated --work
    - PR title: e.g. `root - chore: upgrade Docker build-time images`; append `(breaking)` if any image's major version changed
    - See [Container image discovery](#container-image-discovery) for how to find and query image versions
    - See [Container image version agreement](#container-image-version-agreement) for cross-checking `rust-toolchain.toml` / `Cargo.toml rust-version`
+
+6. **Dev Container images → 1 PR** (only if `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, or repo-root `devcontainer.json` exists; not surfaced by `cargo outdated`):
+   Every `image` value in those files. Pin floating tags and refresh digest pins to the newest digest in lineage that is at least 7 days old.
+   - Branch: `chore/devcontainer-images`
+   - PR title: e.g. `root - chore: upgrade Dev Container images` (or `pin` on a first digest pin)
+   - See [Container image discovery](#container-image-discovery) — including the [7-day age gate](#7-day-age-gate) and [Dev Container images](#dev-container-images)
+   - Skip files that use `build` / `dockerFile` instead of `image`; those `FROM` lines belong to the Docker groups
+   - Do not change Dev Container Features tags in this group
 
 **Exclude from dev groups even when they appear in `cargo outdated`** — these belong to runtime ecosystem groups and ship in the runtime phase: any dev-dep that is the test/macro counterpart of a runtime crate (e.g. `tokio-test` when bumping `tokio`, `axum-test` when bumping `axum`, `sqlx-cli` when bumping `sqlx`). When the runtime ecosystem moves, its dev-dep companions move with it.
 
@@ -105,7 +113,7 @@ Surface with `cargo outdated --depth 1` filtered to `Normal` kind, or inspect `C
 
 ## Container image discovery
 
-Container images are not surfaced by `cargo outdated`. Use this procedure when Docker build-time or runtime groups need upgrading.
+Container images are not surfaced by `cargo outdated`. Use this procedure when Docker build-time, Docker runtime, or Dev Container groups need upgrading.
 
 ### Scan for image references
 
@@ -114,6 +122,7 @@ Search the repo for all container image references:
 - `Dockerfile*`, `*.dockerfile` — parse every `FROM` line, including `AS <name>` aliases.
 - `compose.yml`, `docker-compose.yml`, `compose.*.yml`, `docker-compose.*.yml` — parse `image:` keys and `build:` contexts.
 - `.github/workflows/*.yml` — parse `container:` and `services:` image references.
+- `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, repo-root `devcontainer.json` — parse each `image` value. These are the Dev Container group, not a Docker group.
 - `ARG` / `ENV` version indirection — resolve variables like `ARG RUST_VERSION=1.85` used in `FROM rust:${RUST_VERSION}-slim` to determine the actual image and version.
 
 ### Classify stages
@@ -128,13 +137,14 @@ In multi-stage Dockerfiles, identify builder vs runtime stages:
 
 Use `skopeo` (does not require a Docker daemon) to inspect and list tags. Use the full image reference — `docker.io/library/<image>` for official Docker Hub images, or the full registry path for others (e.g. `ghcr.io/<owner>/<image>`, `<org>/<image>`):
 
-- `skopeo inspect docker://<registry>/<image>:<tag>` — returns the digest and labels for the current tag.
+- `skopeo inspect docker://<registry>/<image>:<tag>` — returns the digest and labels for the current tag. `Created` is the image age; `Digest` is the multi-arch **index** digest to pin.
+- `skopeo inspect --format '{{.Digest}} {{.Created}}' docker://<registry>/<image>:<tag>` — digest + created in one call.
 - `skopeo list-tags docker://<registry>/<image>` — lists all available tags.
-- If `skopeo` is not available, install it or use `crane` as a fallback (`crane ls <image>`, `crane digest <image>:<tag>`).
+- If `skopeo` is not available, install it or use `crane` as a fallback (`crane ls <image>`, `crane digest <image>:<tag>`, `crane config <image>:<tag>` for `created`).
 
 ### Tag lineage targeting
 
-Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the latest tag sharing the same **major** and **variant family**. The variant family is the base variant name without its version — e.g. `alpine3.19` belongs to the `alpine` family, `bookworm` and `bullseye` are distinct families:
+Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the newest tag sharing the same **major** and **variant family** that passes the [7-day age gate](#7-day-age-gate). The variant family is the base variant name without its version — e.g. `alpine3.19` belongs to the `alpine` family, `bookworm` and `bullseye` are distinct families:
 
 - `rust:1.85.0-slim-bookworm` → latest `rust:1.*-slim-bookworm` (stays on `bookworm`; `bullseye` → `bookworm` would be a family change)
 - `rust:1.85-slim` → latest `rust:1.*-slim`
@@ -143,7 +153,27 @@ Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrad
 
 Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix. For Rust, since `rust:1.x` images follow the Rust release train, a minor bump (`rust:1.85` → `rust:1.86`) is not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule).
 
-**Floating tags** (e.g. `rust:1-slim` without a digest pin) resolve to the latest image at pull time. Offer to upgrade them to a pinned version — resolve the floating tag to the current concrete version and rewrite the reference (e.g. `rust:1-slim` → `rust:1.85.0-slim-bookworm`). This makes builds reproducible and gives future upgrade runs a version to compare against. If the tag already has a digest pin, the upgrade is refreshing the digest to the current manifest for that tag.
+**Floating tags** (e.g. `rust:1-slim` or a Dev Container `:latest` without a digest pin) resolve to the latest image at pull time. Upgrade them to a digest pin — resolve the floating tag to a versioned tag and rewrite as `name:<tag>@sha256:<index-digest>` (e.g. `rust:1-slim` → `rust:1.85.0-slim-bookworm@sha256:…`). The digest is the pin; the tag is for humans. Never leave `latest` as the tag, even with a digest. If the reference already has a digest, the upgrade is refreshing it under the [7-day age gate](#7-day-age-gate).
+
+### 7-day age gate
+
+Container registries have no crate-level cooldown. Apply the same 7-day window this plugin uses for npm (`minimumReleaseAge: 10080`):
+
+1. The candidate is the newest tag in the current lineage ([Tag lineage targeting](#tag-lineage-targeting)).
+2. Inspect it. The pin is the **index** digest (manifest list), not a per-platform digest. `Created` is the image age.
+3. If `Created` is missing, that candidate is ineligible (fail closed).
+4. If `Created` is less than 7 days ago, walk older tags in the same lineage until one is at least 7 days old. That digest is the target.
+5. If none qualify, skip and report. Do not pin or refresh to a digest younger than 7 days.
+
+The "latest" image for a group is this 7-day-aged digest, not whatever the registry's `latest` tag points at today.
+
+### Dev Container images
+
+Dev Container `image` values are one group (`chore/devcontainer-images`), not mixed into Docker build-time. Parse each `devcontainer.json` as JSON — stop and report if it is invalid. Skip files that use `build` / `dockerFile` instead of `image`.
+
+- Prefer the image's version + variant labels when rewriting the tag. A language-runtime major bump is breaking — stop and ask.
+- Verify the file still parses as JSON. Do not require the `devcontainer` CLI.
+- Features tags are not this group.
 
 ### System packages and script-installed tools
 
@@ -160,26 +190,27 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 *inside* that loop, not a replacement for it. When syncing, if `rust-toolchain.toml` or
 `rust-toolchain` is present, confirm `rustc --version` matches before continuing.
 
-1. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker image group, ensure `skopeo` is available (install if needed).
+1. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker or Dev Container image group, ensure `skopeo` is available (install if needed).
 
 2. **Determine the active phase.**
-   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time images are outdated, the active phase is **dev**.
+   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps or Docker runtime/service images are outdated, the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred") and stop.
 
 3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
 
-4. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
+4. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
    - Bump it — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
    - Refresh the lockfile — run `cargo update -p <crate>` so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
    - Verify the upgrade. The minimum gate is `cargo build --workspace --all-targets && cargo test --workspace`; also run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` if MSRV is declared (see [MSRV rule](#msrv-rule)). These are the same checks CI will run.
    - **For Docker image groups**, the upgrade procedure differs:
      1. Query the registry for the latest tag within the same lineage (see [Container image discovery](#container-image-discovery)).
-     2. Update the tag (and digest if already pinned) in all matching locations across Dockerfiles, Compose files, and CI workflows.
+     2. Apply the [7-day age gate](#7-day-age-gate). Pin or refresh `name:<tag>@sha256:<index-digest>` in all matching locations across Dockerfiles, Compose files, and CI workflows.
      3. Update `ARG`/`ENV` version variables if the image is indirected through them.
      4. Check [Container image version agreement](#container-image-version-agreement) — `rust-toolchain.toml`, `Cargo.toml rust-version`, etc. must agree with the new image version.
      5. Verify: run `docker build` on affected Dockerfiles if Docker is available. If in sandbox without Docker, verify syntax only and note the limitation in the PR body.
      6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
+   - **For Dev Container image groups**, update every `image` value per [Dev Container images](#dev-container-images) and the [7-day age gate](#7-day-age-gate). Verify each file still parses as JSON.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
    Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
@@ -195,7 +226,7 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 **The "Latest" column from `cargo outdated` is the exact target version — never upgrade past it.** Don't cross-reference crates.io, GitHub releases, or CHANGELOGs to pick a newer version. `cargo outdated` shows two version columns — `Compat` (the newest version reachable inside the current `Cargo.toml` requirement) and `Latest` (the newest on crates.io regardless of requirement) — the upgrade target is **always** `Latest`.
 
-**For Docker image groups**, there is no `cargo outdated` equivalent. The target is the latest tag within the same lineage, as determined by [Container image discovery](#container-image-discovery). Do not cross-reference Docker Hub's "latest" tag — target the latest tag matching the current major and variant.
+**For Docker and Dev Container image groups**, there is no `cargo outdated` equivalent. The target is the newest digest in the current lineage that is at least 7 days old, as determined by [Container image discovery](#container-image-discovery) and the [7-day age gate](#7-day-age-gate). Do not pin whatever the registry's `latest` tag points at today.
 
 ### Title prefixes
 
@@ -206,3 +237,4 @@ Examples:
 - `api - chore: upgrade build tooling`
 - `root - chore: upgrade GitHub Actions`
 - `workspace - chore: upgrade tokio dependencies`
+- `root - chore: pin Dev Container images`
