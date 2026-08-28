@@ -3,7 +3,7 @@
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +49,9 @@ if (devcontainer) {
   }
   if (devcontainer.postCreateCommand !== BOOTSTRAP) {
     err(`devcontainer.json postCreateCommand must be ${BOOTSTRAP}`);
+  }
+  if (/bash\s+-i|nvm\.sh|source ~\/\.bashrc/.test(String(devcontainer.postCreateCommand))) {
+    err('devcontainer.json must not source nvm or bashrc; the bootstrap script handles that');
   }
   const features = devcontainer.features ?? {};
   if (!Object.hasOwn(features, GITHUB_CLI_FEATURE)) {
@@ -154,6 +157,12 @@ if (!/Never copy or commit/.test(reference) || !/admin runs it last/.test(refere
 if (!reference.includes(BOOTSTRAP)) {
   err(`reference.md must invoke the bootstrap with ${BOOTSTRAP}`);
 }
+if (!reference.includes('--install-directory') || !reference.includes('nvm.sh')) {
+  err('reference.md must document Corepack --install-directory and nvm.sh handling in the bootstrap');
+}
+if (/bash\s+-i/.test(reference) && !/do not wrap/.test(reference)) {
+  err('reference.md must not recommend bash -i for postCreateCommand');
+}
 if (!reference.includes(GITHUB_CLI_FEATURE)) {
   err(`reference.md must mention ${GITHUB_CLI_FEATURE}`);
 }
@@ -192,6 +201,11 @@ for (const needle of [
   'pnpm safe-chain-verify',
   'pnpm install --frozen-lockfile',
   'pnpm-lock.yaml',
+  '--install-directory',
+  'nvm.sh',
+  '--no-use',
+  'set +euo pipefail',
+  'sudo -n corepack enable',
 ]) {
   if (!script.includes(needle)) err(`setup-cloud-environment.sh missing ${needle}`);
 }
@@ -200,6 +214,10 @@ if (/\|\s*true\b/.test(script) || /\|\s*:(\s|$)/.test(script)) {
 }
 if (/curl[^\n]*\|\s*sh/.test(script)) {
   err('setup-cloud-environment.sh must not pipe curl into sh');
+}
+const scriptSyntax = spawnSync('bash', ['-n', SCRIPT], { encoding: 'utf8' });
+if (scriptSyntax.status !== 0) {
+  err(`setup-cloud-environment.sh failed bash -n: ${scriptSyntax.stderr || scriptSyntax.stdout}`);
 }
 
 const lockdown = readFileSync(join(SKILL, 'scripts/lockdown-repo.sh'), 'utf8');
@@ -482,6 +500,133 @@ try {
   }
 } finally {
   rmSync(dir, { recursive: true, force: true });
+}
+
+function writeExec(dir, name, body) {
+  writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+}
+
+function runBootstrap({ home, cwd, pathDir, extraEnv = {} }) {
+  return spawnSync('bash', [SCRIPT], {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      PATH: `${pathDir}:/usr/bin:/bin`,
+      HOME: home,
+      LANG: 'C',
+      ...extraEnv,
+    },
+  });
+}
+
+const nvmDir = mkdtempSync(join(tmpdir(), 'safe-chain-nvm-'));
+try {
+  const home = join(nvmDir, 'home');
+  const nvm = join(home, '.nvm');
+  mkdirSync(nvm, { recursive: true });
+  writeFileSync(join(nvm, 'nvm.sh'), 'return 3\n');
+  writeFileSync(join(nvmDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(join(nvmDir, 'package.json'), JSON.stringify({ name: 'x' }));
+  writeFileSync(join(nvmDir, '.nvmrc'), 'v99.0.0\n');
+  const bin = join(nvmDir, 'bin');
+  mkdirSync(bin);
+  const result = runBootstrap({
+    home,
+    cwd: nvmDir,
+    pathDir: bin,
+    extraEnv: { NVM_DIR: nvm },
+  });
+  const out = `${result.stderr}${result.stdout}`;
+  if (result.status === 0) {
+    err('setup-cloud-environment.sh must not succeed without pnpm after nvm exit 3');
+  } else if (!/pnpm is required/.test(out)) {
+    err(`setup-cloud-environment.sh must survive nvm.sh exit 3 and reach the pnpm check (got ${result.status}: ${out})`);
+  }
+} finally {
+  rmSync(nvmDir, { recursive: true, force: true });
+}
+
+const corepackDir = mkdtempSync(join(tmpdir(), 'safe-chain-corepack-'));
+try {
+  const home = join(corepackDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(corepackDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(
+    join(corepackDir, 'package.json'),
+    JSON.stringify({ name: 'x', packageManager: 'pnpm@11.3.0' }),
+  );
+  const bin = join(corepackDir, 'bin');
+  mkdirSync(bin);
+  const log = join(corepackDir, 'corepack.log');
+  writeExec(
+    bin,
+    'corepack',
+    `printf '%s\\n' "$*" >> '${log.replace(/'/g, `'\\''`)}'
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--install-directory" ]; then
+    mkdir -p "$a"
+    exit 0
+  fi
+  prev=$a
+done
+echo 'Error: EACCES: permission denied, symlink ../lib/node_modules/corepack/dist/pnpm.js -> /usr/local/bin/pnpm' >&2
+exit 1`,
+  );
+  const result = runBootstrap({ home, cwd: corepackDir, pathDir: bin });
+  const out = `${result.stderr}${result.stdout}`;
+  const logged = readFileSync(log, 'utf8');
+  if (!logged.includes('--install-directory')) {
+    err(`setup-cloud-environment.sh must call corepack enable with --install-directory (got: ${logged || out})`);
+  }
+  if (result.status === 0) {
+    err('setup-cloud-environment.sh must not succeed without pnpm after corepack enable');
+  } else if (!/pnpm is required/.test(out)) {
+    err(
+      `setup-cloud-environment.sh must not abort on corepack EACCES; must reach the pnpm check (got ${result.status}: ${out})`,
+    );
+  }
+} finally {
+  rmSync(corepackDir, { recursive: true, force: true });
+}
+
+const sudoDir = mkdtempSync(join(tmpdir(), 'safe-chain-sudo-'));
+try {
+  const home = join(sudoDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(sudoDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(
+    join(sudoDir, 'package.json'),
+    JSON.stringify({ name: 'x', packageManager: 'pnpm@11.3.0' }),
+  );
+  const bin = join(sudoDir, 'bin');
+  mkdirSync(bin);
+  const sudoLog = join(sudoDir, 'sudo.log');
+  writeExec(bin, 'corepack', 'echo "Error: EACCES: permission denied" >&2; exit 1');
+  writeExec(
+    bin,
+    'sudo',
+    `printf '%s\\n' "$*" >> '${sudoLog.replace(/'/g, `'\\''`)}'
+if [ "$1" = "-n" ] && [ "$2" = "corepack" ] && [ "$3" = "enable" ]; then
+  exit 0
+fi
+exit 1`,
+  );
+  const result = runBootstrap({ home, cwd: sudoDir, pathDir: bin });
+  const out = `${result.stderr}${result.stdout}`;
+  const logged = readFileSync(sudoLog, 'utf8');
+  if (!logged.includes('-n corepack enable')) {
+    err(`setup-cloud-environment.sh must fall back to sudo -n corepack enable (got: ${logged || out})`);
+  }
+  if (result.status === 0) {
+    err('setup-cloud-environment.sh must not succeed without pnpm after sudo corepack enable');
+  } else if (!/pnpm is required/.test(out)) {
+    err(
+      `setup-cloud-environment.sh must reach the pnpm check after sudo corepack fallback (got ${result.status}: ${out})`,
+    );
+  }
+} finally {
+  rmSync(sudoDir, { recursive: true, force: true });
 }
 
 const checkNpmjsPath = join(SKILL, 'scripts/check-npmjs.sh');

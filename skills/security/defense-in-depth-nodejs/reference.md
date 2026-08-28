@@ -164,6 +164,12 @@ Dockerfile; never `:latest`) and installs GitHub CLI plus Docker via Dev Contain
 `ghcr.io/devcontainers/features/docker-in-docker:4`). Cursor uses a managed environment with only
 `install` (no `build`, no Dockerfile, no snapshot). Both invoke
 `bash ./scripts/setup-cloud-environment.sh` so the copied script does not need the executable bit.
+Leave `postCreateCommand` / `install` as that invocation — do not wrap it in `bash -i`,
+`source ~/.bashrc`, or `source "$NVM_DIR/nvm.sh"`. A fresh Codespace runs a non-interactive
+shell, so those only help an already-open terminal (`source ~/.bashrc` after a one-off run).
+The script sources nvm itself (`--no-use`, errexit off) so `nvm.sh`'s exit 3 (unmet `.nvmrc`)
+cannot abort setup, and enables Corepack into `~/.local/bin` (`--install-directory`, then
+`sudo -n corepack enable`) because the javascript-node image owns `/usr/local/bin` as root.
 The template snapshot is already 7-day-aged; refresh of that pin later is
 `dependency-management-node`, not this item.
 
