@@ -58,9 +58,10 @@ never copy or commit it into the target. **A repo admin runs apply last**, after
 applicable item including every `(manual)` task. `--check` during audit does not change that.
 
 1. **§ 1 Security docs** — scaffold/simplify `SECURITY.md`, scaffold `DEFENSE_IN_DEPTH.md`.
-2. **§ 2 CODEOWNERS and cloud bootstrap** — `.github/CODEOWNERS` (file PR); Aikido Safe Chain on
-   Codespaces and Cursor Cloud Agents (file PR; skip without `pnpm-lock.yaml`); Dev Container
-   `image` digest pin (file PR; skip without a `devcontainer.json`).
+2. **§ 2 CODEOWNERS and cloud bootstrap** — VS Code / Cursor automatic tasks off (manual); `.github/CODEOWNERS`
+   including `/.vscode/` (file PR); Aikido Safe Chain on Codespaces and Cursor Cloud Agents (file PR;
+   skip without `pnpm-lock.yaml`); Dev Container `image` digest pin (file PR; skip without a
+   `devcontainer.json`).
 3. **§ 3 Dependencies (pnpm)** — 7-day cooldown with no first-party excludes,
    `trustPolicy: no-downgrade`, blocked lifecycle scripts, frozen lockfile.
 4. **§ 4 GitHub Actions** — least-privilege permissions, no CI commit-back, actions-up SHA pinning,
