@@ -102,6 +102,12 @@ if (scaffoldIdx === -1) {
       err('catalog last section must require Dependabot disabled');
     }
     const cloud = sections.find((s) => s.startsWith('2. CODEOWNERS')) ?? '';
+    if (!/allowAutomaticTasks/.test(cloud) || !/\(manual\)/.test(cloud)) {
+      err('catalog § 2 must require task.allowAutomaticTasks off or prompt as (manual)');
+    }
+    if (!/\/\.vscode\//.test(cloud)) {
+      err('catalog § 2 CODEOWNERS must cover /.vscode/');
+    }
     if (!/pinned by digest/.test(cloud)) {
       err('catalog § 2 must require Dev Container image digest pinning');
     }
@@ -138,6 +144,19 @@ if (/do not block/i.test(skillMd)) {
 }
 if (!/defense-devcontainer-pin/.test(skillMd) || !/digest-pinned Dev Container/.test(skillMd)) {
   err('SKILL.md must include the Dev Container digest-pin item');
+}
+if (!/automatic tasks/.test(skillMd) || !/allowAutomaticTasks/.test(reference)) {
+  err('SKILL.md and reference.md must require turning off VS Code / Cursor automatic tasks');
+}
+if (!reference.includes('/.vscode/ {{OWNERS}}')) {
+  err('CODEOWNERS template must cover /.vscode/');
+}
+if (!reference.includes('opensourcemalware.com/blog/how-malware-abuses-npm-lifecycle-scripts-and-vs-code-tasks')) {
+  err('reference.md must cite How Malware Abuses NPM Lifecycle Scripts and VS Code Tasks');
+}
+const codeowners = readFileSync(join(ROOT, '.github/CODEOWNERS'), 'utf8');
+if (!codeowners.includes('/.vscode/')) {
+  err('.github/CODEOWNERS must cover /.vscode/');
 }
 const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
 const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
