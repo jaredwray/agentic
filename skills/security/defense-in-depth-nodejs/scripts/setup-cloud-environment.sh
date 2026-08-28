@@ -21,16 +21,13 @@ if [[ ! -f pnpm-lock.yaml ]]; then
   exit 1
 fi
 
-# javascript-node owns /usr/local/bin as root. Only enable Corepack when pnpm is
-# missing, and write shims to a user-writable directory to avoid EACCES.
 if ! command -v pnpm >/dev/null \
   && [[ -f package.json ]] \
   && grep -q '"packageManager"' package.json \
   && command -v corepack >/dev/null; then
-  corepack_shims="${HOME}/.local/bin"
-  mkdir -p "$corepack_shims"
-  corepack enable --install-directory "$corepack_shims"
-  export PATH="${corepack_shims}:${PATH}"
+  mkdir -p "$SAFE_CHAIN_BIN"
+  corepack enable --install-directory "$SAFE_CHAIN_BIN" pnpm
+  export PATH="${SAFE_CHAIN_BIN}:${PATH}"
 fi
 
 if ! command -v pnpm >/dev/null; then
@@ -44,12 +41,10 @@ trap 'rm -f "$installer"' EXIT
 curl -fsSL "$SAFE_CHAIN_INSTALLER_URL" -o "$installer"
 echo "${SAFE_CHAIN_INSTALLER_SHA256}  ${installer}" | sha256sum -c -
 
-# The pinned installer optionally scans NVM-managed global packages, but sourcing
-# Codespaces' nvm.sh can return 3 when no usable default version exists. Prevent
-# that optional cleanup from aborting setup; the standalone binary installed below
-# is placed ahead of any NVM-managed commands on PATH.
+# NVM auto-selects from the current directory when sourced. Run outside the
+# repository so .nvmrc cannot break the installer's optional legacy scan.
 (
-  unset NVM_DIR
+  cd /
   sh "$installer" --ci
 )
 
