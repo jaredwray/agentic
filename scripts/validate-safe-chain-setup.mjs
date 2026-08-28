@@ -16,7 +16,8 @@ const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
-const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
+const SHIM_PATH_EXPORT =
+  'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$HOME/.local/bin:$PATH"';
 const GITHUB_CLI_FEATURE = 'ghcr.io/devcontainers/features/github-cli:1';
 const DOCKER_IN_DOCKER_FEATURE = 'ghcr.io/devcontainers/features/docker-in-docker:4';
 const IMAGE_PIN_RE =

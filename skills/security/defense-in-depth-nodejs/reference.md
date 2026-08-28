@@ -174,10 +174,11 @@ The template snapshot is already 7-day-aged; refresh of that pin later is
 `dependency-management-node`, not this item.
 
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
-same `install` / `postCreateCommand` string must put the shims on `PATH` in that shell:
+same `install` / `postCreateCommand` string must put the shims and the Corepack bin dir on `PATH`
+in that shell (Safe Chain wraps `pnpm`; after EACCES the real shim lives in `~/.local/bin`):
 
 ```bash
-bash ./scripts/setup-cloud-environment.sh && export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH" && …
+bash ./scripts/setup-cloud-environment.sh && export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$HOME/.local/bin:$PATH" && …
 ```
 
 Merge — never blindly overwrite:
