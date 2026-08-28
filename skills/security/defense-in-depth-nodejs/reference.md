@@ -190,11 +190,17 @@ Greenfield templates: Codespaces uses a **digest-pinned**
 `mcr.microsoft.com/devcontainers/javascript-node:<version>-<variant>@sha256:<digest>` image (no
 Dockerfile; never `:latest`) and installs GitHub CLI plus Docker via Dev Container Features
 (`ghcr.io/devcontainers/features/github-cli:1` and
-`ghcr.io/devcontainers/features/docker-in-docker:4`). Cursor uses a managed environment with only
-`install` (no `build`, no Dockerfile, no snapshot). Both invoke
-`bash ./scripts/setup-cloud-environment.sh` so the copied script does not need the executable bit.
-The template snapshot is already 7-day-aged; refresh of that pin later is
-`dependency-management-node`, not this item.
+`ghcr.io/devcontainers/features/docker-in-docker:4` with `"moby": false` — Trixie has no Moby
+packages). Cursor uses a managed environment with only `install` (no `build`, no Dockerfile, no
+snapshot). Both invoke `bash ./scripts/setup-cloud-environment.sh` so the copied script does not
+need the executable bit. Leave `postCreateCommand` / `install` as that invocation — do not wrap it
+in `bash -i`, `source ~/.bashrc`, or `source "$NVM_DIR/nvm.sh"`. A fresh Codespace runs a
+non-interactive shell, so those only help an already-open terminal (`source ~/.bashrc` after a
+one-off run). If `pnpm` is missing, the script enables Corepack's `pnpm` shim into
+`~/.safe-chain/bin` (`--install-directory`) so it does not EACCES on the javascript-node image's
+root-owned `/usr/local/bin`. It runs the pinned installer from `/` so an in-repo `.nvmrc` cannot
+make NVM's optional legacy scan return 3. The template snapshot is already 7-day-aged; refresh of
+that pin later is `dependency-management-node`, not this item.
 
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
 same `install` / `postCreateCommand` string must put the shims on `PATH` in that shell:
@@ -208,7 +214,7 @@ Merge — never blindly overwrite:
 | File | Missing | Already present |
 | --- | --- | --- |
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
-| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
+| `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4` with `"moby": false`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
 | `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
 

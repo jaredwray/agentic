@@ -3,7 +3,7 @@
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,12 +50,17 @@ if (devcontainer) {
   if (devcontainer.postCreateCommand !== BOOTSTRAP) {
     err(`devcontainer.json postCreateCommand must be ${BOOTSTRAP}`);
   }
+  if (/bash\s+-i|nvm\.sh|source ~\/\.bashrc/.test(String(devcontainer.postCreateCommand))) {
+    err('devcontainer.json must not source nvm or bashrc; the bootstrap script handles that');
+  }
   const features = devcontainer.features ?? {};
   if (!Object.hasOwn(features, GITHUB_CLI_FEATURE)) {
     err(`devcontainer.json must install ${GITHUB_CLI_FEATURE}`);
   }
   if (!Object.hasOwn(features, DOCKER_IN_DOCKER_FEATURE)) {
     err(`devcontainer.json must install ${DOCKER_IN_DOCKER_FEATURE}`);
+  } else if (features[DOCKER_IN_DOCKER_FEATURE]?.moby !== false) {
+    err('devcontainer.json docker-in-docker must set moby: false (Trixie has no Moby packages)');
   }
 }
 
@@ -173,6 +178,18 @@ if (!/Never copy or commit/.test(reference) || !/admin runs it last/.test(refere
 if (!reference.includes(BOOTSTRAP)) {
   err(`reference.md must invoke the bootstrap with ${BOOTSTRAP}`);
 }
+if (!reference.includes('--install-directory') || !reference.includes('~/.safe-chain/bin')) {
+  err('reference.md must document Corepack --install-directory into ~/.safe-chain/bin');
+}
+if (!reference.includes('.nvmrc') || !reference.includes('from `/`')) {
+  err('reference.md must document running the installer from / so .nvmrc cannot break NVM');
+}
+if (!/"moby": false/.test(reference)) {
+  err('reference.md must set docker-in-docker moby: false');
+}
+if (/bash\s+-i/.test(reference) && !/do not wrap/.test(reference)) {
+  err('reference.md must not recommend bash -i for postCreateCommand');
+}
 if (!reference.includes(GITHUB_CLI_FEATURE)) {
   err(`reference.md must mention ${GITHUB_CLI_FEATURE}`);
 }
@@ -211,14 +228,38 @@ for (const needle of [
   'pnpm safe-chain-verify',
   'pnpm install --frozen-lockfile',
   'pnpm-lock.yaml',
+  '--install-directory',
+  'cd /',
 ]) {
   if (!script.includes(needle)) err(`setup-cloud-environment.sh missing ${needle}`);
+}
+if (!/^export SAFE_CHAIN_VERSION=/m.test(script)) {
+  err('setup-cloud-environment.sh must export SAFE_CHAIN_VERSION for the installer child process');
+}
+if (!/corepack enable --install-directory "\$SAFE_CHAIN_BIN" pnpm/.test(script)) {
+  err('setup-cloud-environment.sh must enable Corepack pnpm into SAFE_CHAIN_BIN');
+}
+if (script.includes('unset NVM_DIR')) {
+  err('setup-cloud-environment.sh must not unset NVM_DIR; cd / so .nvmrc cannot break the installer');
+}
+if (/sudo\s+.*corepack/.test(script)) {
+  err('setup-cloud-environment.sh must not sudo corepack; use --install-directory');
+}
+if (/set \+euo pipefail/.test(script) || /\.\s+"\$nvm_script"/.test(script) || /source .*nvm\.sh/.test(script)) {
+  err('setup-cloud-environment.sh must not source nvm.sh; run the installer from / instead');
+}
+if (script.includes('.local/bin')) {
+  err('setup-cloud-environment.sh must put Corepack shims in SAFE_CHAIN_BIN, not ~/.local/bin');
 }
 if (/\|\s*true\b/.test(script) || /\|\s*:(\s|$)/.test(script)) {
   err('setup-cloud-environment.sh must not fall back with || true');
 }
 if (/curl[^\n]*\|\s*sh/.test(script)) {
   err('setup-cloud-environment.sh must not pipe curl into sh');
+}
+const scriptSyntax = spawnSync('bash', ['-n', SCRIPT], { encoding: 'utf8' });
+if (scriptSyntax.status !== 0) {
+  err(`setup-cloud-environment.sh failed bash -n: ${scriptSyntax.stderr || scriptSyntax.stdout}`);
 }
 
 const lockdown = readFileSync(join(SKILL, 'scripts/lockdown-repo.sh'), 'utf8');
@@ -501,6 +542,153 @@ try {
   }
 } finally {
   rmSync(dir, { recursive: true, force: true });
+}
+
+function writeExec(dir, name, body) {
+  writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+}
+
+function runBootstrap({ home, cwd, pathDir, extraEnv = {} }) {
+  return spawnSync('bash', [SCRIPT], {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      PATH: `${pathDir}:/usr/bin:/bin`,
+      HOME: home,
+      LANG: 'C',
+      ...extraEnv,
+    },
+  });
+}
+
+const nvmDir = mkdtempSync(join(tmpdir(), 'safe-chain-nvm-'));
+try {
+  const home = join(nvmDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(nvmDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(join(nvmDir, 'package.json'), JSON.stringify({ name: 'x' }));
+  writeFileSync(join(nvmDir, '.nvmrc'), 'v99.0.0\n');
+  const bin = join(nvmDir, 'bin');
+  mkdirSync(bin);
+  writeExec(bin, 'pnpm', 'exit 0');
+  writeExec(
+    bin,
+    'curl',
+    `out=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then out=$a; fi
+  prev=$a
+done
+printf '%s\\n' '#!/bin/sh
+if [ -f .nvmrc ]; then
+  echo "installer ran in repo" >&2
+  exit 3
+fi
+mkdir -p "$HOME/.safe-chain/shims" "$HOME/.safe-chain/bin"
+exit 0' > "$out"`,
+  );
+  writeExec(bin, 'sha256sum', 'exit 0');
+  const result = runBootstrap({
+    home,
+    cwd: nvmDir,
+    pathDir: bin,
+    extraEnv: { NVM_DIR: '/tmp/fake-nvm' },
+  });
+  const out = `${result.stderr}${result.stdout}`;
+  if (result.status !== 0) {
+    err(`setup-cloud-environment.sh must run the installer from / so .nvmrc cannot abort it (got ${result.status}: ${out})`);
+  }
+} finally {
+  rmSync(nvmDir, { recursive: true, force: true });
+}
+
+const corepackDir = mkdtempSync(join(tmpdir(), 'safe-chain-corepack-'));
+try {
+  const home = join(corepackDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(corepackDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(
+    join(corepackDir, 'package.json'),
+    JSON.stringify({ name: 'x', packageManager: 'pnpm@11.3.0' }),
+  );
+  const bin = join(corepackDir, 'bin');
+  mkdirSync(bin);
+  const log = join(corepackDir, 'corepack.log');
+  writeExec(
+    bin,
+    'corepack',
+    `printf '%s\\n' "$*" >> '${log.replace(/'/g, `'\\''`)}'
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--install-directory" ]; then
+    mkdir -p "$a"
+    exit 0
+  fi
+  prev=$a
+done
+echo 'Error: EACCES: permission denied, symlink ../lib/node_modules/corepack/dist/pnpm.js -> /usr/local/bin/pnpm' >&2
+exit 1`,
+  );
+  const result = runBootstrap({ home, cwd: corepackDir, pathDir: bin });
+  const out = `${result.stderr}${result.stdout}`;
+  const logged = readFileSync(log, 'utf8');
+  if (!logged.includes('--install-directory') || !logged.includes('.safe-chain/bin') || !/\bpnpm\b/.test(logged)) {
+    err(`setup-cloud-environment.sh must enable Corepack pnpm into ~/.safe-chain/bin (got: ${logged || out})`);
+  }
+  if (logged.includes('.local/bin')) {
+    err('setup-cloud-environment.sh must not install Corepack shims into ~/.local/bin');
+  }
+  if (result.status === 0) {
+    err('setup-cloud-environment.sh must not succeed without pnpm after corepack enable');
+  } else if (!/pnpm is required/.test(out)) {
+    err(
+      `setup-cloud-environment.sh must not abort on corepack EACCES; must reach the pnpm check (got ${result.status}: ${out})`,
+    );
+  }
+} finally {
+  rmSync(corepackDir, { recursive: true, force: true });
+}
+
+const skipCorepackDir = mkdtempSync(join(tmpdir(), 'safe-chain-skip-corepack-'));
+try {
+  const home = join(skipCorepackDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(skipCorepackDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(
+    join(skipCorepackDir, 'package.json'),
+    JSON.stringify({ name: 'x', packageManager: 'pnpm@11.3.0' }),
+  );
+  const bin = join(skipCorepackDir, 'bin');
+  mkdirSync(bin);
+  const log = join(skipCorepackDir, 'corepack.log');
+  writeFileSync(log, '');
+  writeExec(bin, 'pnpm', 'exit 0');
+  writeExec(bin, 'corepack', `printf '%s\\n' "$*" >> '${log.replace(/'/g, `'\\''`)}'; exit 1`);
+  writeExec(
+    bin,
+    'curl',
+    `out=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then out=$a; fi
+  prev=$a
+done
+printf '%s\\n' '#!/bin/sh
+mkdir -p "$HOME/.safe-chain/shims" "$HOME/.safe-chain/bin"
+exit 0' > "$out"`,
+  );
+  writeExec(bin, 'sha256sum', 'exit 0');
+  const result = runBootstrap({ home, cwd: skipCorepackDir, pathDir: bin });
+  const out = `${result.stderr}${result.stdout}`;
+  if (result.status !== 0) {
+    err(`setup-cloud-environment.sh must skip corepack when pnpm is already on PATH (got ${result.status}: ${out})`);
+  }
+  if (readFileSync(log, 'utf8').trim() !== '') {
+    err('setup-cloud-environment.sh must not call corepack enable when pnpm is already on PATH');
+  }
+} finally {
+  rmSync(skipCorepackDir, { recursive: true, force: true });
 }
 
 const checkNpmjsPath = join(SKILL, 'scripts/check-npmjs.sh');
