@@ -258,6 +258,26 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 **For override updates**, the package is usually transitive and will not appear in `pnpm outdated`. The target is the version `pnpm install` resolves from the registry after putting the override back as `>=<current>` on the post-remove lockfile — that resolution already applies `minimumReleaseAge`. Do not look up versions on npm, GitHub, or CHANGELOGs.
 
+### Drydock artifact diffs in the PR body
+
+For every npm package the PR bumps (upgrade groups and override updates alike), add an
+**Artifact diffs** list to the PR body linking [Drydock](https://drydock.org)'s published-package
+diff for that exact version pair:
+
+```
+## Artifact diffs
+- [eslint 9.30.0 → 9.34.0](https://drydock.org/diff/eslint/9.30.0/9.34.0)
+- [@types/node 22.15.0 → 22.18.1](https://drydock.org/diff/@types/node/22.15.0/22.18.1)
+```
+
+The URL is `https://drydock.org/diff/<name>/<from>/<to>` — scoped names keep their `@scope/`
+prefix, and `<from>`/`<to>` are the exact old and new versions from the diff. These pages diff
+the published artifacts (install scripts, bundled output, files that never lived in git), which
+is what a PR diff of `package.json` + lockfile cannot show. They are public and deterministic —
+no account or token, and nothing contacts Drydock unless a reviewer clicks. Only link pairs of
+two distinct published registry versions: skip GitHub Actions, Docker / Dev Container image
+groups, and anything resolved from git. No link beats a confidently wrong one.
+
 ### Title prefixes
 
 Per `pr-conventions` → Prefix scheme for the automated ops loops.

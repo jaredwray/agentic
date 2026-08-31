@@ -298,8 +298,11 @@ allowBuilds: {}
 - No Dependabot. Do not add `.github/dependabot.yml`. GitHub-native alerts and security-update
   PRs are disabled in § 7. Aikido already does CVE/SCA and Socket already reviews dependency
   diffs; a third overlapping scanner is noise, not an independent control. If another updater
-  (Renovate) is already configured, it opens PRs through normal review — never auto-merge. Don't
-  add one where none exists.
+  (Renovate) is already configured, it opens PRs through normal review — never auto-merge — and
+  extending it with Drydock's `github>JoviDeCroock/drydock//renovate/diff-links` preset (listed
+  after the base presets) adds a published-artifact diff link to every npm update row: public
+  pages, no account or token, nothing contacted until a reviewer clicks. Don't add an updater
+  where none exists.
 
 ## 4. GitHub Actions
 
@@ -515,7 +518,21 @@ npmjs.com setup (manual, per package): configure the trusted publisher (GitHub A
 exact repo, workflow filename matching the file that stages — `release.yaml` for the template
 below — and environment if the job uses one) as **stage-only**, connect Drydock, then set
 **Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
-provenance maps to the repo.
+provenance maps to the repo. The stage-only publisher can be created from the CLI
+(`npm trust github <pkg> --repo <owner>/<repo> --file release.yaml --allow-stage-publish`,
+npm ≥ 11.15.0, package must already exist) — omitting `--allow-publish` is what makes it unable
+to publish live.
+
+Connecting Drydock (manual, once per publishing npm account/org): create a
+[Drydock](https://drydock.org/docs) organization, then on npmjs.com generate a **granular access
+token** scoped to **Packages and scopes: Read-only** on the packages you stage and
+**Organizations: No access**, and paste it into Drydock's *Organization settings → npm access*.
+Drydock discovers staged versions on its own from there — no webhook, no CI step, and the token
+only lets it read release evidence; publish credentials never leave npm. Do not hand it a classic
+or read-write token. After each review, record the decision in Drydock, then approve or reject
+the staged version on npm with 2FA (npm's staged-packages page, or the stage approve/reject
+command Drydock shows after you save the decision) — promotion itself always happens on npm,
+never in Drydock.
 
 Audit those registry settings with
 [`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh). **Never copy or commit it into the
@@ -775,6 +792,7 @@ Notes:
 - npm `trust` CLI: https://docs.npmjs.com/cli/v12/commands/npm-trust/
 - npm registry API (trust + access): https://api-docs.npmjs.com/
 - Drydock: https://drydock.org/
+- Drydock docs (Stage Watchtower setup, Workflow Gate, dependency diff links): https://drydock.org/docs
 - actions-up: https://github.com/azat-io/actions-up
 - zizmor: https://docs.zizmor.sh/
 - Socket: https://socket.dev/

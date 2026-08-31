@@ -1,6 +1,6 @@
 ---
 name: release-management-nodejs
-description: Roll out a hardened npm release pipeline — signer policy, signed release intent, npm trusted publishing, verification gates — one improvement per PR across a strict 4-phase rollout, with status tracked in the target repo's DEFENSE_IN_DEPTH.md. Use when asked to harden npm publishing, set up trusted publishing or release signing, or secure the release pipeline for high-impact packages. Manual, resumable, one PR at a time.
+description: Roll out a hardened npm release pipeline — signer policy, signed release intent, stage-only npm trusted publishing with Drydock artifact review before 2FA promotion, verification gates — one improvement per PR across a strict 4-phase rollout, with status tracked in the target repo's DEFENSE_IN_DEPTH.md. Use when asked to harden npm publishing, set up trusted publishing or release signing, or secure the release pipeline for high-impact packages. Manual, resumable, one PR at a time.
 disable-model-invocation: true
 user-invocable: true
 allowed-tools: [Bash, Read, Edit, Write]
@@ -22,7 +22,7 @@ Operation manual for rolling out a hardened npm release pipeline (signer policy,
 
 **Scope:** npm package releases for high-impact OSS projects such as Keyv, Cacheable, flat-cache, file-entry-cache, and related packages.
 
-**Summary:** use the best of both worlds — GitHub Actions and npm trusted publishing provide build/publish provenance, while a non-GitHub maintainer signature proves human release approval. A release proceeds only when at least one approved maintainer signs the exact release intent. GitHub is the build system, not the human root of trust.
+**Summary:** use the best of both worlds — GitHub Actions and npm trusted publishing provide build/publish provenance, while a non-GitHub maintainer signature proves human release approval. A release proceeds only when at least one approved maintainer signs the exact release intent. GitHub is the build system, not the human root of trust. CI's publish authority is **stage-only**: a run lands the version in npm's staging queue, [Drydock](https://drydock.org) reviews the exact staged artifact, and a maintainer promotes it with 2FA — CI can never make a version public on its own.
 
 See [§ 1 Release Trust Model](./reference.md#1-release-trust-model) for the underlying model that the rest of the manual implements.
 
@@ -68,16 +68,18 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 ### Phase 3: Pilot package
 - [ ] Pilot package selected (record name here)
 - [ ] `npm-publish` protected environment created on GitHub (manual)
-- [ ] npm trusted publisher configured for the pilot (provider GitHub Actions, exact repo, workflow `publish.yml`, environment `npm-publish`) (manual)
+- [ ] npm trusted publisher configured **stage-only** for the pilot (provider GitHub Actions, exact repo, workflow `publish.yml`, environment `npm-publish`; staging permission only, never live publish — [reference.md § 16](./reference.md#16-npm-trusted-publishing-configuration)) (manual)
+- [ ] Drydock connected — staged pilot versions reviewed before promotion (manual)
 - [ ] Package `repository.url` confirmed accurate
 - [ ] `.github/workflows/publish.yml` added per the [reference.md § 14](./reference.md#14-github-actions-publish-workflow) template (all action refs replaced with full commit SHAs; `firewall-version` pinned)
 - [ ] Signed release intent prepared for the pilot's first release (`.release/<pkg>/<version>/release-intent.json` + approved maintainer signature bundle)
-- [ ] Test release run on a prerelease tag (`<pkg>@x.y.z-test.0`)
-- [ ] npm provenance verified on the published prerelease
+- [ ] Test release staged on a prerelease tag (`<pkg>@x.y.z-test.0`) — lands in the staging queue, not live
+- [ ] Staged prerelease reviewed in Drydock and promoted with 2FA (manual)
+- [ ] npm provenance verified on the promoted prerelease
 - [ ] Negative test: signer gate fails when signature is removed
 - [ ] Negative test: signer gate fails when manifest is modified after signing
 - [ ] Negative test: signer gate fails when signer is not allowlisted
-- [ ] After trusted publisher works: npm package setting **Require two-factor authentication and disallow tokens** applied (manual)
+- [ ] After the staged flow works end to end: npm package setting **Require two-factor authentication and disallow tokens** applied (manual)
 - [ ] Pre-existing npm publish tokens for the pilot revoked (manual)
 
 ### Phase 4: Expand
@@ -85,7 +87,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 - [ ] Consumer verification statement added to `SECURITY.md` per [reference.md § 18](./reference.md#18-consumer-verification-statement)
 - [ ] Release verification instructions mirrored to `jaredwray.com`
 - [ ] Release signature bundles and SHA256 digests mirrored to `jaredwray.com`
-- [ ] (Optional) Custom deployment protection rule added to the `npm-publish` environment
+- [ ] (Optional) Drydock Workflow Gate added to the `npm-publish` environment as a custom deployment protection rule ([reference.md § 15](./reference.md#15-github-environment-npm-publish)) (manual)
 - [ ] Socket Gateway evaluated in report-only mode
 ```
 
@@ -97,7 +99,7 @@ Phase 1 → 2 → 3 → 4 in strict order. A phase is complete only when every i
 
 **Phase 2 — Signing policy.** Mostly auto (policy file, signed policy bundle, verification scripts, dry-run workflow). Two manual items at the top: creating the release identity and enforcing 2SV. The agent records these and stops if it reaches them without them being checked.
 
-**Phase 3 — Pilot package.** Mixed. Auto items: package selection (recorded in `DEFENSE_IN_DEPTH.md`), publish workflow, signed release intent, test release, negative tests. Manual items: GitHub environment creation, npm trusted publisher config, post-rollout npm 2FA setting and token revocation.
+**Phase 3 — Pilot package.** Mixed. Auto items: package selection (recorded in `DEFENSE_IN_DEPTH.md`), publish workflow, signed release intent, staged test release, negative tests. Manual items: GitHub environment creation, stage-only npm trusted publisher config, Drydock connection, reviewing and promoting the staged prerelease, post-rollout npm 2FA setting and token revocation.
 
 **Phase 4 — Expand.** Mostly auto (onboarding each remaining package follows the Phase 3 pattern). Some items are external (mirror docs to `jaredwray.com`, evaluate Socket Gateway).
 

@@ -139,8 +139,8 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `submit-pr` | Open/update one PR — Conventional-Commit title, readable body, driven to green CI, then watch reviews. |
 | `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. |
 | `migrations` | Set up MongoDB migrations with migrate-mongo (changelog ledger, single-writer lock, file-hash change detection, dry-run/plan, `migrate:development`/`migrate:production` scripts) or conform to an existing tool, then author idempotent data/index migrations one PR at a time. |
-| `release-management-nodejs` | Roll out a hardened npm publish pipeline (signing, trusted publishing) one PR at a time. |
-| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — overrides first, then the dev phase before runtime, including digest-pinned Dev Container images on a 7-day age gate. |
+| `release-management-nodejs` | Roll out a hardened npm release pipeline (signing, stage-only trusted publishing, Drydock artifact review before 2FA promotion) one PR at a time. |
+| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — overrides first, then the dev phase before runtime, including digest-pinned Dev Container images on a 7-day age gate; every npm bump links its Drydock artifact diff. |
 | `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time, respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins. |
 | `resolve-merge-conflicts` | Resolve merge/rebase conflicts preserving both sides' intent, verified before continuing. |
 
