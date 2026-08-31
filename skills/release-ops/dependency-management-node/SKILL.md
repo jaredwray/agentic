@@ -258,28 +258,15 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 **For override updates**, the package is usually transitive and will not appear in `pnpm outdated`. The target is the version `pnpm install` resolves from the registry after putting the override back as `>=<current>` on the post-remove lockfile — that resolution already applies `minimumReleaseAge`. Do not look up versions on npm, GitHub, or CHANGELOGs.
 
-### Drydock artifact diffs in the PR body
+### Drydock artifact diffs
 
-For every npm package the PR bumps (upgrade groups and override updates alike), add an
-**Artifact diffs** list to the PR body linking [Drydock](https://drydock.org)'s published-package
-diff for that exact version pair:
-
-```
-## Artifact diffs
-- [eslint 9.30.0 → 9.34.0](https://drydock.org/diff/eslint/9.30.0/9.34.0)
-- [@types/node 22.15.0 → 22.18.1](https://drydock.org/diff/@types/node/22.15.0/22.18.1)
-```
-
-The URL is `https://drydock.org/diff/<name>/<from>/<to>` — scoped names keep their `@scope/`
-prefix, and `<from>`/`<to>` are the exact old and new versions from the diff. These pages diff
-the published artifacts (install scripts, bundled output, files that never lived in git), which
-is what a PR diff of `package.json` + lockfile cannot show. They are public and deterministic —
-no account or token, and nothing contacts Drydock unless a reviewer clicks. Link only packages
-publicly readable on the npmjs.org registry, as pairs of two distinct published versions. Skip
-private packages and anything resolved from a private or custom registry — the public diff page
-cannot fetch those artifacts, and the URL alone would hand the private package name and versions
-to a third party — plus GitHub Actions, Docker / Dev Container image groups, and anything
-resolved from git. No link beats a confidently wrong one.
+For each npm package the PR bumps, add an **Artifact diffs** list to the PR body:
+`- [eslint 9.30.0 → 9.34.0](https://drydock.org/diff/eslint/9.30.0/9.34.0)` — the URL is
+`https://drydock.org/diff/<name>/<from>/<to>` (scoped names keep `@scope/`). It diffs the
+published artifacts, which the `package.json` + lockfile diff cannot show; nothing contacts
+Drydock until a reviewer clicks. Link only npmjs.org-public packages with two distinct published
+versions: skip private packages and custom registries (the URL would leak the name and fetch
+nothing), image and Actions groups, and anything resolved from git.
 
 ### Title prefixes
 

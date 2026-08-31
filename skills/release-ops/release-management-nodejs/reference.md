@@ -4,13 +4,12 @@ The remaining sections are the implementation spec for items in the rollout. Sec
 
 ## 1. Release Trust Model
 
-A valid release should prove five distinct things:
+A valid release should prove four distinct things:
 
 1. **Maintainer approval:** at least one approved maintainer signed the release intent using a non-GitHub identity.
 2. **Build provenance:** the package was built and staged from the expected GitHub repo, workflow, tag, and protected environment.
-3. **Artifact review:** the exact staged tarball was diffed against the previous release and a human promoted it — CI's publish authority is stage-only, so no version goes live without that promotion.
-4. **Registry integrity:** the tarball served by npm has not been tampered with after publication.
-5. **Dependency determinism:** the release used the committed lockfile and `sfw pnpm install --frozen-lockfile`.
+3. **Registry integrity:** the tarball served by npm has not been tampered with after publication.
+4. **Dependency determinism:** the release used the committed lockfile and `sfw pnpm install --frozen-lockfile`.
 
 This intentionally separates trust roots:
 
@@ -18,15 +17,15 @@ This intentionally separates trust roots:
 |---|---|---|---|
 | Maintainer signature | Google OIDC or pinned release key | An approved maintainer authorized this release intent | That GitHub built it correctly |
 | Git signed tag | Maintainer git signing key | The release tag was intentionally created | That the CI workflow is safe |
-| npm trusted publishing (stage-only) | GitHub Actions OIDC bound to npm | The staged version came from the configured workflow/environment, and CI could not publish it live | That the GitHub account/workflow was not compromised |
-| Drydock review + 2FA promotion | npm staging queue + Drydock report + maintainer 2FA | A human saw the exact artifact's diff against the last release before it went live | That the reviewer caught everything |
+| npm trusted publishing (stage-only) | GitHub Actions OIDC bound to npm | The staged version came from the configured workflow/environment | That the GitHub account/workflow was not compromised |
+| Drydock review + 2FA promotion | npm staging queue + maintainer 2FA | A human reviewed the exact artifact's diff before it went live | That the reviewer caught everything |
 | npm provenance | npm/Sigstore provenance | Where/how the package was built | That the code is benign |
 | npm registry signature | npm registry | npm-served package integrity | That the release was approved |
 | pnpm frozen lockfile | repo lockfile | No dependency resolution drift during CI | That dependencies are safe |
 
 ## 2. Release Invariants
 
-Every package release must satisfy these invariants before CI stages a version — and nothing goes live until a maintainer promotes the staged artifact:
+Every package release must satisfy these invariants before CI stages a version:
 
 - [ ] The release is triggered by a release tag only.
 - [ ] The release tag verifies with `git tag -v`.
@@ -42,8 +41,8 @@ Every package release must satisfy these invariants before CI stages a version �
 - [ ] Every third-party GitHub Action is pinned to a full commit SHA.
 - [ ] `id-token: write` exists only on the publish job.
 - [ ] The publish job uses the `npm-publish` protected environment.
-- [ ] npm trusted publishing is configured **stage-only** to the exact repo, workflow filename, and environment — `createStagedPackage` permission only, never live `createPackage` (§ 16).
-- [ ] CI runs `pnpm stage publish` only; promotion to the live registry is a human action with 2FA after Drydock review of the staged artifact.
+- [ ] npm trusted publishing is configured **stage-only** (`createStagedPackage`, § 16) to the exact repo, workflow filename, and environment.
+- [ ] CI only stages; a maintainer promotes with 2FA after Drydock review.
 - [ ] No npm publish token is present in GitHub Actions.
 
 ## 3. Release Modes
@@ -54,9 +53,9 @@ Use for packages where npm provenance is valuable and the workflow is hardened.
 
 Required:
 
-- npm trusted publishing configured **stage-only** (§ 16) — CI can stage, never publish live.
-- GitHub Actions publish job with OIDC that stages the packed tarball.
-- Drydock review of the staged artifact, then maintainer promotion with 2FA (defense-in-depth-nodejs § 5 owns the Drydock connection).
+- npm trusted publishing configured **stage-only** (§ 16).
+- GitHub Actions publish job with OIDC.
+- Drydock review of the staged artifact, then maintainer promotion with 2FA.
 - npm provenance generated automatically by trusted publishing where supported.
 - At least one approved maintainer signature over `release-intent.json`.
 - Protected `npm-publish` environment.
@@ -672,38 +671,23 @@ Checklist:
 - [ ] Admin bypass disabled for release packages.
 - [ ] Branch/tag restriction limited to release tags.
 - [ ] No long-lived npm publish token stored in the environment.
-- [ ] Optional: custom deployment protection rule that independently reviews the release before the job in this environment runs.
+- [ ] Optional: [Drydock's Workflow Gate](https://drydock.org/docs) as a custom deployment protection rule — Drydock's GitHub App enabled on this environment and mapped to the repo in Drydock's settings.
 
-For that optional rule, [Drydock's Workflow Gate](https://drydock.org/docs) is the available
-implementation: install the Drydock GitHub App on the account, enable Drydock as the environment's
-deployment protection rule, and map the repo + environment in Drydock's organization settings.
+The gate requires splitting § 14 first: environment protection rules run **before any step of the
+gated job**, so pack + `SHA256SUMS` move to an ungated job that uploads `dist/` as a workflow
+artifact, and the gated `publish` job only downloads, runs `sha256sum --check --strict SHA256SUMS`,
+and stages those exact files — never rebuild after approval. Drydock reviews the uploaded
+artifacts and fails closed.
 
-Enabling it requires restructuring the § 14 workflow first. Environment protection rules are
-evaluated **before any step of the gated job runs**, and § 14 as written packs inside the gated
-`publish` job — so at gate time no artifact exists, Drydock finds nothing to review, and (failing
-closed) the release stays blocked. Split the job in the same PR that enables the gate: move
-checkout, install, test, build, and the pack + `SHA256SUMS` steps into an ungated `build-artifacts`
-job that ends by uploading `dist/` with SHA-pinned `actions/upload-artifact`; the gated `publish`
-job keeps only `environment: npm-publish`, `id-token: write`, the artifact download,
-`sha256sum --check --strict SHA256SUMS`, and the stage step on those exact downloaded files —
-never rebuild after approval. GitHub then pauses the publish job at the environment, Drydock
-reviews the uploaded artifacts, and holds the job until a maintainer approves; an unverifiable
-review keeps the job blocked, never a silent pass. This is defense in depth on top of the
-staged-publish review, not a replacement: Stage Watchtower reviews what npm holds; the Workflow
-Gate stops the job before CI even stages.
-
-The custom deployment protection rule is a later hardening step. The first implementation can rely on the workflow verification gate, the protected environment, and Drydock review of the staged artifact.
+The custom deployment protection rule is a later hardening step. The first implementation can rely on the workflow verification gate plus protected environment.
 
 ## 16. npm Trusted Publishing Configuration
 
-For each package using Mode A, the trusted publisher must be **stage-only**: it lets the workflow
-stage a version and never publish one live. A publisher created with publish permission (the UI
-default, or `--allow-publish`) defeats the review gate — a compromised workflow could ship
-directly — and `check-npmjs.sh` (defense-in-depth-nodejs § 5) fails it, along with legacy
-publishers that predate the permissions field.
+For each package using Mode A, the trusted publisher is **stage-only** — a publisher with publish
+permission (the npmjs.com UI default, or `--allow-publish`) defeats the review gate, and
+`check-npmjs.sh` (defense-in-depth-nodejs § 5) fails it.
 
-- [ ] Create the stage-only publisher with the npm CLI (requires `npm` ≥ 11.15.0, account 2FA,
-      write access, and the package must already exist on the registry):
+- [ ] Create the publisher (npm ≥ 11.15.0; the package must already exist):
 
   ```bash
   npm trust github <package> \
@@ -713,23 +697,15 @@ publishers that predate the permissions field.
     --allow-stage-publish
   ```
 
-  Omitting `--allow-publish` is the point: at least one permission flag is required, so passing
-  only `--allow-stage-publish` produces a publisher that can stage but cannot publish. The
-  registry allows one trusted publisher per package — replace an existing one via
-  `npm trust list <package>` then `npm trust revoke --id <id> <package>`. (Configuring through
-  the npmjs.com UI instead: provider GitHub Actions, expected GitHub owner, exact repo, workflow
-  filename `publish.yml`, environment `npm-publish`, staging permission only.)
+  One trusted publisher exists per package — replace via `npm trust list <package>` then
+  `npm trust revoke --id <id> <package>`. UI equivalent: provider GitHub Actions, exact repo,
+  workflow `publish.yml`, environment `npm-publish`, staging permission only.
 - [ ] Confirm package `repository.url` points to the same repo.
-- [ ] Confirm the staged path works: a prerelease tag lands the version in the staging queue and
-      does **not** go live; the pilot's provenance check happens after a maintainer promotes it.
-- [ ] Connect Drydock so staged versions are reviewed before promotion — token scoping and setup
-      live in defense-in-depth-nodejs § 5.
+- [ ] Confirm a prerelease tag stages without going live.
+- [ ] Connect Drydock (token scoping in defense-in-depth-nodejs § 5).
 - [ ] Set package publishing access to **Require two-factor authentication and disallow tokens**.
-      That removes token publish paths, leaving the stage-only OIDC exchange as CI's only
-      credentialed route; the maintainer's interactive 2FA publish path is what promotion uses.
 - [ ] Revoke old npm publish tokens.
-- [ ] Verify with `check-npmjs.sh` — trusted-publisher `permissions` must be
-      `["createStagedPackage"]` only.
+- [ ] `check-npmjs.sh` passes — publisher `permissions` is `["createStagedPackage"]` only.
 
 ## 17. What Gets Published
 
@@ -797,20 +773,13 @@ it, so the two can never drift apart.
 
 ### If Drydock flags a staged version
 
-- [ ] Pause — do not promote while any finding is unadjudicated. A finding is evidence, not a
-      verdict: open the pinned diff and decide whether the behavior is intended.
-- [ ] Intended and explained (a dependency this release deliberately adds, a file a build change
-      now produces) → record the decision and the reason in Drydock, then promote with 2FA as
-      normal. An adjudicated finding does not block the release.
-- [ ] Unexplained (a lifecycle script, network call, or binary nobody can account for) → reject
-      the staged version on npm and treat it as a potential build-path compromise: freeze
-      publishes, audit the workflow run, recent commits, and dependency changes since the last
-      release.
-- [ ] If malicious content is confirmed, follow the compromise checklist below (credentials,
-      audit, advisory).
-- [ ] A rejected stage is not a release: fix, re-sign the release intent for the new version, and
-      stage fresh. Never promote a version with unadjudicated findings, and never re-stage the
-      same bytes to get a clean report.
+- [ ] Pause until every finding is adjudicated — a finding is evidence, not a verdict.
+- [ ] Intended → record the decision in Drydock and promote with 2FA as normal.
+- [ ] Unexplained → reject the staged version on npm and treat it as a potential build-path
+      compromise: freeze publishes, audit the workflow run, recent commits, and dependency
+      changes; if malware is confirmed, follow the compromise steps below.
+- [ ] A rejected stage is not a release: fix, re-sign the release intent, stage fresh — never
+      re-stage the same bytes.
 
 ### If npm shows a version without a valid release intent
 
