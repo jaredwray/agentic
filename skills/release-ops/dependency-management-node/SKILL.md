@@ -274,9 +274,12 @@ The URL is `https://drydock.org/diff/<name>/<from>/<to>` — scoped names keep t
 prefix, and `<from>`/`<to>` are the exact old and new versions from the diff. These pages diff
 the published artifacts (install scripts, bundled output, files that never lived in git), which
 is what a PR diff of `package.json` + lockfile cannot show. They are public and deterministic —
-no account or token, and nothing contacts Drydock unless a reviewer clicks. Only link pairs of
-two distinct published registry versions: skip GitHub Actions, Docker / Dev Container image
-groups, and anything resolved from git. No link beats a confidently wrong one.
+no account or token, and nothing contacts Drydock unless a reviewer clicks. Link only packages
+publicly readable on the npmjs.org registry, as pairs of two distinct published versions. Skip
+private packages and anything resolved from a private or custom registry — the public diff page
+cannot fetch those artifacts, and the URL alone would hand the private package name and versions
+to a third party — plus GitHub Actions, Docker / Dev Container image groups, and anything
+resolved from git. No link beats a confidently wrong one.
 
 ### Title prefixes
 

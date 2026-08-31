@@ -677,14 +677,20 @@ Checklist:
 For that optional rule, [Drydock's Workflow Gate](https://drydock.org/docs) is the available
 implementation: install the Drydock GitHub App on the account, enable Drydock as the environment's
 deployment protection rule, and map the repo + environment in Drydock's organization settings.
-The build job must then upload the packed tarballs (plus a `SHA256SUMS` generated beside them)
-as a workflow artifact *before* the gated job starts; GitHub pauses the job at the environment,
-Drydock reviews the uploaded artifacts and holds it until a maintainer approves — and it fails
-closed (an unverifiable review keeps the job blocked, never a silent pass). The gated job
-downloads the artifacts, runs `sha256sum --check --strict SHA256SUMS`, and stages those exact
-files — never rebuild after approval. This is defense in depth on top of the staged-publish
-review, not a replacement: Stage Watchtower reviews what npm holds; the Workflow Gate stops the
-job before CI even stages.
+
+Enabling it requires restructuring the § 14 workflow first. Environment protection rules are
+evaluated **before any step of the gated job runs**, and § 14 as written packs inside the gated
+`publish` job — so at gate time no artifact exists, Drydock finds nothing to review, and (failing
+closed) the release stays blocked. Split the job in the same PR that enables the gate: move
+checkout, install, test, build, and the pack + `SHA256SUMS` steps into an ungated `build-artifacts`
+job that ends by uploading `dist/` with SHA-pinned `actions/upload-artifact`; the gated `publish`
+job keeps only `environment: npm-publish`, `id-token: write`, the artifact download,
+`sha256sum --check --strict SHA256SUMS`, and the stage step on those exact downloaded files —
+never rebuild after approval. GitHub then pauses the publish job at the environment, Drydock
+reviews the uploaded artifacts, and holds the job until a maintainer approves; an unverifiable
+review keeps the job blocked, never a silent pass. This is defense in depth on top of the
+staged-publish review, not a replacement: Stage Watchtower reviews what npm holds; the Workflow
+Gate stops the job before CI even stages.
 
 The custom deployment protection rule is a later hardening step. The first implementation can rely on the workflow verification gate, the protected environment, and Drydock review of the staged artifact.
 
@@ -791,17 +797,20 @@ it, so the two can never drift apart.
 
 ### If Drydock flags a staged version
 
-- [ ] Do not promote. A finding is evidence, not a verdict — open the pinned diff and decide
-      whether the behavior is intended (a new dependency you added is fine; a lifecycle script or
-      network call you can't explain is not).
-- [ ] If the change is unexplained, reject the staged version on npm and treat it as a potential
-      build-path compromise: freeze publishes, audit the workflow run, recent commits, and
-      dependency changes since the last release.
+- [ ] Pause — do not promote while any finding is unadjudicated. A finding is evidence, not a
+      verdict: open the pinned diff and decide whether the behavior is intended.
+- [ ] Intended and explained (a dependency this release deliberately adds, a file a build change
+      now produces) → record the decision and the reason in Drydock, then promote with 2FA as
+      normal. An adjudicated finding does not block the release.
+- [ ] Unexplained (a lifecycle script, network call, or binary nobody can account for) → reject
+      the staged version on npm and treat it as a potential build-path compromise: freeze
+      publishes, audit the workflow run, recent commits, and dependency changes since the last
+      release.
 - [ ] If malicious content is confirmed, follow the compromise checklist below (credentials,
       audit, advisory).
 - [ ] A rejected stage is not a release: fix, re-sign the release intent for the new version, and
-      stage fresh. Never promote past a red review, and never re-stage the same bytes to get a
-      clean report.
+      stage fresh. Never promote a version with unadjudicated findings, and never re-stage the
+      same bytes to get a clean report.
 
 ### If npm shows a version without a valid release intent
 

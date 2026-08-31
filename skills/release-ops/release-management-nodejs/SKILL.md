@@ -87,7 +87,7 @@ Tracking against https://github.com/jaredwray/agentic/blob/main/skills/release-o
 - [ ] Consumer verification statement added to `SECURITY.md` per [reference.md § 18](./reference.md#18-consumer-verification-statement)
 - [ ] Release verification instructions mirrored to `jaredwray.com`
 - [ ] Release signature bundles and SHA256 digests mirrored to `jaredwray.com`
-- [ ] (Optional) Drydock Workflow Gate added to the `npm-publish` environment as a custom deployment protection rule ([reference.md § 15](./reference.md#15-github-environment-npm-publish)) (manual)
+- [ ] (Optional) Drydock Workflow Gate on the `npm-publish` environment — `publish.yml` split first so an ungated job uploads the packed tarballs + `SHA256SUMS` before the gated job (file PR), then Drydock enabled as the environment's custom deployment protection rule per [reference.md § 15](./reference.md#15-github-environment-npm-publish) (manual)
 - [ ] Socket Gateway evaluated in report-only mode
 ```
 

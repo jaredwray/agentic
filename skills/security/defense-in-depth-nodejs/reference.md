@@ -31,7 +31,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - The Codespaces Dev Container image is pinned by digest (`name:<tag>@sha256:<digest>`), not a floating tag.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, lifecycle scripts blocked by default, and `trustPolicy: no-downgrade`. Socket reviews every dependency change; Aikido scans every build.
-- npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
+- npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm publish tokens — the only npm credential outside npm itself is the read-only token Drydock reviews with.
 ```
 
 **Only list what is live.** The bullets above are the full-rollout end state — include a bullet only
@@ -497,8 +497,9 @@ the artifact in between.**
 1. **OIDC trusted publishing, stage-only** — the publish workflow authenticates to npm with a
    short-lived OIDC token (`id-token: write` on that job only), and the trusted publisher is
    configured **stage-only** on npmjs.com, so even a tampered workflow cannot publish live. No npm
-   tokens exist anywhere: not in Actions secrets, not on laptops. Provenance is generated
-   automatically.
+   publish tokens exist anywhere: not in Actions secrets, not on laptops. The one npm credential
+   held outside npm is Drydock's read-only review token (step 3) — it cannot publish or stage.
+   Provenance is generated automatically.
 2. **Staged publishing** — CI packs a tarball and runs
    `pnpm stage publish ./packed/*.tgz --access public --provenance --no-git-checks` (pnpm ≥ 11.3)
    instead of `pnpm publish`. The version lands in a staging queue, not on the registry.
