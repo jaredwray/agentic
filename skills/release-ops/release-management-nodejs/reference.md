@@ -683,23 +683,12 @@ The custom deployment protection rule is a later hardening step. The first imple
 
 ## 16. npm Trusted Publishing Configuration
 
-For each package using Mode A, the trusted publisher is **stage-only** — a publisher with publish
-permission (the npmjs.com UI default, or `--allow-publish`) defeats the review gate, and
-`check-npmjs.sh` (defense-in-depth-nodejs § 5) fails it.
+Configured manually on npmjs.com, per package. The publisher must be **stage-only** — a publisher
+that can publish defeats the review gate, and `check-npmjs.sh` (defense-in-depth-nodejs § 5)
+fails it.
 
-- [ ] Create the publisher (npm ≥ 11.15.0; the package must already exist):
-
-  ```bash
-  npm trust github <package> \
-    --repo <owner>/<repo> \
-    --file publish.yml \
-    --env npm-publish \
-    --allow-stage-publish
-  ```
-
-  One trusted publisher exists per package — replace via `npm trust list <package>` then
-  `npm trust revoke --id <id> <package>`. UI equivalent: provider GitHub Actions, exact repo,
-  workflow `publish.yml`, environment `npm-publish`, staging permission only.
+- [ ] Add the trusted publisher in package settings: provider GitHub Actions, exact repo,
+      workflow `publish.yml`, environment `npm-publish`, staging permission only.
 - [ ] Confirm package `repository.url` points to the same repo.
 - [ ] Confirm a prerelease tag stages without going live.
 - [ ] Connect Drydock (token scoping in defense-in-depth-nodejs § 5).

@@ -517,9 +517,7 @@ npmjs.com setup (manual, per package): configure the trusted publisher (GitHub A
 exact repo, workflow filename matching the file that stages — `release.yaml` for the template
 below — and environment if the job uses one) as **stage-only**, connect Drydock, then set
 **Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
-provenance maps to the repo. The stage-only publisher can be created from the CLI:
-`npm trust github <pkg> --repo <owner>/<repo> --file release.yaml --allow-stage-publish`
-(npm ≥ 11.15.0; omitting `--allow-publish` is what makes it stage-only).
+provenance maps to the repo.
 
 Connecting Drydock: create a [Drydock](https://drydock.org/docs) organization and give it a
 granular npm token — **Packages and scopes: Read-only** on the staged packages, **Organizations:
