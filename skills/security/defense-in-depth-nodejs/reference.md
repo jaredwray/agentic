@@ -31,7 +31,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - The Codespaces Dev Container image is pinned by digest (`name:<tag>@sha256:<digest>`), not a floating tag.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, lifecycle scripts blocked by default, and `trustPolicy: no-downgrade`. Socket reviews every dependency change; Aikido scans every build.
-- npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm tokens.
+- npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm publish tokens.
 ```
 
 **Only list what is live.** The bullets above are the full-rollout end state — include a bullet only
@@ -298,8 +298,9 @@ allowBuilds: {}
 - No Dependabot. Do not add `.github/dependabot.yml`. GitHub-native alerts and security-update
   PRs are disabled in § 7. Aikido already does CVE/SCA and Socket already reviews dependency
   diffs; a third overlapping scanner is noise, not an independent control. If another updater
-  (Renovate) is already configured, it opens PRs through normal review — never auto-merge. Don't
-  add one where none exists.
+  (Renovate) is already configured, it opens PRs through normal review — never auto-merge;
+  Drydock's `github>JoviDeCroock/drydock//renovate/diff-links` preset adds artifact-diff links to
+  its update tables. Don't add an updater where none exists.
 
 ## 4. GitHub Actions
 
@@ -494,7 +495,8 @@ the artifact in between.**
 1. **OIDC trusted publishing, stage-only** — the publish workflow authenticates to npm with a
    short-lived OIDC token (`id-token: write` on that job only), and the trusted publisher is
    configured **stage-only** on npmjs.com, so even a tampered workflow cannot publish live. No npm
-   tokens exist anywhere: not in Actions secrets, not on laptops. Provenance is generated
+   publish tokens exist anywhere: not in Actions secrets, not on laptops (Drydock's read-only
+   review token is the one npm credential held outside npm). Provenance is generated
    automatically.
 2. **Staged publishing** — CI packs a tarball and runs
    `pnpm stage publish ./packed/*.tgz --access public --provenance --no-git-checks` (pnpm ≥ 11.3)
@@ -516,6 +518,12 @@ exact repo, workflow filename matching the file that stages — `release.yaml` f
 below — and environment if the job uses one) as **stage-only**, connect Drydock, then set
 **Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
 provenance maps to the repo.
+
+Connecting Drydock: create a [Drydock](https://drydock.org/docs) organization and give it a
+granular npm token — **Packages and scopes: Read-only** on the staged packages, **Organizations:
+No access** — under *Organization settings → npm access*; it discovers staged versions on its
+own. Record each decision in Drydock, then approve or reject on npm with 2FA — promotion always
+happens on npm.
 
 Audit those registry settings with
 [`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh). **Never copy or commit it into the
@@ -775,6 +783,7 @@ Notes:
 - npm `trust` CLI: https://docs.npmjs.com/cli/v12/commands/npm-trust/
 - npm registry API (trust + access): https://api-docs.npmjs.com/
 - Drydock: https://drydock.org/
+- Drydock docs (Stage Watchtower setup, Workflow Gate, dependency diff links): https://drydock.org/docs
 - actions-up: https://github.com/azat-io/actions-up
 - zizmor: https://docs.zizmor.sh/
 - Socket: https://socket.dev/

@@ -7,7 +7,7 @@ The remaining sections are the implementation spec for items in the rollout. Sec
 A valid release should prove four distinct things:
 
 1. **Maintainer approval:** at least one approved maintainer signed the release intent using a non-GitHub identity.
-2. **Build provenance:** the package was built and published from the expected GitHub repo, workflow, tag, and protected environment.
+2. **Build provenance:** the package was built and staged from the expected GitHub repo, workflow, tag, and protected environment.
 3. **Registry integrity:** the tarball served by npm has not been tampered with after publication.
 4. **Dependency determinism:** the release used the committed lockfile and `sfw pnpm install --frozen-lockfile`.
 
@@ -17,14 +17,15 @@ This intentionally separates trust roots:
 |---|---|---|---|
 | Maintainer signature | Google OIDC or pinned release key | An approved maintainer authorized this release intent | That GitHub built it correctly |
 | Git signed tag | Maintainer git signing key | The release tag was intentionally created | That the CI workflow is safe |
-| npm trusted publishing | GitHub Actions OIDC bound to npm | The publish came from the configured workflow/environment | That the GitHub account/workflow was not compromised |
+| npm trusted publishing (stage-only) | GitHub Actions OIDC bound to npm | The staged version came from the configured workflow/environment | That the GitHub account/workflow was not compromised |
+| Drydock review + 2FA promotion | npm staging queue + maintainer 2FA | A human reviewed the exact artifact's diff before it went live | That the reviewer caught everything |
 | npm provenance | npm/Sigstore provenance | Where/how the package was built | That the code is benign |
 | npm registry signature | npm registry | npm-served package integrity | That the release was approved |
 | pnpm frozen lockfile | repo lockfile | No dependency resolution drift during CI | That dependencies are safe |
 
 ## 2. Release Invariants
 
-Every package release must satisfy these invariants before `npm publish` runs:
+Every package release must satisfy these invariants before CI stages a version:
 
 - [ ] The release is triggered by a release tag only.
 - [ ] The release tag verifies with `git tag -v`.
@@ -40,7 +41,8 @@ Every package release must satisfy these invariants before `npm publish` runs:
 - [ ] Every third-party GitHub Action is pinned to a full commit SHA.
 - [ ] `id-token: write` exists only on the publish job.
 - [ ] The publish job uses the `npm-publish` protected environment.
-- [ ] npm trusted publishing is configured to the exact repo, workflow filename, and environment.
+- [ ] npm trusted publishing is configured **stage-only** (`createStagedPackage`, § 16) to the exact repo, workflow filename, and environment.
+- [ ] CI only stages; a maintainer promotes with 2FA after Drydock review.
 - [ ] No npm publish token is present in GitHub Actions.
 
 ## 3. Release Modes
@@ -51,8 +53,9 @@ Use for packages where npm provenance is valuable and the workflow is hardened.
 
 Required:
 
-- npm trusted publishing configured.
+- npm trusted publishing configured **stage-only** (§ 16).
 - GitHub Actions publish job with OIDC.
+- Drydock review of the staged artifact, then maintainer promotion with 2FA.
 - npm provenance generated automatically by trusted publishing where supported.
 - At least one approved maintainer signature over `release-intent.json`.
 - Protected `npm-publish` environment.
@@ -668,25 +671,30 @@ Checklist:
 - [ ] Admin bypass disabled for release packages.
 - [ ] Branch/tag restriction limited to release tags.
 - [ ] No long-lived npm publish token stored in the environment.
-- [ ] Optional: custom deployment protection rule that independently verifies the signer policy and release intent before approving publish.
+- [ ] Optional: [Drydock's Workflow Gate](https://drydock.org/docs) as a custom deployment protection rule — Drydock's GitHub App enabled on this environment and mapped to the repo in Drydock's settings.
+
+The gate requires splitting § 14 first: environment protection rules run **before any step of the
+gated job**, so pack + `SHA256SUMS` move to an ungated job that uploads `dist/` as a workflow
+artifact, and the gated `publish` job only downloads, runs `sha256sum --check --strict SHA256SUMS`,
+and stages those exact files — never rebuild after approval. Drydock reviews the uploaded
+artifacts and fails closed.
 
 The custom deployment protection rule is a later hardening step. The first implementation can rely on the workflow verification gate plus protected environment.
 
 ## 16. npm Trusted Publishing Configuration
 
-For each package using Mode A:
+Configured manually on npmjs.com, per package. The publisher must be **stage-only** — a publisher
+that can publish defeats the review gate, and `check-npmjs.sh` (defense-in-depth-nodejs § 5)
+fails it.
 
-- [ ] Go to npm package settings.
-- [ ] Add trusted publisher.
-- [ ] Provider: GitHub Actions.
-- [ ] Organization/user: expected GitHub owner.
-- [ ] Repository: exact repo.
-- [ ] Workflow filename: `publish.yml`.
-- [ ] Environment: `npm-publish`.
+- [ ] Add the trusted publisher in package settings: provider GitHub Actions, exact repo,
+      workflow `publish.yml`, environment `npm-publish`, staging permission only.
 - [ ] Confirm package `repository.url` points to the same repo.
-- [ ] Confirm publish works.
+- [ ] Confirm a prerelease tag stages without going live.
+- [ ] Connect Drydock (token scoping in defense-in-depth-nodejs § 5).
 - [ ] Set package publishing access to **Require two-factor authentication and disallow tokens**.
 - [ ] Revoke old npm publish tokens.
+- [ ] `check-npmjs.sh` passes — publisher `permissions` is `["createStagedPackage"]` only.
 
 ## 17. What Gets Published
 
@@ -752,6 +760,16 @@ it, so the two can never drift apart.
 - [ ] Re-sign release intent.
 - [ ] Re-tag only after review.
 
+### If Drydock flags a staged version
+
+- [ ] Pause until every finding is adjudicated — a finding is evidence, not a verdict.
+- [ ] Intended → record the decision in Drydock and promote with 2FA as normal.
+- [ ] Unexplained → reject the staged version on npm and treat it as a potential build-path
+      compromise: freeze publishes, audit the workflow run, recent commits, and dependency
+      changes; if malware is confirmed, follow the compromise steps below.
+- [ ] A rejected stage is not a release: fix, re-sign the release intent, stage fresh — never
+      re-stage the same bytes.
+
 ### If npm shows a version without a valid release intent
 
 - [ ] Treat as suspicious.
@@ -783,6 +801,9 @@ it, so the two can never drift apart.
 ## 22. References
 
 - npm trusted publishing: https://docs.npmjs.com/trusted-publishers/
+- npm `trust` CLI (stage-only publishers): https://docs.npmjs.com/cli/v12/commands/npm-trust/
+- pnpm staged publishing: https://pnpm.io/cli/stage
+- Drydock (pre-publish artifact review; Stage Watchtower and Workflow Gate): https://drydock.org/docs
 - npm provenance: https://docs.npmjs.com/generating-provenance-statements/
 - npm package 2FA settings: https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/
 - npm registry signatures: https://docs.npmjs.com/about-registry-signatures/
