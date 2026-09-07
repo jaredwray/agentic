@@ -58,7 +58,6 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `DEFENSE_IN_DEPTH.md` present (this file)
 
 ## 2. CODEOWNERS and cloud bootstrap
-- [ ] VS Code / Cursor `task.allowAutomaticTasks` is `off` or `prompt` in User settings (global, not workspace) (manual)
 - [ ] `.github/CODEOWNERS` covers `/.github/`, `/.vscode/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with owners the maintainer names
 - [ ] Codespaces and Cursor Cloud Agents bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
 - [ ] Dev Container `image` pinned by digest (`name:<tag>@sha256:<digest>`; not a floating tag)
@@ -115,33 +114,6 @@ Profile adjustments when scaffolding:
 ## 2. CODEOWNERS and cloud bootstrap
 
 File PRs. GitHub repo settings are § 7 and a repo admin runs them last. Never check `lockdown-repo.sh` into the target repo.
-
-### Turn off automatic task execution
-
-`(manual)`. The agent cannot verify a User setting from the repo — report the steps and continue;
-the maintainer ticks it off. Do not treat a workspace `.vscode/settings.json` as satisfying this
-item: VS Code ignores `task.allowAutomaticTasks` there on purpose, so a clone cannot turn the
-control back on.
-
-If a `.vscode/tasks.json` with a `folderOpen` trigger shows up in a clone you didn't write, that
-is not a productivity script. VS Code and Cursor run `runOptions.runOn: folderOpen` tasks when a
-trusted workspace opens — no `npm install` required. Combined with `"reveal": "never"` and
-`"echo": false`, that is silent code execution. Before you open the project again for any reason,
-including to inspect or clean it, set **Task: Allow Automatic Tasks In Folder** to `off` or
-`prompt`. Do this globally, not just in the one project. It costs nothing, and it means every
-remaining step cannot accidentally re-trigger the thing you are trying to remove.
-
-1. Settings → search `task` → **Task: Allow Automatic Tasks In Folder** → `off` or `prompt`.
-2. Confirm the change is a **User** setting. Workspace is the wrong scope and is ignored.
-
-`off` never auto-runs. `prompt` asks once per folder. `on` is not acceptable. VS Code 1.109
-defaulted this to `off`, but upgrades inherit a previous `on`.
-
-Lifecycle scripts are § 3 (`strictDepBuilds`); this item is the editor-side counterpart. During
-audit, grep `.vscode/**/tasks.json` for `folderOpen` and mention hits — do not delete tasks as this
-item. CODEOWNERS covering `/.vscode/` is the repo-side review gate.
-
-Background: [How Malware Abuses NPM Lifecycle Scripts and VS Code Tasks](https://opensourcemalware.com/blog/how-malware-abuses-npm-lifecycle-scripts-and-vs-code-tasks).
 
 ### CODEOWNERS
 
@@ -792,7 +764,6 @@ Notes:
 - sfw-free releases: https://github.com/SocketDev/sfw-free/releases
 - Aikido: https://www.aikido.dev/
 - Aikido Safe Chain: https://github.com/AikidoSec/safe-chain
-- How Malware Abuses NPM Lifecycle Scripts and VS Code Tasks: https://opensourcemalware.com/blog/how-malware-abuses-npm-lifecycle-scripts-and-vs-code-tasks
 - Dev Container javascript-node images: https://mcr.microsoft.com/artifact/mar/devcontainers/javascript-node
 - pnpm settings: https://pnpm.io/settings
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
