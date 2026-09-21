@@ -173,12 +173,14 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `security-status-tracking` | The `DEFENSE_IN_DEPTH.md` status-block format and reconciliation rules. |
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
 | `writing-great-skills` | How to author a SKILL.md for this plugin (also the contributor guide). |
+| `ai-model-discovery` | Find the AI model IDs a repo calls, look up each provider's catalog and deprecations, and recommend the newest same-tier model — one line per reference, approval per provider before anything changes. |
 
 ## Composition
 
 The ops skills don't restate shared conventions — they point at the `shared/` skills. The one-PR loop
 lives once in `shipping-conventions`; PR titles/bodies and review replies in `pr-conventions`; the
-`DEFENSE_IN_DEPTH.md` tracking format in `security-status-tracking`. Engineering skills share a design
+`DEFENSE_IN_DEPTH.md` tracking format in `security-status-tracking`; AI model lookup and recommendation in
+`ai-model-discovery`. Engineering skills share a design
 language via `codebase-design`. This keeps each SKILL.md lean and the conventions in one place.
 
 ## Authoring

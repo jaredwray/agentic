@@ -50,10 +50,11 @@ Surface with `pnpm outdated --dev` (single-package) or `pnpm -r outdated --dev` 
 
 2. **TypeScript / build tooling → 1 PR**:
    `typescript`, `ts-node`, `tsx`, `ts-jest`, `@types/*` (except `@types/react` and `@types/react-dom` — those travel with the runtime React group), `vite`, `rollup`, `webpack`, `esbuild`, `swc`, `@swc/*`, `babel`, `tsup`, `rimraf`, type-checking utilities, build-script utilities.
+   - `@types/node` never exceeds the project's Node major: pin it to the canonical major from [Container image version agreement](#container-image-version-agreement) — `.nvmrc` says `24` → `@types/node@24` even when "Latest" is `25.x`, never `@types/node@latest`. In monorepos the root Node config governs unless a workspace declares its own Node version.
 
 3. **Package manager / monorepo tooling → 1 PR**:
    `pnpm`, `turbo`, `nx`, `changesets`, workspace tooling, and the `packageManager` field in the root `package.json` (not surfaced by `pnpm outdated` — its target is in [Version targeting](#version-targeting)).
-   - Whenever `packageManager` changes, write it with its integrity hash — `pnpm@<version>+sha512.<hex>` — by running `corepack use pnpm@<version>`, which downloads that exact release, hashes it, and rewrites the field. Never hand-write the field or its hash. A `packageManager` without a hash is outdated even at the current version and is pinned in this group's PR.
+   - This rule covers a `packageManager` that names `pnpm`. If it names Yarn, npm, or another manager, stop and report — this skill's toolchain is pnpm, and `corepack use pnpm@<version>` would convert the repo. Whenever `packageManager` changes, write it with its integrity hash — `pnpm@<version>+sha512.<hex>` — by running `corepack use pnpm@<version>`, which downloads that exact release, hashes it, and rewrites the field. Never hand-write the field or its hash. A `packageManager` without a hash is outdated even at the current version and is pinned in this group's PR.
    - Corepack ships with Node up to 24; on Node 25+ run `npm install -g corepack` first. Ignore Corepack's "To update, run: corepack use pnpm@<latest>" banner — it names the registry's `latest`, which bypasses the age gate.
 
 4. **GitHub Actions → 1 PR** (only if `.github/workflows/` exists; not surfaced by `pnpm outdated`):
@@ -113,10 +114,10 @@ Surface with `pnpm outdated --prod` (single-package) or `pnpm -r outdated --prod
    - Branch: `chore/docker-<service>` (e.g. `chore/docker-postgres`, `chore/docker-redis`)
 
 7. **AI models → 1 PR per provider** (only if the repo references AI model IDs; not surfaced by `pnpm outdated`):
-   Every model ID the code, config, or env templates hand to an AI provider — Anthropic, OpenAI, Google, or any other. Runs last so the provider SDKs are already at their targets.
-   - Branch: `chore/ai-models-<provider>` (e.g. `chore/ai-models-anthropic`, `chore/ai-models-openai`)
+   Every model ID the code, config, or env templates hand to an AI provider. Runs last so the provider SDKs (`@anthropic-ai/sdk`, `openai`, `@google/genai`, `ai` + `@ai-sdk/*`, `@aws-sdk/client-bedrock-runtime`, and the like) are already at their targets. The provider is whoever serves the call — `anthropic`, `openai`, `google`, `bedrock`, `vertex` — so a hosting platform's IDs are one group even when they front several vendors.
+   - Branch: `chore/ai-models-<provider>` (e.g. `chore/ai-models-anthropic`, `chore/ai-models-bedrock`)
    - PR title: e.g. `root - chore: upgrade Anthropic models`
-   - See [AI model discovery](#ai-model-discovery) — recommendation and approval first, then the PR
+   - Discovery, catalog lookup, and the per-provider approval are `ai-model-discovery`; scan `.ts`, `.js`, and `.mjs` source and `package.json` `scripts` in addition to the files it lists
 
 ## Overrides
 
@@ -214,32 +215,9 @@ Dev Container `image` values are one group (`chore/devcontainer-images`), not mi
 - Script-installed tools (`npm install -g pnpm@9.1.0`, `pip install awscli==1.32.0`) fold into their ecosystem's Docker image PR.
 - `curl | sh` installs with no version pin are flagged for pinning but not upgraded (no version to upgrade from).
 
-## AI model discovery
+### Container image version agreement
 
-Model IDs are not surfaced by `pnpm outdated`. Use this procedure for the AI models group.
-
-### Scan for model references
-
-Sweep the whole repo and record every candidate before judging any:
-
-- Source files, config (`config/*.json|yaml|toml`), env templates (`.env.example`, `.env.*`), `.github/workflows/*.yml` `env:` blocks, Dockerfile `ENV` lines, Compose files, and docs that state the default model.
-- Anthropic `claude-*` (also Bedrock `anthropic.claude-*` and Vertex `claude-*@<date>`), OpenAI `gpt-*`, the `o`-series (`o1`, `o3`, `o4-mini`), `text-embedding-*`, `whisper-*`, `dall-e-*`, Google `gemini-*`, `imagen-*`, `veo-*`, and any other ID passed as a `model` argument or set as a `*_MODEL` default (Mistral, Cohere, Voyage, Ollama tags, other Bedrock IDs).
-- Skip historical records — CHANGELOG, ADRs, migration files, recorded fixtures, cassettes, and snapshots — plus lockfiles and vendored code. Values that live outside the repo (CI repository variables, deployment config) are listed as follow-ups, not edited.
-
-### Query for latest models
-
-The provider's official model catalog and deprecations page are the source of truth — never memory:
-
-- Anthropic — the [models overview](https://platform.claude.com/docs/en/about-claude/models/overview) and [model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations); `GET https://api.anthropic.com/v1/models` lists the same IDs when a key is available.
-- OpenAI — the [models page](https://developers.openai.com/api/docs/models) and [deprecations](https://developers.openai.com/api/docs/deprecations).
-- Google — the [Gemini models page](https://ai.google.dev/gemini-api/docs/models) and [deprecations](https://ai.google.dev/gemini-api/docs/deprecations).
-- Any other provider — its published model list. A provider without one is reported as unverifiable, not guessed.
-
-The target is the newest generally-available model in the same tier as the current one — frontier to frontier, small/fast to small/fast, embeddings to embeddings. Previews, experimental releases, and models the provider marks deprecated are never targets. When the provider has retired the tier, the target is the successor its deprecations or migration page names. Keep the repo's ID style (dated snapshot or alias).
-
-### Recommend, then wait
-
-Model changes alter output, cost, and rate limits, so this group always stops and asks before any change. Render one line per reference — `<path:line> · <current> → <target> · <why>` (newer generation; deprecated, retires <date>; already current) — plus one line per provider naming the request-shape changes its migration guide requires for the target (a bare ID swap the API rejects is not an upgrade). Nothing longer. Open the PR only for the bumps the user approves; declined bumps are documented as deferrals and are not recommended again while the target is unchanged.
+Docker and Dev Container images follow the project's declared Node version, never the other way around. The canonical Node major is the first of `.nvmrc`, `.node-version`, `package.json` `engines.node`, Volta config in `package.json`, Dockerfiles, CI configuration — if these disagree, stop and report. Every `FROM node:<major>` and Node-based Dev Container image must equal that major, and image upgrades stay within it. The image moves to a newer major only with the user's approval per [Tag lineage targeting](#tag-lineage-targeting), in one `(breaking)` PR that also moves `.nvmrc`, `engines.node`, and `@types/node` — never on its own. Non-Node images (`python`, `golang`) follow the version source the project declares (`.python-version`, `go.mod`); without one, they follow [Tag lineage targeting](#tag-lineage-targeting).
 
 ## Workflow
 
@@ -256,7 +234,7 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 
 3. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above; a `packageManager` behind its target or missing its hash counts) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
-   - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per [AI model discovery](#ai-model-discovery) (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
+   - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs, any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred", declined model bumps), and any overrides that were kept, then stop.
 
 4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
@@ -275,7 +253,7 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
      6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
    - **For Dev Container image groups**, update every `image` value per [Dev Container images](#dev-container-images) and the [7-day age gate](#7-day-age-gate). Verify each file still parses as JSON.
    - **For the `packageManager` field**, `corepack use pnpm@<version>` with the target from [Version targeting](#version-targeting) is the bump and the hash pin in one; commit the lockfile changes its install makes, then verify as above.
-   - **For AI model groups**, run [AI model discovery](#ai-model-discovery) first, then replace every approved reference (code, config, env templates, docs), make the request-shape changes the provider's migration guide requires, and verify as above; if the tests call the provider live and no credentials are available, say so in the PR body. The PR body lists each `current → target` with the provider's catalog link, and any out-of-repo values (CI repository variables, deployment config) the user must change by hand.
+   - **For AI model groups**, run `ai-model-discovery` first and take only the one provider's approved bumps it hands back. Replace every approved reference (code, config, env templates, docs), make the request-shape changes the provider's migration guide requires, and verify as above; if the tests call the provider live and no credentials are available, say so in the PR body. The PR body lists each `current → target` with the provider's catalog link, and any out-of-repo values (CI repository variables, deployment config) the user must change by hand.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
    Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
@@ -289,7 +267,7 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 ### Version targeting
 
-**The "Latest" column from `pnpm outdated` is the exact target version — never upgrade past it.** This repo uses pnpm's `minimumReleaseAge` to gate freshly-published versions, so `pnpm outdated`'s "Latest" is already the curated upgrade target. Don't cross-reference npm, GitHub releases, or CHANGELOGs to pick a newer version. Don't add `minimumReleaseAgeExclude` or `trustPolicyExclude` entries to reach a younger version, including for first-party packages this GitHub owner publishes.
+**The "Latest" column from `pnpm outdated` is the exact target version — never upgrade past it.** This repo uses pnpm's `minimumReleaseAge` to gate freshly-published versions, so `pnpm outdated`'s "Latest" is already the curated upgrade target. Don't cross-reference npm, GitHub releases, or CHANGELOGs to pick a newer version. Don't add `minimumReleaseAgeExclude` or `trustPolicyExclude` entries to reach a younger version, including for first-party packages this GitHub owner publishes. The one cap below "Latest" is `@types/node`, held at the project's Node major (see the TypeScript / build tooling group).
 
 **For `packageManager`**, `pnpm outdated` has no row. When `pnpm` is also a devDependency, the target is that row's "Latest" — the field and the devDependency must agree. Otherwise it is the newest stable pnpm release published at least 7 days ago per `npm view pnpm time --json` (the `minimumReleaseAge` window; skip pre-releases). Never `corepack use pnpm@latest`.
 
@@ -297,7 +275,7 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 **For override updates**, the package is usually transitive and will not appear in `pnpm outdated`. The target is the version `pnpm install` resolves from the registry after putting the override back as `>=<current>` on the post-remove lockfile — that resolution already applies `minimumReleaseAge`. Do not look up versions on npm, GitHub, or CHANGELOGs.
 
-**For AI model groups**, the target is the provider's newest generally-available model in the same tier as the current reference, per [AI model discovery](#ai-model-discovery); it becomes a bump only once the user approves it.
+**For AI model groups**, the target is the provider's newest generally-available model in the same tier as the current reference, per `ai-model-discovery`; it becomes a bump only once the user approves it.
 
 ### Drydock artifact diffs
 
