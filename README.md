@@ -140,8 +140,8 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. |
 | `migrations` | Set up MongoDB migrations with migrate-mongo (changelog ledger, single-writer lock, file-hash change detection, dry-run/plan, `migrate:development`/`migrate:production` scripts) or conform to an existing tool, then author idempotent data/index migrations one PR at a time. |
 | `release-management-nodejs` | Roll out a hardened npm release pipeline (signing, stage-only trusted publishing, Drydock review) one PR at a time. |
-| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — overrides first, then the dev phase before runtime, including digest-pinned Dev Container images on a 7-day age gate; npm bumps link Drydock artifact diffs. |
-| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time, respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins. |
+| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — overrides first, then the dev phase (with a hash-pinned `packageManager`) before runtime, including digest-pinned Dev Container images on a 7-day age gate, and last the AI model IDs the code calls (recommend the provider's latest, bump on approval); npm bumps link Drydock artifact diffs. |
+| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time, respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins; last, recommend and bump the AI model IDs the code calls. |
 | `resolve-merge-conflicts` | Resolve merge/rebase conflicts preserving both sides' intent, verified before continuing. |
 
 ### security/ — manual
@@ -173,12 +173,14 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `security-status-tracking` | The `DEFENSE_IN_DEPTH.md` status-block format and reconciliation rules. |
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
 | `writing-great-skills` | How to author a SKILL.md for this plugin (also the contributor guide). |
+| `ai-model-discovery` | Find the AI model IDs a repo calls, look up each provider's catalog and deprecations, and recommend the newest same-tier model — one line per reference, approval per provider before anything changes. |
 
 ## Composition
 
 The ops skills don't restate shared conventions — they point at the `shared/` skills. The one-PR loop
 lives once in `shipping-conventions`; PR titles/bodies and review replies in `pr-conventions`; the
-`DEFENSE_IN_DEPTH.md` tracking format in `security-status-tracking`. Engineering skills share a design
+`DEFENSE_IN_DEPTH.md` tracking format in `security-status-tracking`; AI model lookup and recommendation in
+`ai-model-discovery`. Engineering skills share a design
 language via `codebase-design`. This keeps each SKILL.md lean and the conventions in one place.
 
 ## Authoring

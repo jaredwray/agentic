@@ -1,6 +1,6 @@
 ---
 name: dependency-management-rust
-description: Upgrade a Rust project's dev, build, and runtime dependencies one grouped PR at a time, respecting the pinned toolchain, a 7-day age gate on container and Dev Container image pins, and running the dev phase before the runtime phase. Use when asked to update, upgrade, or bump Cargo dependencies on a Rust project. Manual and resumable; one PR per group.
+description: Upgrade a Rust project's dev, build, and runtime dependencies one grouped PR at a time, respecting the pinned toolchain, a 7-day age gate on container and Dev Container image pins, and running the dev phase before the runtime phase — then, last, the AI model IDs the code calls (look up each provider's latest, recommend, bump on approval). Use when asked to update, upgrade, or bump Cargo dependencies or AI models on a Rust project. Manual and resumable; one PR per group.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -34,7 +34,7 @@ Determine the repo shape first:
 Run the two phases in order. Do not interleave.
 
 1. **Dev phase** — `[dev-dependencies]`, `[build-dependencies]`, GitHub Actions, Docker build-time images, and Dev Container images. Exhaust every dev group (one PR per group, serially) before moving to the runtime phase.
-2. **Runtime phase** — `[dependencies]` ecosystems and standalone runtime crates. Begin only after every dev group has either been merged or documented as a deferral.
+2. **Runtime phase** — `[dependencies]` ecosystems and standalone runtime crates, then the AI model IDs the code calls. Begin only after every dev group has either been merged or documented as a deferral.
 
 ## Standard groups
 
@@ -111,6 +111,16 @@ Surface with `cargo outdated --depth 1` filtered to `Normal` kind, or inspect `C
    Infrastructure service images — `postgres`, `redis`, `nginx`, `mysql`, `elasticsearch`, etc. — in Compose definitions and CI `services:` blocks. Each service ecosystem gets its own PR.
    - Branch: `chore/docker-<service>` (e.g. `chore/docker-postgres`, `chore/docker-redis`)
 
+7. **AI models → 1 PR per provider** (only if the repo references AI model IDs; not surfaced by `cargo outdated`):
+   Every model ID the code, config, or env templates hand to an AI provider. Runs last so the provider crates (`async-openai`, `anthropic`, `rig-core`, `genai`, `aws-sdk-bedrockruntime`, `ollama-rs`, and the like) are already at their targets. The provider is whoever serves the call — `anthropic`, `openai`, `google`, `bedrock`, `vertex` — so a hosting platform's IDs are one group even when they front several vendors.
+   - Branch: `chore/ai-models-<provider>` (e.g. `chore/ai-models-anthropic`, `chore/ai-models-bedrock`)
+   - PR title: e.g. `root - chore: upgrade Anthropic models`
+   - Discovery, catalog lookup, and the per-provider approval are `ai-model-discovery`; scan `.rs` source (including `build.rs`, examples, and tests) in addition to the files it lists, and skip `Cargo.lock`
+
+## MSRV rule
+
+When any crate declares `package.rust-version`, no upgrade may raise the effective MSRV past it. The floor is the first of: `package.rust-version` in the workspace root `Cargo.toml`; `package.rust-version` in any member crate (the highest wins); `rust-toolchain.toml` or `rust-toolchain`; the lowest Rust version a CI job runs against. If these disagree, stop and report. A crate whose new minimum exceeds the floor is documented as a deferral — `rust-version = "1.75"` never takes a crate that requires 1.76, even when "Latest" shows it — and `rust-version` is never raised silently inside a dep PR; when the project declares it but does not test it in CI, ask the user before touching it.
+
 ## Container image discovery
 
 Container images are not surfaced by `cargo outdated`. Use this procedure when Docker build-time, Docker runtime, or Dev Container groups need upgrading.
@@ -181,6 +191,10 @@ Dev Container `image` values are one group (`chore/devcontainer-images`), not mi
 - Script-installed tools (`cargo install <tool>@<version>`, `curl | sh`) fold into their ecosystem's Docker image PR if version-pinned.
 - `curl | sh` installs with no version pin are flagged for pinning but not upgraded (no version to upgrade from).
 
+### Container image version agreement
+
+Docker and Dev Container images follow `rust-toolchain.toml`, never the other way around. Every `FROM rust:<version>` and Rust-based Dev Container image must match the toolchain pin and stay compatible with the [MSRV rule](#msrv-rule); if a Dockerfile disagrees with `rust-toolchain.toml`, stop and report rather than upgrading the image on its own. A `rust:1.85` → `rust:1.86` bump ships only when `rust-toolchain.toml` already declares `1.86` or moves to it in the same PR. Non-Rust images follow the version source the project declares (`.python-version`, `go.mod`); without one, they follow [Tag lineage targeting](#tag-lineage-targeting).
+
 ## Workflow
 
 The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
@@ -194,8 +208,8 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 
 2. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
-   - Otherwise, if any runtime group still has outdated deps or Docker runtime/service images are outdated, the active phase is **runtime**.
-   - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred") and stop.
+   - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
+   - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred", declined model bumps) and stop.
 
 3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
 
@@ -211,6 +225,7 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
      5. Verify: run `docker build` on affected Dockerfiles if Docker is available. If in sandbox without Docker, verify syntax only and note the limitation in the PR body.
      6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
    - **For Dev Container image groups**, update every `image` value per [Dev Container images](#dev-container-images) and the [7-day age gate](#7-day-age-gate). Verify each file still parses as JSON.
+   - **For AI model groups**, run `ai-model-discovery` first and take only the one provider's approved bumps it hands back. Replace every approved reference (code, config, env templates, docs), make the request-shape changes the provider's migration guide requires, and verify as above; if the tests call the provider live and no credentials are available, say so in the PR body. The PR body lists each `current → target` with the provider's catalog link, and any out-of-repo values (CI repository variables, deployment config) the user must change by hand.
    - Open the PR — title and body per [Pull request rules](#pull-request-rules).
 
    Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
@@ -224,9 +239,11 @@ exception are `pr-conventions`. What's specific to this workflow:
 
 ### Version targeting
 
-**The "Latest" column from `cargo outdated` is the exact target version — never upgrade past it.** Don't cross-reference crates.io, GitHub releases, or CHANGELOGs to pick a newer version. `cargo outdated` shows two version columns — `Compat` (the newest version reachable inside the current `Cargo.toml` requirement) and `Latest` (the newest on crates.io regardless of requirement) — the upgrade target is **always** `Latest`.
+**The "Latest" column from `cargo outdated` is the exact target version — never upgrade past it.** Don't cross-reference crates.io, GitHub releases, or CHANGELOGs to pick a newer version. `cargo outdated` shows two version columns — `Compat` (the newest version reachable inside the current `Cargo.toml` requirement) and `Latest` (the newest on crates.io regardless of requirement) — the upgrade target is **always** `Latest`. A `Latest` that raises the MSRV is a deferral, per the [MSRV rule](#msrv-rule).
 
 **For Docker and Dev Container image groups**, there is no `cargo outdated` equivalent. The target is the newest digest in the current lineage that is at least 7 days old, as determined by [Container image discovery](#container-image-discovery) and the [7-day age gate](#7-day-age-gate). Do not pin whatever the registry's `latest` tag points at today.
+
+**For AI model groups**, the target is the provider's newest generally-available model in the same tier as the current reference, per `ai-model-discovery`; it becomes a bump only once the user approves it.
 
 ### Title prefixes
 
@@ -238,3 +255,4 @@ Examples:
 - `root - chore: upgrade GitHub Actions`
 - `workspace - chore: upgrade tokio dependencies`
 - `root - chore: pin Dev Container images`
+- `root - chore: upgrade Anthropic models`
