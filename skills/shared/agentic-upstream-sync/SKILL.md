@@ -23,7 +23,8 @@ resume, before any upgrade group; on its own it answers "is this repo current wi
 
 A row whose target file is absent does not apply. Nothing else is compared: `lockdown-repo.sh` and
 `check-npmjs.sh` are never copied into a target repo, and templates that are merged rather than copied
-(`devcontainer.json`, `environment.json`, workflow files) belong to their own items.
+(`devcontainer.json`, `environment.json`, `.claude/settings.json`, the `CLAUDE.md` import, workflow
+files) belong to their own items.
 
 ## Compare
 

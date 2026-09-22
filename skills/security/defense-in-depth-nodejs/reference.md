@@ -28,7 +28,7 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 - Tags can only be created by repository admins; published GitHub Releases are immutable (assets and tags cannot be changed after publish).
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
 - CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
-- Codespaces and Cursor Cloud Agents install through Aikido Safe Chain; package-manager shims must not be bypassed.
+- Codespaces, Cursor Cloud Agents, Claude Code on the web, and Codex cloud install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - The Codespaces Dev Container image is pinned by digest (`name:<tag>@sha256:<digest>`), not a floating tag.
 - Dependencies install through pnpm with a 7-day cooldown on new versions, lifecycle scripts blocked by default, and `trustPolicy: no-downgrade`. Socket reviews every dependency change; Aikido scans every build.
 - npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm publish tokens.
@@ -37,7 +37,8 @@ hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_D
 **Only list what is live.** The bullets above are the full-rollout end state — include a bullet only
 once its checklist item is checked in `DEFENSE_IN_DEPTH.md`, and update the summary in the same PR
 that completes a section. A `SECURITY.md` that advertises controls the repo doesn't have is worse
-than none. Keep the whole file under ~40 lines.
+than none. In the Safe Chain bullet, name Codex cloud only once its environment item is done, not
+ticked off as not used. Keep the whole file under ~40 lines.
 
 Private repos: drop the GitHub private-vulnerability-reporting bullet from the boilerplate (the
 feature is public-only) — the email contact is the reporting channel. Drop the "outside
@@ -58,8 +59,10 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] `DEFENSE_IN_DEPTH.md` present (this file)
 
 ## 2. CODEOWNERS and cloud bootstrap
-- [ ] `.github/CODEOWNERS` covers `/.github/`, `/.vscode/`, `/.cursor/`, `/.devcontainer/`, `/scripts/` with owners the maintainer names
-- [ ] Codespaces and Cursor Cloud Agents bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
+- [ ] `.github/CODEOWNERS` covers `/.github/`, `/.vscode/`, `/.cursor/`, `/.devcontainer/`, `/.claude/`, `/.codex/`, `/scripts/` with owners the maintainer names
+- [ ] Codespaces, Cursor Cloud Agents, and Claude Code on the web bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
+- [ ] Codex cloud environments use Manual setup with `bash ./scripts/setup-cloud-environment.sh` as the setup and maintenance script (manual)
+- [ ] Claude Code on the web environments allow `malware-list.aikido.dev` (Custom network access plus the default package-manager list) (manual)
 - [ ] Dev Container `image` pinned by digest (`name:<tag>@sha256:<digest>`; not a floating tag)
 
 ## 3. Dependencies (pnpm)
@@ -108,7 +111,8 @@ Profile adjustments when scaffolding:
 - **private** — omit the private-vulnerability-reporting and fork-PR approval clauses from the
   lockdown item; keep the plan-gated settings only if the plan supports them (the lockdown script
   reports this); omit § 5 unless the repo actually publishes a package.
-- **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item.
+- **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item and the Codex and Claude Code
+  environment items.
 - **no `devcontainer.json`** — omit the Dev Container image-pin item.
 
 ## 2. CODEOWNERS and cloud bootstrap
@@ -128,17 +132,21 @@ from the repo owner login; if the user already named owners in this conversation
 /.vscode/ {{OWNERS}}
 /.cursor/ {{OWNERS}}
 /.devcontainer/ {{OWNERS}}
+/.claude/ {{OWNERS}}
+/.codex/ {{OWNERS}}
 /scripts/ {{OWNERS}}
 ```
 
-Cover `.vscode/`, `.cursor/`, and `.devcontainer/` even before those directories exist so a later
-add is already owned. Pair with a second trusted reviewer when the bus factor allows.
+Cover `.vscode/`, `.cursor/`, `.devcontainer/`, `.claude/`, and `.codex/` even before those
+directories exist so a later add is already owned. This skill writes nothing to `.codex/`, but a
+trusted project's `.codex/config.toml` and hooks run commands in Codex sessions. Pair with a second
+trusted reviewer when the bus factor allows.
 
 `lockdown-repo.sh --check` (§ 7) fails if the default branch has no CODEOWNERS file with at least
 one owner (looks in `.github/CODEOWNERS`, then `CODEOWNERS`, then `docs/CODEOWNERS`). The script
 never writes that file.
 
-### Safe Chain on Codespaces and Cursor Cloud Agents
+### Safe Chain on Codespaces, Cursor Cloud Agents, and Claude Code on the web
 
 File PR (`chore/defense-safe-chain-cloud`). Skip when the target repo has no `pnpm-lock.yaml`. Copy
 the bundled [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) to the
@@ -148,7 +156,9 @@ target's `scripts/setup-cloud-environment.sh`, and copy from this skill's `templ
 | --- | --- |
 | `templates/.devcontainer/devcontainer.json` | `.devcontainer/devcontainer.json` |
 | `templates/.cursor/environment.json` | `.cursor/environment.json` |
+| `templates/.claude/settings.json` | `.claude/settings.json` |
 | `templates/AGENTS.md` | `AGENTS.md` (section only — see merge rules) |
+| `@AGENTS.md` (one line) | `CLAUDE.md` (import only — see merge rules) |
 | `scripts/setup-cloud-environment.sh` | `scripts/setup-cloud-environment.sh` |
 
 The bootstrap installs [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) from a **pinned**
@@ -164,8 +174,12 @@ Dockerfile; never `:latest`) and installs GitHub CLI plus Docker via Dev Contain
 (`ghcr.io/devcontainers/features/github-cli:1` and
 `ghcr.io/devcontainers/features/docker-in-docker:4` with `"moby": false` — Trixie has no Moby
 packages). Cursor uses a managed environment with only `install` (no `build`, no Dockerfile, no
-snapshot). Both invoke `bash ./scripts/setup-cloud-environment.sh` so the copied script does not
-need the executable bit. Leave `postCreateCommand` / `install` as that invocation — do not wrap it
+snapshot). Claude Code on the web uses a SessionStart hook in `.claude/settings.json` that runs only
+when `CLAUDE_CODE_REMOTE` is `true` — local Claude Code sessions skip it — and first `cd`s to
+`$CLAUDE_PROJECT_DIR`. It sets no `matcher`, so resume, `/clear`, compaction, and forks re-run it,
+and it is not `async`, so the shims exist before Claude runs a command. All three invoke
+`bash ./scripts/setup-cloud-environment.sh` so the copied script does not need the executable bit.
+Leave `postCreateCommand` / `install` / the hook `command` as that invocation — do not wrap it
 in `bash -i`, `source ~/.bashrc`, or `source "$NVM_DIR/nvm.sh"`. A fresh Codespace runs a
 non-interactive shell, so those only help an already-open terminal (`source ~/.bashrc` after a
 one-off run). If `pnpm` is missing, the script enables Corepack's `pnpm` shim into
@@ -181,6 +195,13 @@ same `install` / `postCreateCommand` string must put the shims on `PATH` in that
 bash ./scripts/setup-cloud-environment.sh && export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH" && …
 ```
 
+Claude Code's Bash tool starts each command from a shell snapshot taken at launch, not from the rc
+files, so the script also appends the shim `PATH` to `CLAUDE_ENV_FILE`, which Claude Code runs before
+every Bash command. A session with several repositories loads no repo hooks, so run Claude Code
+sessions on this repo alone. `CLAUDE.md` imports `@AGENTS.md` because Claude Code reads only
+`CLAUDE.md` when both files exist, and some sessions never read `AGENTS.md` (versions before
+2.1.277, third-party providers, the first session after an install).
+
 Merge — never blindly overwrite:
 
 | File | Missing | Already present |
@@ -188,15 +209,40 @@ Merge — never blindly overwrite:
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
 | `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4` with `"moby": false`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
+| `.claude/settings.json` | Write the template | Keep other keys and hooks; add the template's `SessionStart` group unless a SessionStart hook already runs the script. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
 | `AGENTS.md` | Write the template's sections (Safe Chain, Pull requests) | Append each section that is absent; leave existing content alone. |
+| `CLAUDE.md` | Write `@AGENTS.md` | Add `@AGENTS.md` as the first line unless it already imports `AGENTS.md` (or is a symlink to it); leave the rest alone. |
 
-Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. A leftover catalog
-line about PMG / VM-egress filtering is dropped in this PR (list it in the body).
+Stop and report if `devcontainer.json`, `environment.json`, or `.claude/settings.json` is not valid
+JSON. A leftover catalog line about PMG / VM-egress filtering is dropped in this PR (list it in the
+body).
 
-Reconcile Safe Chain as done when the bootstrap script is present, both environment configs invoke
-it, and `AGENTS.md` has both template sections (Safe Chain, Pull requests) — a repo hardened before a
-section existed is not done until that section is appended. Image digest pinning is the next item — a
-greenfield copy of the template already satisfies it.
+Reconcile Safe Chain as done when the bootstrap script is present, the Dev Container, Cursor, and
+Claude Code configs all invoke it, `CLAUDE.md` imports `@AGENTS.md`, and `AGENTS.md` has both
+template sections (Safe Chain, Pull requests) — a repo hardened before a config or section existed is
+not done until it is added. Image digest pinning is the next item — a greenfield copy of the template
+already satisfies it.
+
+### Codex cloud and Claude Code environments (manual)
+
+Both products keep part of their setup in account settings, not in the repo. The agent reports these
+two items and moves on; a maintainer who does not run this repo in that product ticks its item off as
+not used.
+
+- **Codex cloud** — setup and maintenance scripts are environment settings. In each Codex environment
+  for this repo, choose **Manual** setup (Automatic setup installs dependencies itself, without Safe
+  Chain) and set both the setup script and the maintenance script, which runs when a cached container
+  resumes, to `bash ./scripts/setup-cloud-environment.sh`. The setup script runs in its own Bash
+  session with internet access; the agent gets the shims from the `~/.bashrc` line the script writes,
+  and reads `AGENTS.md` natively. Agent internet access is off by default; if you enable it, allow
+  `malware-list.aikido.dev` too so Safe Chain checks packages against a current list.
+- **Claude Code on the web** — the SessionStart hook runs the bootstrap, but network access is an
+  environment setting. The default **Trusted** allowlist omits `malware-list.aikido.dev`, so Safe
+  Chain cannot load its malware list and fails every package add closed. Set **Custom** network
+  access, check **Also include default list of common package managers**, and add
+  `malware-list.aikido.dev`. Do not move the bootstrap into the environment's setup script: a setup
+  script gets a 403 on release assets from repositories not attached to the session, such as the
+  pinned Safe Chain installer.
 
 ### Pin Dev Container images
 

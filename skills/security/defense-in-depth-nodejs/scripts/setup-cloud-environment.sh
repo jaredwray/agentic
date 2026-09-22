@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# setup-cloud-environment.sh — Aikido Safe Chain bootstrap for Codespaces and Cursor Cloud Agents.
+# setup-cloud-environment.sh — Aikido Safe Chain bootstrap for Codespaces, Cursor Cloud Agents,
+# Claude Code on the web, and Codex cloud.
 #
 # Fail closed: never install dependencies unless Safe Chain shims are on PATH.
 # Copied into the target repo as scripts/setup-cloud-environment.sh.
@@ -63,6 +64,12 @@ persist_shim_path() {
 persist_shim_path "${HOME}/.profile"
 persist_shim_path "${HOME}/.bashrc"
 persist_shim_path "${HOME}/.zshrc"
+
+# Claude Code starts each Bash command from a shell snapshot taken at launch, not the rc files
+# above; it runs CLAUDE_ENV_FILE before every command instead.
+if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
+  persist_shim_path "$CLAUDE_ENV_FILE"
+fi
 
 if [[ -n "${GITHUB_PATH:-}" ]]; then
   printf '%s\n' "$SAFE_CHAIN_SHIMS" >> "$GITHUB_PATH"
