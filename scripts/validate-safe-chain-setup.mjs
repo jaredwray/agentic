@@ -3,7 +3,7 @@
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,9 +13,11 @@ const SKILL = join(ROOT, 'skills/security/defense-in-depth-nodejs');
 const SCRIPT = join(SKILL, 'scripts/setup-cloud-environment.sh');
 const DEVCONTAINER = join(SKILL, 'templates/.devcontainer/devcontainer.json');
 const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
+const CLAUDE_SETTINGS = join(SKILL, 'templates/.claude/settings.json');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
+const CLAUDE_HOOK = `if [ "$CLAUDE_CODE_REMOTE" = true ]; then cd "$CLAUDE_PROJECT_DIR" && ${BOOTSTRAP}; fi`;
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
 const GITHUB_CLI_FEATURE = 'ghcr.io/devcontainers/features/github-cli:1';
 const DOCKER_IN_DOCKER_FEATURE = 'ghcr.io/devcontainers/features/docker-in-docker:4';
@@ -74,6 +76,21 @@ if (environment) {
   }
 }
 
+const claudeSettings = readJson(CLAUDE_SETTINGS);
+if (claudeSettings) {
+  const groups = claudeSettings.hooks?.SessionStart ?? [];
+  const hooks = groups.flatMap((group) => group.hooks ?? []);
+  if (hooks.length !== 1 || hooks[0].type !== 'command' || hooks[0].command !== CLAUDE_HOOK) {
+    err(`.claude/settings.json must have one SessionStart command hook: ${CLAUDE_HOOK}`);
+  }
+  if (groups.some((group) => group.matcher !== undefined)) {
+    err('.claude/settings.json SessionStart hook must not set a matcher; /clear, compaction, and forks need the shims too');
+  }
+  if (hooks.some((hook) => hook.async)) {
+    err('.claude/settings.json SessionStart hook must not be async; the shims must exist before Claude runs a command');
+  }
+}
+
 const agents = readFileSync(AGENTS, 'utf8');
 if (!/Safe Chain/i.test(agents) || !/never bypass/i.test(agents)) {
   err('templates/AGENTS.md must tell agents never to bypass Safe Chain');
@@ -107,8 +124,17 @@ if (scaffoldIdx === -1) {
       err('catalog last section must require Dependabot disabled');
     }
     const cloud = sections.find((s) => s.startsWith('2. CODEOWNERS')) ?? '';
-    if (!/\/\.vscode\//.test(cloud)) {
-      err('catalog § 2 CODEOWNERS must cover /.vscode/');
+    for (const dir of ['/.vscode/', '/.claude/', '/.codex/']) {
+      if (!cloud.includes(dir)) err(`catalog § 2 CODEOWNERS must cover ${dir}`);
+    }
+    if (!/Claude Code on the web bootstrap/.test(cloud)) {
+      err('catalog § 2 Safe Chain item must cover Claude Code on the web');
+    }
+    if (!/Codex cloud environments use Manual setup.*\(manual\)$/m.test(cloud)) {
+      err('catalog § 2 must have a (manual) Codex cloud Manual setup item');
+    }
+    if (!/allow `malware-list\.aikido\.dev`.*\(manual\)$/m.test(cloud)) {
+      err('catalog § 2 must have a (manual) Claude Code malware-list.aikido.dev network item');
     }
     if (!/pinned by digest/.test(cloud)) {
       err('catalog § 2 must require Dev Container image digest pinning');
@@ -147,12 +173,10 @@ if (/do not block/i.test(skillMd)) {
 if (!/defense-devcontainer-pin/.test(skillMd) || !/digest-pinned Dev Container/.test(skillMd)) {
   err('SKILL.md must include the Dev Container digest-pin item');
 }
-if (!reference.includes('/.vscode/ {{OWNERS}}')) {
-  err('CODEOWNERS template must cover /.vscode/');
-}
 const codeowners = readFileSync(join(ROOT, '.github/CODEOWNERS'), 'utf8');
-if (!codeowners.includes('/.vscode/')) {
-  err('.github/CODEOWNERS must cover /.vscode/');
+for (const dir of ['/.vscode/', '/.claude/', '/.codex/']) {
+  if (!reference.includes(`${dir} {{OWNERS}}`)) err(`CODEOWNERS template must cover ${dir}`);
+  if (!codeowners.includes(dir)) err(`.github/CODEOWNERS must cover ${dir}`);
 }
 const priority = skillMd.split('## Item priority')[1]?.split(/^## /m)[0] ?? '';
 const lastPriority = [...priority.matchAll(/^\d+\. \*\*§ \d+[^*]*\*\*/gm)].at(-1)?.[0] ?? '';
@@ -168,6 +192,15 @@ if (!/Never copy or commit/.test(reference) || !/admin runs it last/.test(refere
 
 if (!reference.includes(BOOTSTRAP)) {
   err(`reference.md must invoke the bootstrap with ${BOOTSTRAP}`);
+}
+if (!reference.includes('CLAUDE_CODE_REMOTE') || !reference.includes('CLAUDE_ENV_FILE')) {
+  err('reference.md must gate the Claude Code hook on CLAUDE_CODE_REMOTE and persist shims via CLAUDE_ENV_FILE');
+}
+if (!reference.includes('`@AGENTS.md`')) {
+  err('reference.md must have CLAUDE.md import @AGENTS.md so Claude Code reads the Safe Chain section');
+}
+if (!/choose \*\*Manual\*\* setup/.test(reference)) {
+  err('reference.md must tell Codex cloud environments to use Manual setup, not Automatic');
 }
 if (!reference.includes('--install-directory') || !reference.includes('~/.safe-chain/bin')) {
   err('reference.md must document Corepack --install-directory into ~/.safe-chain/bin');
@@ -221,6 +254,7 @@ for (const needle of [
   'pnpm-lock.yaml',
   '--install-directory',
   'cd /',
+  'CLAUDE_ENV_FILE',
 ]) {
   if (!script.includes(needle)) err(`setup-cloud-environment.sh missing ${needle}`);
 }
@@ -680,6 +714,103 @@ exit 0' > "$out"`,
   }
 } finally {
   rmSync(skipCorepackDir, { recursive: true, force: true });
+}
+
+const claudeHookDir = mkdtempSync(join(tmpdir(), 'safe-chain-claude-hook-'));
+try {
+  const project = join(claudeHookDir, 'project');
+  mkdirSync(join(project, 'scripts'), { recursive: true });
+  writeFileSync(join(project, 'scripts/setup-cloud-environment.sh'), readFileSync(SCRIPT));
+  const runHook = (extraEnv) =>
+    spawnSync('sh', ['-c', CLAUDE_HOOK], {
+      cwd: claudeHookDir,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH, HOME: claudeHookDir, LANG: 'C', CLAUDE_PROJECT_DIR: project, ...extraEnv },
+    });
+  const local = runHook({});
+  if (local.status !== 0 || `${local.stdout}${local.stderr}`.trim() !== '') {
+    err(`.claude/settings.json hook must be a silent no-op outside cloud sessions (got ${local.status}: ${local.stdout}${local.stderr})`);
+  }
+  // The project has no pnpm-lock.yaml, so reaching the bootstrap from another cwd fails on that check.
+  const cloud = runHook({ CLAUDE_CODE_REMOTE: 'true' });
+  if (cloud.status === 0 || !/pnpm-lock\.yaml/.test(`${cloud.stdout}${cloud.stderr}`)) {
+    err(`.claude/settings.json hook must run the bootstrap from CLAUDE_PROJECT_DIR in cloud sessions (got ${cloud.status}: ${cloud.stdout}${cloud.stderr})`);
+  }
+} finally {
+  rmSync(claudeHookDir, { recursive: true, force: true });
+}
+
+const claudeEnvDir = mkdtempSync(join(tmpdir(), 'safe-chain-claude-env-'));
+try {
+  const home = join(claudeEnvDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(claudeEnvDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(join(claudeEnvDir, 'package.json'), JSON.stringify({ name: 'x' }));
+  const want = `export PATH="${home}/.safe-chain/shims:${home}/.safe-chain/bin:$PATH"`;
+  // Lines that only mention the shims must not count: without ~/.safe-chain/bin on PATH the
+  // shims fall back to the unprotected package manager.
+  const envFile = join(claudeEnvDir, 'claude-env.sh');
+  writeFileSync(envFile, '# ~/.safe-chain/shims\nexport PATH="$HOME/.safe-chain/shims:$PATH"\n');
+  const bin = join(claudeEnvDir, 'bin');
+  mkdirSync(bin);
+  // A failed install must still leave Claude's later Bash commands shimmed.
+  writeExec(bin, 'pnpm', `if [ "$1" = install ]; then grep -Fqx '${want}' "$CLAUDE_ENV_FILE" || exit 3; fi\nexit 0`);
+  // Like safe-chain setup-ci, the fake installer replaces the bootstrap's blocking stubs.
+  writeExec(
+    bin,
+    'curl',
+    `out=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then out=$a; fi
+  prev=$a
+done
+printf '%s\\n' '#!/bin/sh
+mkdir -p "$HOME/.safe-chain/shims" "$HOME/.safe-chain/bin"
+rm -f "$HOME/.safe-chain/shims/"*
+exit 0' > "$out"`,
+  );
+  writeExec(bin, 'sha256sum', 'exit 0');
+  for (const attempt of ['first', 'repeat']) {
+    const result = runBootstrap({ home, cwd: claudeEnvDir, pathDir: bin, extraEnv: { CLAUDE_ENV_FILE: envFile } });
+    if (result.status !== 0) {
+      err(`setup-cloud-environment.sh must write CLAUDE_ENV_FILE before pnpm install (${attempt} run got ${result.status}: ${result.stderr || result.stdout})`);
+    }
+  }
+  const written = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
+  if (written.split(want).length - 1 !== 1) {
+    err(`setup-cloud-environment.sh must append the shim PATH to CLAUDE_ENV_FILE exactly once (got: ${written})`);
+  }
+} finally {
+  rmSync(claudeEnvDir, { recursive: true, force: true });
+}
+
+// Claude Code keeps the session running after a failed SessionStart hook.
+const claudeFailDir = mkdtempSync(join(tmpdir(), 'safe-chain-claude-fail-'));
+try {
+  const home = join(claudeFailDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(claudeFailDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(join(claudeFailDir, 'package.json'), JSON.stringify({ name: 'x' }));
+  const envFile = join(claudeFailDir, 'claude-env.sh');
+  const bin = join(claudeFailDir, 'bin');
+  mkdirSync(bin);
+  writeExec(bin, 'pnpm', 'exit 0');
+  writeExec(bin, 'curl', 'exit 22');
+  const result = runBootstrap({ home, cwd: claudeFailDir, pathDir: bin, extraEnv: { CLAUDE_ENV_FILE: envFile } });
+  // What Claude Code runs for a later Bash command: CLAUDE_ENV_FILE, then the command.
+  const later = spawnSync('bash', ['-c', `. '${envFile}' && pnpm install`], {
+    cwd: claudeFailDir,
+    encoding: 'utf8',
+    env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, LANG: 'C' },
+  });
+  if (result.status === 0 || later.status === 0 || !/Safe Chain is not set up/.test(`${later.stdout}${later.stderr}`)) {
+    err(
+      `a failed bootstrap must leave Claude's package managers blocked, not unprotected (bootstrap ${result.status}; later pnpm ${later.status}: ${later.stdout}${later.stderr})`,
+    );
+  }
+} finally {
+  rmSync(claudeFailDir, { recursive: true, force: true });
 }
 
 const checkNpmjsPath = join(SKILL, 'scripts/check-npmjs.sh');
