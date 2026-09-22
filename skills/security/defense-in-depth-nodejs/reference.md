@@ -188,14 +188,15 @@ Merge — never blindly overwrite:
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
 | `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4` with `"moby": false`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
-| `AGENTS.md` | Write the Safe Chain section | Append the section if absent; leave existing content alone. |
+| `AGENTS.md` | Write the template's sections (Safe Chain, Pull requests) | Append each section that is absent; leave existing content alone. |
 
 Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. A leftover catalog
 line about PMG / VM-egress filtering is dropped in this PR (list it in the body).
 
 Reconcile Safe Chain as done when the bootstrap script is present, both environment configs invoke
-it, and `AGENTS.md` has the Safe Chain section. Image digest pinning is the next item — a greenfield
-copy of the template already satisfies it.
+it, and `AGENTS.md` has both template sections (Safe Chain, Pull requests) — a repo hardened before a
+section existed is not done until that section is appended. Image digest pinning is the next item — a
+greenfield copy of the template already satisfies it.
 
 ### Pin Dev Container images
 

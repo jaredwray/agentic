@@ -80,8 +80,9 @@ from the workflow step that needs them ("render per `reference.md` § 1") so the
 
 Reuse the `shared/` skills instead of restating conventions: the one-PR loop
 (`shipping-conventions`), PR titles/bodies and review replies (`pr-conventions`),
-`DEFENSE_IN_DEPTH.md` status tracking (`security-status-tracking`), and AI model lookup and
-recommendation (`ai-model-discovery`).
+`DEFENSE_IN_DEPTH.md` status tracking (`security-status-tracking`), AI model lookup and
+recommendation (`ai-model-discovery`), and the refresh of files copied from this repo
+(`agentic-upstream-sync`).
 
 **Cross-references.** Refer to *another* skill by its name in backticks (e.g. "defer to the
 `code-review` skill"), not by a relative file path — paths are fragile across the category tree and
