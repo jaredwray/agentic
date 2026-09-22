@@ -1,6 +1,6 @@
 ---
 name: dependency-management-node
-description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — first reviewing pnpm overrides to remove or update them, then code-quality tooling, build tooling, monorepo tooling (including a hash-pinned packageManager written by corepack use), GitHub Actions, Docker images, Dev Container images, then runtime ecosystems, and last the AI model IDs the code calls (look up each provider's latest, recommend, bump on approval) — respecting pnpm minimumReleaseAge, a 7-day age gate on container image pins, and the @types/node-versus-Node-major rule. Use when asked to update, upgrade, or bump dependencies or AI models on a Node or pnpm project. Manual and resumable; overrides first, then the dev phase before the runtime phase.
+description: Upgrade a Node project's dev and runtime dependencies one grouped PR at a time — first reviewing pnpm overrides to remove or update them, then code-quality tooling, build tooling, monorepo tooling (including a hash-pinned packageManager written by corepack use), GitHub Actions, Docker images, Dev Container images, then runtime ecosystems, and last the AI model IDs the code calls (look up each provider's latest, recommend, bump on approval) — respecting pnpm minimumReleaseAge, a 7-day age gate on container image pins, and the @types/node-versus-Node-major rule. Every resume also checks jaredwray/agentic for defense-in-depth and AGENTS.md updates and syncs stale copies. Use when asked to update, upgrade, or bump dependencies or AI models on a Node or pnpm project. Manual and resumable; overrides first, then the dev phase before the runtime phase.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -223,7 +223,7 @@ Docker and Dev Container images follow the project's declared Node version, neve
 
 The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
 check for already-merged, stop and wait for `continue` — is `shipping-conventions`. Run it, with the
-**item taxonomy** and **branch naming** below (`chore/<group-key>`, `chore/override-<pkg>`). Its first step syncs `main` and
+**item taxonomy** and **branch naming** below (`chore/<group-key>`, `chore/override-<pkg>`, `chore/agentic-sync`). Its first step syncs `main` and
 stops on a dirty working tree — do not skip ahead to the numbered steps here, which are additions
 *inside* that loop, not a replacement for it:
 
@@ -232,14 +232,16 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 2. **Review overrides first.** Follow [Overrides](#overrides). If a pin can be removed or updated, verify (if a `build` script exists, `pnpm build && pnpm test`; otherwise `pnpm test`) and open the PR — title e.g. `root - chore: remove <pkg> override` or `root - chore: update <pkg> override` (use `mono - ` when the pin lives at the workspace root). Hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration.
    If none can change, continue to step 3. Re-run this step on every resume — a merged parent upgrade often makes a kept pin removable.
 
-3. **Determine the active phase.**
+3. **Check `jaredwray/agentic` for updates.** Run `agentic-upstream-sync`. If it refreshes a stale copy or appends a missing section, open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration. A catalog behind upstream is reported (running `defense-in-depth-nodejs` is the user's call); then continue to step 4. Re-run this step on every resume.
+
+4. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above; a `packageManager` behind its target or missing its hash counts) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs, any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred", declined model bumps), and any overrides that were kept, then stop.
 
-4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
+5. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
 
-5. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
+6. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
    - Bump it — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the exact value from the "Latest" column of `pnpm outdated`. **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, `pnpm up --latest`, or adding the package to `minimumReleaseAgeExclude` / `trustPolicyExclude` — they bypass `minimumReleaseAge` and pull versions younger than the gate allows.
    - Verify the upgrade. Check the relevant `package.json` `scripts` (root for single-package, the affected workspace for monorepos):
      - If a `build` script exists, run `pnpm build && pnpm test` — building first catches type and bundler regressions that tests alone won't.
@@ -300,3 +302,4 @@ Examples:
 - `root - chore: upgrade Docker Node.js runtime image`
 - `root - chore: pin Dev Container images`
 - `root - chore: upgrade Anthropic models`
+- `root - chore: sync defense-in-depth files from agentic`

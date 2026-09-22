@@ -1,6 +1,6 @@
 ---
 name: dependency-management-rust
-description: Upgrade a Rust project's dev, build, and runtime dependencies one grouped PR at a time, respecting the pinned toolchain, a 7-day age gate on container and Dev Container image pins, and running the dev phase before the runtime phase — then, last, the AI model IDs the code calls (look up each provider's latest, recommend, bump on approval). Use when asked to update, upgrade, or bump Cargo dependencies or AI models on a Rust project. Manual and resumable; one PR per group.
+description: Upgrade a Rust project's dev, build, and runtime dependencies one grouped PR at a time, respecting the pinned toolchain, a 7-day age gate on container and Dev Container image pins, and running the dev phase before the runtime phase — then, last, the AI model IDs the code calls (look up each provider's latest, recommend, bump on approval). Every resume also checks jaredwray/agentic for defense-in-depth and AGENTS.md updates and syncs stale copies. Use when asked to update, upgrade, or bump Cargo dependencies or AI models on a Rust project. Manual and resumable; one PR per group.
 disable-model-invocation: true
 user-invocable: true
 ---
@@ -199,21 +199,23 @@ Docker and Dev Container images follow `rust-toolchain.toml`, never the other wa
 
 The loop — sync `main`, resolve branch capability, pick one item, open the PR, drive CI to green,
 check for already-merged, stop and wait for `continue` — is `shipping-conventions`. Run it, with the
-**item taxonomy** and **branch naming** below (`chore/<group-key>`). Its first step syncs `main` and
+**item taxonomy** and **branch naming** below (`chore/<group-key>`, `chore/agentic-sync`). Its first step syncs `main` and
 stops on a dirty working tree — do not skip ahead to the numbered steps here, which are additions
 *inside* that loop, not a replacement for it. When syncing, if `rust-toolchain.toml` or
 `rust-toolchain` is present, confirm `rustc --version` matches before continuing.
 
 1. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker or Dev Container image group, ensure `skopeo` is available (install if needed).
 
-2. **Determine the active phase.**
+2. **Check `jaredwray/agentic` for updates.** Run `agentic-upstream-sync`. If it refreshes a stale copy or appends a missing section, open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration. A catalog behind upstream is reported; then continue to step 3. Re-run this step on every resume.
+
+3. **Determine the active phase.**
    - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred", declined model bumps) and stop.
 
-3. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
+4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).
 
-4. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
+5. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/build-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/tokio`, `chore/serde`, `chore/axum`, `chore/sqlx`, `chore/aws-sdk`, `chore/<crate>` for singletons.
    - Bump it — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
    - Refresh the lockfile — run `cargo update -p <crate>` so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
    - Verify the upgrade. The minimum gate is `cargo build --workspace --all-targets && cargo test --workspace`; also run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` if MSRV is declared (see [MSRV rule](#msrv-rule)). These are the same checks CI will run.
@@ -256,3 +258,4 @@ Examples:
 - `workspace - chore: upgrade tokio dependencies`
 - `root - chore: pin Dev Container images`
 - `root - chore: upgrade Anthropic models`
+- `root - chore: sync defense-in-depth files from agentic`
