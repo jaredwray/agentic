@@ -746,11 +746,16 @@ try {
   mkdirSync(home, { recursive: true });
   writeFileSync(join(claudeEnvDir, 'pnpm-lock.yaml'), '');
   writeFileSync(join(claudeEnvDir, 'package.json'), JSON.stringify({ name: 'x' }));
+  const want = `export PATH="${home}/.safe-chain/shims:${home}/.safe-chain/bin:$PATH"`;
+  // Lines that only mention the shims must not count: without ~/.safe-chain/bin on PATH the
+  // shims fall back to the unprotected package manager.
   const envFile = join(claudeEnvDir, 'claude-env.sh');
+  writeFileSync(envFile, '# ~/.safe-chain/shims\nexport PATH="$HOME/.safe-chain/shims:$PATH"\n');
   const bin = join(claudeEnvDir, 'bin');
   mkdirSync(bin);
   // A failed install must still leave Claude's later Bash commands shimmed.
-  writeExec(bin, 'pnpm', `if [ "$1" = install ]; then grep -Fq '.safe-chain/shims' "$CLAUDE_ENV_FILE" || exit 3; fi\nexit 0`);
+  writeExec(bin, 'pnpm', `if [ "$1" = install ]; then grep -Fqx '${want}' "$CLAUDE_ENV_FILE" || exit 3; fi\nexit 0`);
+  // Like safe-chain setup-ci, the fake installer replaces the bootstrap's blocking stubs.
   writeExec(
     bin,
     'curl',
@@ -762,10 +767,10 @@ for a in "$@"; do
 done
 printf '%s\\n' '#!/bin/sh
 mkdir -p "$HOME/.safe-chain/shims" "$HOME/.safe-chain/bin"
+rm -f "$HOME/.safe-chain/shims/"*
 exit 0' > "$out"`,
   );
   writeExec(bin, 'sha256sum', 'exit 0');
-  const want = `export PATH="${home}/.safe-chain/shims:${home}/.safe-chain/bin:$PATH"`;
   for (const attempt of ['first', 'repeat']) {
     const result = runBootstrap({ home, cwd: claudeEnvDir, pathDir: bin, extraEnv: { CLAUDE_ENV_FILE: envFile } });
     if (result.status !== 0) {
@@ -778,6 +783,34 @@ exit 0' > "$out"`,
   }
 } finally {
   rmSync(claudeEnvDir, { recursive: true, force: true });
+}
+
+// Claude Code keeps the session running after a failed SessionStart hook.
+const claudeFailDir = mkdtempSync(join(tmpdir(), 'safe-chain-claude-fail-'));
+try {
+  const home = join(claudeFailDir, 'home');
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(claudeFailDir, 'pnpm-lock.yaml'), '');
+  writeFileSync(join(claudeFailDir, 'package.json'), JSON.stringify({ name: 'x' }));
+  const envFile = join(claudeFailDir, 'claude-env.sh');
+  const bin = join(claudeFailDir, 'bin');
+  mkdirSync(bin);
+  writeExec(bin, 'pnpm', 'exit 0');
+  writeExec(bin, 'curl', 'exit 22');
+  const result = runBootstrap({ home, cwd: claudeFailDir, pathDir: bin, extraEnv: { CLAUDE_ENV_FILE: envFile } });
+  // What Claude Code runs for a later Bash command: CLAUDE_ENV_FILE, then the command.
+  const later = spawnSync('bash', ['-c', `. '${envFile}' && pnpm install`], {
+    cwd: claudeFailDir,
+    encoding: 'utf8',
+    env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, LANG: 'C' },
+  });
+  if (result.status === 0 || later.status === 0 || !/Safe Chain is not set up/.test(`${later.stdout}${later.stderr}`)) {
+    err(
+      `a failed bootstrap must leave Claude's package managers blocked, not unprotected (bootstrap ${result.status}; later pnpm ${later.status}: ${later.stdout}${later.stderr})`,
+    );
+  }
+} finally {
+  rmSync(claudeFailDir, { recursive: true, force: true });
 }
 
 const checkNpmjsPath = join(SKILL, 'scripts/check-npmjs.sh');

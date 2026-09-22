@@ -197,9 +197,12 @@ bash ./scripts/setup-cloud-environment.sh && export PATH="$HOME/.safe-chain/shim
 
 Claude Code's Bash tool starts each command from a shell snapshot taken at launch, not from the rc
 files, so the script also appends the shim `PATH` to `CLAUDE_ENV_FILE`, which Claude Code runs before
-every Bash command. A session with several repositories loads no repo hooks, so run Claude Code
-sessions on this repo alone. `CLAUDE.md` imports `@AGENTS.md` because Claude Code reads only
-`CLAUDE.md` when both files exist, and some sessions never read `AGENTS.md` (versions before
+every Bash command. A failed SessionStart hook does not stop the session, so the script writes that
+line before anything can fail and seeds `~/.safe-chain/shims` with `npm` / `npx` / `pnpm` / `pnpx`
+stubs that exit 1 until Safe Chain's `setup-ci` replaces them: a failed bootstrap leaves package
+installs blocked, not unprotected. A session with several repositories loads no repo hooks, so run
+Claude Code sessions on this repo alone. `CLAUDE.md` imports `@AGENTS.md` because Claude Code reads
+only `CLAUDE.md` when both files exist, and some sessions never read `AGENTS.md` (versions before
 2.1.277, third-party providers, the first session after an install).
 
 Merge — never blindly overwrite:
@@ -209,7 +212,7 @@ Merge — never blindly overwrite:
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
 | `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4` with `"moby": false`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
-| `.claude/settings.json` | Write the template | Keep other keys and hooks; add the template's `SessionStart` group unless a SessionStart hook already runs the script. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
+| `.claude/settings.json` | Write the template | Keep other keys and hooks. Replace a SessionStart hook that already runs the script with the template's hook (remote-gated, run from `$CLAUDE_PROJECT_DIR`, no `matcher`, not `async`); if none does, add the template's `SessionStart` group. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
 | `AGENTS.md` | Write the template's sections (Safe Chain, Pull requests) | Append each section that is absent; leave existing content alone. |
 | `CLAUDE.md` | Write `@AGENTS.md` | Add `@AGENTS.md` as the first line unless it already imports `AGENTS.md` (or is a symlink to it); leave the rest alone. |
 
@@ -217,11 +220,11 @@ Stop and report if `devcontainer.json`, `environment.json`, or `.claude/settings
 JSON. A leftover catalog line about PMG / VM-egress filtering is dropped in this PR (list it in the
 body).
 
-Reconcile Safe Chain as done when the bootstrap script is present, the Dev Container, Cursor, and
-Claude Code configs all invoke it, `CLAUDE.md` imports `@AGENTS.md`, and `AGENTS.md` has both
-template sections (Safe Chain, Pull requests) — a repo hardened before a config or section existed is
-not done until it is added. Image digest pinning is the next item — a greenfield copy of the template
-already satisfies it.
+Reconcile Safe Chain as done when the bootstrap script is present, the Dev Container and Cursor
+configs invoke it, `.claude/settings.json` has the template's SessionStart hook, `CLAUDE.md` imports
+`@AGENTS.md`, and `AGENTS.md` has both template sections (Safe Chain, Pull requests) — a repo
+hardened before a config or section existed is not done until it is added. Image digest pinning is
+the next item — a greenfield copy of the template already satisfies it.
 
 ### Codex cloud and Claude Code environments (manual)
 

@@ -13,6 +13,32 @@ SAFE_CHAIN_INSTALLER_URL="https://github.com/AikidoSec/safe-chain/releases/downl
 SAFE_CHAIN_SHIMS="${HOME}/.safe-chain/shims"
 SAFE_CHAIN_BIN="${HOME}/.safe-chain/bin"
 
+persist_shim_path() {
+  local rc="$1"
+  local line="export PATH=\"${SAFE_CHAIN_SHIMS}:${SAFE_CHAIN_BIN}:\$PATH\""
+  if [[ -f "$rc" ]] && grep -Fqx -- "$line" "$rc"; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$rc")"
+  printf '\n# Aikido Safe Chain shims\n%s\n' "$line" >> "$rc"
+}
+
+# Claude Code starts each Bash command from a shell snapshot taken at launch, not the rc files,
+# and runs CLAUDE_ENV_FILE before every command instead. A failed SessionStart hook does not stop
+# the session, so the shims go on its PATH before anything here can fail, holding stubs that
+# refuse to run until Safe Chain's setup-ci replaces them.
+if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
+  mkdir -p "$SAFE_CHAIN_SHIMS"
+  for cmd in npm npx pnpm pnpx; do
+    if [[ ! -e "${SAFE_CHAIN_SHIMS}/${cmd}" ]]; then
+      printf '#!/bin/sh\necho "error: Safe Chain is not set up, so %s is blocked; run bash ./scripts/setup-cloud-environment.sh" >&2\nexit 1\n' \
+        "$cmd" > "${SAFE_CHAIN_SHIMS}/${cmd}"
+      chmod +x "${SAFE_CHAIN_SHIMS}/${cmd}"
+    fi
+  done
+  persist_shim_path "$CLAUDE_ENV_FILE"
+fi
+
 if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
   cd "$git_root"
 fi
@@ -51,25 +77,9 @@ echo "${SAFE_CHAIN_INSTALLER_SHA256}  ${installer}" | sha256sum -c -
 
 export PATH="${SAFE_CHAIN_SHIMS}:${SAFE_CHAIN_BIN}:${PATH}"
 
-persist_shim_path() {
-  local rc="$1"
-  local line="export PATH=\"${SAFE_CHAIN_SHIMS}:${SAFE_CHAIN_BIN}:\$PATH\""
-  if [[ -f "$rc" ]] && grep -Fq ".safe-chain/shims" "$rc"; then
-    return 0
-  fi
-  mkdir -p "$(dirname "$rc")"
-  printf '\n# Aikido Safe Chain shims\n%s\n' "$line" >> "$rc"
-}
-
 persist_shim_path "${HOME}/.profile"
 persist_shim_path "${HOME}/.bashrc"
 persist_shim_path "${HOME}/.zshrc"
-
-# Claude Code starts each Bash command from a shell snapshot taken at launch, not the rc files
-# above; it runs CLAUDE_ENV_FILE before every command instead.
-if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
-  persist_shim_path "$CLAUDE_ENV_FILE"
-fi
 
 if [[ -n "${GITHUB_PATH:-}" ]]; then
   printf '%s\n' "$SAFE_CHAIN_SHIMS" >> "$GITHUB_PATH"
