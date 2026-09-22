@@ -194,8 +194,9 @@ Stop and report if `devcontainer.json` or `environment.json` is not valid JSON. 
 line about PMG / VM-egress filtering is dropped in this PR (list it in the body).
 
 Reconcile Safe Chain as done when the bootstrap script is present, both environment configs invoke
-it, and `AGENTS.md` has the Safe Chain section. Image digest pinning is the next item — a greenfield
-copy of the template already satisfies it.
+it, and `AGENTS.md` has both template sections (Safe Chain, Pull requests) — a repo hardened before a
+section existed is not done until that section is appended. Image digest pinning is the next item — a
+greenfield copy of the template already satisfies it.
 
 ### Pin Dev Container images
 
