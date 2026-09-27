@@ -60,7 +60,7 @@ Profile: <npm library | website/app> · <public | private>
 
 ## 2. CODEOWNERS and cloud bootstrap
 - [ ] `.github/CODEOWNERS` covers `/.github/`, `/.vscode/`, `/.cursor/`, `/.devcontainer/`, `/.claude/`, `/.codex/`, `/scripts/` with owners the maintainer names
-- [ ] Codespaces, Cursor Cloud Agents, and Claude Code on the web bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile)
+- [ ] Codespaces, Cursor Cloud Agents, and Claude Code on the web bootstrap Aikido Safe Chain via scripts/setup-cloud-environment.sh (--ci shims, frozen lockfile); Claude Code runs it from `.claude/hooks/session-start.sh` (web sessions only, install log on stderr, 600s timeout) and `.gitignore` keeps `.claude/settings.json` and `.claude/hooks/` tracked
 - [ ] Codex cloud environments use Manual setup with `bash ./scripts/setup-cloud-environment.sh` as the setup and maintenance script (manual)
 - [ ] Claude Code on the web environments allow `malware-list.aikido.dev` (Custom network access plus the default package-manager list) (manual)
 - [ ] Dev Container `image` pinned by digest (`name:<tag>@sha256:<digest>`; not a floating tag)
@@ -157,6 +157,7 @@ target's `scripts/setup-cloud-environment.sh`, and copy from this skill's `templ
 | `templates/.devcontainer/devcontainer.json` | `.devcontainer/devcontainer.json` |
 | `templates/.cursor/environment.json` | `.cursor/environment.json` |
 | `templates/.claude/settings.json` | `.claude/settings.json` |
+| `templates/.claude/hooks/session-start.sh` | `.claude/hooks/session-start.sh` |
 | `templates/AGENTS.md` | `AGENTS.md` (section only — see merge rules) |
 | `@AGENTS.md` (one line) | `CLAUDE.md` (import only — see merge rules) |
 | `scripts/setup-cloud-environment.sh` | `scripts/setup-cloud-environment.sh` |
@@ -174,13 +175,17 @@ Dockerfile; never `:latest`) and installs GitHub CLI plus Docker via Dev Contain
 (`ghcr.io/devcontainers/features/github-cli:1` and
 `ghcr.io/devcontainers/features/docker-in-docker:4` with `"moby": false` — Trixie has no Moby
 packages). Cursor uses a managed environment with only `install` (no `build`, no Dockerfile, no
-snapshot). Claude Code on the web uses a SessionStart hook in `.claude/settings.json` that runs only
-when `CLAUDE_CODE_REMOTE` is `true` — local Claude Code sessions skip it — and first `cd`s to
-`$CLAUDE_PROJECT_DIR`. It sets no `matcher`, so resume, `/clear`, compaction, and forks re-run it,
-and it is not `async`, so the shims exist before Claude runs a command. All three invoke
-`bash ./scripts/setup-cloud-environment.sh` so the copied script does not need the executable bit.
-Leave `postCreateCommand` / `install` / the hook `command` as that invocation — do not wrap it
-in `bash -i`, `source ~/.bashrc`, or `source "$NVM_DIR/nvm.sh"`. A fresh Codespace runs a
+snapshot). Claude Code on the web uses a SessionStart hook in `.claude/settings.json` whose
+command is `bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh` with `"timeout": 600`. The
+hook script runs only when `CLAUDE_CODE_REMOTE` is `true` — local Claude Code sessions exit 0 with
+no output — then `cd`s to `$CLAUDE_PROJECT_DIR` and runs `bash ./scripts/setup-cloud-environment.sh >&2`.
+Hook stdout is injected into the session; the install log must not land there. The default hook
+timeout is 60s, which kills a cold Safe Chain install, so 600 is required. It sets no `matcher`,
+so resume, `/clear`, compaction, and forks re-run it, and it is not `async`, so the shims exist
+before Claude runs a command. Invoke the hook with `bash` so it does not need the executable bit.
+Codespaces and Cursor still invoke `bash ./scripts/setup-cloud-environment.sh` directly.
+Leave `postCreateCommand`, `install`, and the hook `command` as those invocations — do not wrap
+them in `bash -i`, `source ~/.bashrc`, or `source "$NVM_DIR/nvm.sh"`. A fresh Codespace runs a
 non-interactive shell, so those only help an already-open terminal (`source ~/.bashrc` after a
 one-off run). If `pnpm` is missing, the script enables Corepack's `pnpm` shim into
 `~/.safe-chain/bin` (`--install-directory`) so it does not EACCES on the javascript-node image's
@@ -200,19 +205,37 @@ files, so the script also appends the shim `PATH` to `CLAUDE_ENV_FILE`, which Cl
 every Bash command. A failed SessionStart hook does not stop the session, so the script writes that
 line before anything can fail and seeds `~/.safe-chain/shims` with `npm` / `npx` / `pnpm` / `pnpx`
 stubs that exit 1 until Safe Chain's `setup-ci` replaces them: a failed bootstrap leaves package
-installs blocked, not unprotected. A session with several repositories loads no repo hooks, so run
-Claude Code sessions on this repo alone. `CLAUDE.md` imports `@AGENTS.md` because Claude Code reads
-only `CLAUDE.md` when both files exist, and some sessions never read `AGENTS.md` (versions before
-2.1.277, third-party providers, the first session after an install).
+installs blocked, not unprotected. The hook script must not append `PATH` itself after the bootstrap
+returns — that write would be skipped when the bootstrap fails. A session with several
+repositories loads no repo hooks, so run Claude Code sessions on this repo alone. `CLAUDE.md`
+imports `@AGENTS.md` because Claude Code reads only `CLAUDE.md` when both files exist, and some
+sessions never read `AGENTS.md` (versions before 2.1.277, third-party providers, the first session
+after an install).
+
+`.gitignore` must not hide the hook. A line `.claude` or `.claude/` ignores the directory, and Git
+will not re-include anything underneath it. Use this block (replace a blanket `.claude` /
+`.claude/` rule with it; if `.claude/*` is already present, add only the two negations that are
+missing; if no Claude rule exists, append the block):
+
+```
+# AI (keep the shared Claude Code settings and hooks; ignore local state)
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+```
+
+`settings.local.json` and other `.claude` entries stay ignored. Do not un-ignore them.
 
 Merge — never blindly overwrite:
 
 | File | Missing | Already present |
 | --- | --- | --- |
 | `scripts/setup-cloud-environment.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
+| `.claude/hooks/session-start.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
 | `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4` with `"moby": false`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
-| `.claude/settings.json` | Write the template | Keep other keys and hooks. Replace a SessionStart hook that already runs the script with the template's hook (remote-gated, run from `$CLAUDE_PROJECT_DIR`, no `matcher`, not `async`); if none does, add the template's `SessionStart` group. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
+| `.claude/settings.json` | Write the template | Keep other keys and hooks. Replace a SessionStart hook that already runs the bootstrap (inline or via `session-start.sh`) with the template's hook (`bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh`, `"timeout": 600`, no `matcher`, not `async`); if none does, add the template's `SessionStart` group. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
+| `.gitignore` | Append the `.claude/*` block above | Replace a `.claude` or `.claude/` directory rule with that block. If `.claude/*` is already there, add `!.claude/settings.json` and `!.claude/hooks/` when missing. |
 | `AGENTS.md` | Write the template's sections (Safe Chain, Pull requests) | Append each section that is absent; leave existing content alone. |
 | `CLAUDE.md` | Write `@AGENTS.md` | Add `@AGENTS.md` as the first line unless it already imports `AGENTS.md` (or is a symlink to it); leave the rest alone. |
 
@@ -221,10 +244,12 @@ JSON. A leftover catalog line about PMG / VM-egress filtering is dropped in this
 body).
 
 Reconcile Safe Chain as done when the bootstrap script is present, the Dev Container and Cursor
-configs invoke it, `.claude/settings.json` has the template's SessionStart hook, `CLAUDE.md` imports
-`@AGENTS.md`, and `AGENTS.md` has both template sections (Safe Chain, Pull requests) — a repo
-hardened before a config or section existed is not done until it is added. Image digest pinning is
-the next item — a greenfield copy of the template already satisfies it.
+configs invoke it, `.claude/hooks/session-start.sh` matches the template, `.claude/settings.json`
+runs that hook with timeout 600, `.gitignore` does not ignore `.claude/settings.json` or
+`.claude/hooks/`, `CLAUDE.md` imports `@AGENTS.md`, and `AGENTS.md` has both template sections
+(Safe Chain, Pull requests) — a repo hardened before the hook script, the timeout, the stderr
+redirect, or the gitignore exceptions existed is not done until they are added. Image digest
+pinning is the next item — a greenfield copy of the template already satisfies it.
 
 ### Codex cloud and Claude Code environments (manual)
 

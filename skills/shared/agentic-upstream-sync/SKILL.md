@@ -18,6 +18,7 @@ resume, before any upgrade group; on its own it answers "is this repo current wi
 | In the target repo | Upstream source on `main` | Kind |
 | --- | --- | --- |
 | `scripts/setup-cloud-environment.sh` | `skills/security/defense-in-depth-nodejs/scripts/setup-cloud-environment.sh` | verbatim copy |
+| `.claude/hooks/session-start.sh` | `skills/security/defense-in-depth-nodejs/templates/.claude/hooks/session-start.sh` | verbatim copy |
 | `AGENTS.md` sections whose `## ` heading matches a template section (`Safe Chain`, `Pull requests`, …) | `skills/security/defense-in-depth-nodejs/templates/AGENTS.md` | section copies |
 | `DEFENSE_IN_DEPTH.md` catalog — section headings and item lines | the `DEFENSE_IN_DEPTH.md` scaffold in `skills/security/defense-in-depth-nodejs/reference.md` § 1 | catalog |
 
@@ -30,7 +31,7 @@ files) belong to their own items.
 
 1. `git clone --filter=blob:none --quiet https://github.com/jaredwray/agentic "$tmp"` — a fresh clone
    every run, never a cached plugin copy.
-2. Script: `diff` the repo's copy against upstream. Different → stale.
+2. Verbatim copies: `diff` each verbatim row against upstream. Different → stale. `bash -n` each shell script after a refresh.
 3. Sections: for each template section (from its `## ` heading to the next), compare the repo's
    section with the same heading. Identical → current. Absent → missing. Different but equal to an
    earlier upstream revision (`git log -p -- skills/security/defense-in-depth-nodejs/templates/AGENTS.md`
@@ -41,10 +42,10 @@ files) belong to their own items.
 
 ## Act
 
-- Stale script or section → replace with the upstream text; missing section → append it. Together these
-  are one PR: branch `chore/agentic-sync`, title `<scope> - chore: sync defense-in-depth files from
-  agentic`, body listing each file and the upstream commit it now matches. Verify with `bash -n` on the
-  script; the sections are prose.
+- Stale verbatim copy or section → replace with the upstream text; missing section → append it.
+  Together these are one PR: branch `chore/agentic-sync`, title `<scope> - chore: sync defense-in-depth files from
+  agentic`, body listing each file and the upstream commit it now matches. Verify with `bash -n` on
+  each shell script; the sections are prose.
 - Locally edited section → leave it and list it in the PR body (or the report) with a link to the
   upstream diff, for the user to reconcile.
 - Catalog drift → do not edit `DEFENSE_IN_DEPTH.md` here. Report "catalog behind upstream: run
