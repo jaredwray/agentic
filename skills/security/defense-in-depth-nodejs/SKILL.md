@@ -131,8 +131,9 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      - Safe Chain: copy
        [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) and the files
        in `templates/` per [reference.md § 2](./reference.md#2-codeowners-and-cloud-bootstrap)
-       (merge existing `.devcontainer` / `.cursor` / `.claude` config and `CLAUDE.md`; never
-       overwrite it). Skip when `pnpm-lock.yaml` is absent. Branch
+       (merge existing `.devcontainer` / `.cursor` / `.claude` config, `CLAUDE.md`, and `.gitignore`
+       so `.claude/settings.json` and `.claude/hooks/` stay tracked; never overwrite existing
+       config). Skip when `pnpm-lock.yaml` is absent. Branch
        `chore/defense-safe-chain-cloud`. A leftover PMG / VM-egress line is dropped in that PR.
      - Dev Container image pin: rewrite each `.devcontainer/**/devcontainer.json` (and repo-root
        `devcontainer.json`) `image` to `name:<versioned-tag>@sha256:<digest>` per

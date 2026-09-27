@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ \"$CLAUDE_CODE_REMOTE\" = true ]; then cd \"$CLAUDE_PROJECT_DIR\" && bash ./scripts/setup-cloud-environment.sh; fi"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-start.sh",
+            "timeout": 600
           }
         ]
       }

@@ -14,10 +14,11 @@ const SCRIPT = join(SKILL, 'scripts/setup-cloud-environment.sh');
 const DEVCONTAINER = join(SKILL, 'templates/.devcontainer/devcontainer.json');
 const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
 const CLAUDE_SETTINGS = join(SKILL, 'templates/.claude/settings.json');
+const CLAUDE_HOOK_SCRIPT = join(SKILL, 'templates/.claude/hooks/session-start.sh');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
-const CLAUDE_HOOK = `if [ "$CLAUDE_CODE_REMOTE" = true ]; then cd "$CLAUDE_PROJECT_DIR" && ${BOOTSTRAP}; fi`;
+const CLAUDE_HOOK = 'bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh';
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
 const GITHUB_CLI_FEATURE = 'ghcr.io/devcontainers/features/github-cli:1';
 const DOCKER_IN_DOCKER_FEATURE = 'ghcr.io/devcontainers/features/docker-in-docker:4';
@@ -83,11 +84,37 @@ if (claudeSettings) {
   if (hooks.length !== 1 || hooks[0].type !== 'command' || hooks[0].command !== CLAUDE_HOOK) {
     err(`.claude/settings.json must have one SessionStart command hook: ${CLAUDE_HOOK}`);
   }
+  if (hooks[0]?.timeout !== 600) {
+    err('.claude/settings.json SessionStart hook must set timeout 600; the 60s default kills a cold Safe Chain install');
+  }
   if (groups.some((group) => group.matcher !== undefined)) {
     err('.claude/settings.json SessionStart hook must not set a matcher; /clear, compaction, and forks need the shims too');
   }
   if (hooks.some((hook) => hook.async)) {
     err('.claude/settings.json SessionStart hook must not be async; the shims must exist before Claude runs a command');
+  }
+}
+
+const claudeHookScript = existsSync(CLAUDE_HOOK_SCRIPT) ? readFileSync(CLAUDE_HOOK_SCRIPT, 'utf8') : '';
+if (!claudeHookScript) {
+  err('templates/.claude/hooks/session-start.sh is missing');
+} else {
+  if (!/CLAUDE_CODE_REMOTE/.test(claudeHookScript) || !/!= "true"/.test(claudeHookScript)) {
+    err('session-start.sh must exit unless CLAUDE_CODE_REMOTE=true');
+  }
+  if (!/cd "\$CLAUDE_PROJECT_DIR"/.test(claudeHookScript)) {
+    err('session-start.sh must cd to CLAUDE_PROJECT_DIR');
+  }
+  if (!/setup-cloud-environment\.sh >&2/.test(claudeHookScript)) {
+    err('session-start.sh must send the bootstrap stdout to stderr; hook stdout becomes session context');
+  }
+  const hookCode = claudeHookScript.replace(/^#.*$/gm, '');
+  if (/CLAUDE_ENV_FILE/.test(hookCode)) {
+    err('session-start.sh must not write CLAUDE_ENV_FILE; setup-cloud-environment.sh does that before it can fail');
+  }
+  const hookSyntax = spawnSync('bash', ['-n', CLAUDE_HOOK_SCRIPT], { encoding: 'utf8' });
+  if (hookSyntax.status !== 0) {
+    err(`session-start.sh failed bash -n: ${hookSyntax.stderr || hookSyntax.stdout}`);
   }
 }
 
@@ -129,6 +156,12 @@ if (scaffoldIdx === -1) {
     }
     if (!/Claude Code on the web bootstrap/.test(cloud)) {
       err('catalog § 2 Safe Chain item must cover Claude Code on the web');
+    }
+    if (!/\.claude\/hooks\/session-start\.sh/.test(cloud) || !/600s timeout/.test(cloud)) {
+      err('catalog § 2 Safe Chain item must name the session-start hook and its 600s timeout');
+    }
+    if (!/\.gitignore/.test(cloud) || !/\.claude\/hooks\//.test(cloud)) {
+      err('catalog § 2 Safe Chain item must require .gitignore to keep the Claude hook tracked');
     }
     if (!/Codex cloud environments use Manual setup.*\(manual\)$/m.test(cloud)) {
       err('catalog § 2 must have a (manual) Codex cloud Manual setup item');
@@ -195,6 +228,15 @@ if (!reference.includes(BOOTSTRAP)) {
 }
 if (!reference.includes('CLAUDE_CODE_REMOTE') || !reference.includes('CLAUDE_ENV_FILE')) {
   err('reference.md must gate the Claude Code hook on CLAUDE_CODE_REMOTE and persist shims via CLAUDE_ENV_FILE');
+}
+if (!reference.includes(CLAUDE_HOOK) || !reference.includes('"timeout": 600')) {
+  err('reference.md must document the session-start.sh hook command and timeout 600');
+}
+if (!reference.includes('>&2') || !reference.includes('.claude/*') || !reference.includes('!.claude/hooks/')) {
+  err('reference.md must send hook stdout to stderr and un-ignore .claude/settings.json and .claude/hooks/');
+}
+if (!reference.includes('must not append `PATH` itself after the bootstrap')) {
+  err('reference.md must keep CLAUDE_ENV_FILE writes in setup-cloud-environment.sh, before a failed bootstrap');
 }
 if (!reference.includes('`@AGENTS.md`')) {
   err('reference.md must have CLAUDE.md import @AGENTS.md so Claude Code reads the Safe Chain section');
@@ -720,21 +762,42 @@ const claudeHookDir = mkdtempSync(join(tmpdir(), 'safe-chain-claude-hook-'));
 try {
   const project = join(claudeHookDir, 'project');
   mkdirSync(join(project, 'scripts'), { recursive: true });
+  mkdirSync(join(project, '.claude/hooks'), { recursive: true });
   writeFileSync(join(project, 'scripts/setup-cloud-environment.sh'), readFileSync(SCRIPT));
+  writeFileSync(join(project, '.claude/hooks/session-start.sh'), readFileSync(CLAUDE_HOOK_SCRIPT));
+  const envFile = join(claudeHookDir, 'claude-env.sh');
   const runHook = (extraEnv) =>
-    spawnSync('sh', ['-c', CLAUDE_HOOK], {
+    spawnSync('bash', ['-c', CLAUDE_HOOK], {
       cwd: claudeHookDir,
       encoding: 'utf8',
-      env: { PATH: process.env.PATH, HOME: claudeHookDir, LANG: 'C', CLAUDE_PROJECT_DIR: project, ...extraEnv },
+      env: {
+        PATH: process.env.PATH,
+        HOME: claudeHookDir,
+        LANG: 'C',
+        CLAUDE_PROJECT_DIR: project,
+        CLAUDE_ENV_FILE: envFile,
+        ...extraEnv,
+      },
     });
   const local = runHook({});
   if (local.status !== 0 || `${local.stdout}${local.stderr}`.trim() !== '') {
     err(`.claude/settings.json hook must be a silent no-op outside cloud sessions (got ${local.status}: ${local.stdout}${local.stderr})`);
   }
+  if (existsSync(envFile)) {
+    err('session-start.sh must not touch CLAUDE_ENV_FILE outside cloud sessions');
+  }
   // The project has no pnpm-lock.yaml, so reaching the bootstrap from another cwd fails on that check.
   const cloud = runHook({ CLAUDE_CODE_REMOTE: 'true' });
-  if (cloud.status === 0 || !/pnpm-lock\.yaml/.test(`${cloud.stdout}${cloud.stderr}`)) {
+  if (cloud.stdout.trim() !== '') {
+    err(`session-start.sh must keep the install log off stdout (got: ${cloud.stdout})`);
+  }
+  if (cloud.status === 0 || !/pnpm-lock\.yaml/.test(cloud.stderr)) {
     err(`.claude/settings.json hook must run the bootstrap from CLAUDE_PROJECT_DIR in cloud sessions (got ${cloud.status}: ${cloud.stdout}${cloud.stderr})`);
+  }
+  const want = `export PATH="${claudeHookDir}/.safe-chain/shims:${claudeHookDir}/.safe-chain/bin:$PATH"`;
+  const written = existsSync(envFile) ? readFileSync(envFile, 'utf8') : '';
+  if (!written.includes(want)) {
+    err(`a failed session-start bootstrap must still write the shim PATH to CLAUDE_ENV_FILE (got: ${written})`);
   }
 } finally {
   rmSync(claudeHookDir, { recursive: true, force: true });
