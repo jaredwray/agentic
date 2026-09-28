@@ -15,6 +15,8 @@ Operation manual for **cutting a release** of an OSS project — finding the unr
 >
 > **One release PR at a time.** If a previous release PR (matching the branch pattern below) is already open, drive its CI to green if needed, then stop and wait. Never open a second release PR while one is in flight.
 >
+> **Every PR is ready for review, never a draft.** Mark the release PR ready for review when you open it (`draft: false`, or the tool's ready-for-review equivalent). If it was created as a draft — including when the environment defaults to draft — mark it ready for review before you stop. Do not leave it in draft mode.
+>
 > **Scope is the version bump, not the publish.** This doc covers the bump-and-notes PR. The actual publish is triggered after merge by the project's existing release workflow (e.g. GitHub Release → npm). If no publish workflow exists, surface that in the final report — do not invent one. For setting up a hardened publish pipeline, see the `release-management-nodejs` skill. This skill follows the shared `shipping-conventions` loop and `pr-conventions`.
 
 ## Scope and summary
@@ -111,7 +113,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - Update `CHANGELOG.md` (root for single-package, per-package for monorepos) **only if the file already exists**. Prepend the new entry — do not rewrite history. If the project does not keep a `CHANGELOG.md`, skip this step; the release notes live in the PR body and the eventual GitHub Release.
    - Run `pnpm install --lockfile-only` to refresh the lockfile if any version bump changed a workspace cross-dep.
    - Locally: `pnpm install --frozen-lockfile && pnpm build && pnpm test` (or whatever the project's `test:ci` is). Fix any breakage before pushing — a release PR must be green from the first push.
-   - Open the PR per [Pull request rules](#pull-request-rules). Title and body templates are in [§ 3 PR title and body](./reference.md#3-pr-title-and-body).
+   - Open the PR **ready for review**, not as a draft, per [Pull request rules](#pull-request-rules). Pass `draft: false` (or the tool's ready-for-review equivalent). If the PR was created as a draft, mark it ready for review before continuing. Title and body templates are in [§ 3 PR title and body](./reference.md#3-pr-title-and-body).
 
 7. **Drive CI to green.** Watch CI on the PR. If any check fails, diagnose, fix, and push until every check is green. **Do not stop on a red PR.** A flaky test that is flaky on `main` too is the only acceptable reason to proceed without green; document it in a PR comment if so.
 
@@ -130,7 +132,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 - **One release per PR.** A release cut PR contains only the version bump, the `CHANGELOG.md` update (if applicable), and a lockfile refresh if needed. Never bundle code changes, dep upgrades, or refactors into a release PR.
 - **Only one open release PR at a time.** If a previous release PR is still open, drive its CI to green if needed, then stop and wait.
 - **Branch names** match the patterns in Step 6 — `release/v<version>` (single), `release/<pkg>@<version>` (single package in monorepo), `release/<date>-<n-packages>` (multi-package cut).
-- The PR is opened **as ready for review**, not as a draft.
+- **Ready for review, never a draft.** Mark the PR ready for review when you open it. If it is already a draft, mark it ready before you stop. Draft mode is not allowed.
 
 ---
 

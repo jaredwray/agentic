@@ -17,6 +17,8 @@ Operation manual for **opening (or updating) a single pull request on GitHub** f
 > **Three stop points in the happy path** before green and one quiet phase after: (a) a dirty working tree on entry — stop and tell the user to commit or stash first; (b) the title-and-body draft — present it once and wait for approval before any push; (c) CI is green on the opened PR — report, then proceed to (d) **subscribe to PR activity and end the turn**, resuming only when a reviewer comment arrives. Everywhere else the agent proceeds autonomously, including pushing fixes when CI fails and pushing fixes for agreed-with review suggestions per [Reference § 6](#6-handling-code-change-review-comments).
 >
 > **One PR per invocation.** Drive one PR to "open + green + subscribed" and stop. Do not approve, merge, enable auto-merge, request reviewers, or set labels — those are the maintainer's calls, not the agent's.
+>
+> **Every PR is ready for review, never a draft.** Mark it ready for review when you open it, and mark an existing draft ready when you update it. Do not leave any PR in draft mode.
 
 ## Scope
 
@@ -80,7 +82,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - **Title:** the drafted title, in a single-backtick code span so the user can copy it.
    - **Body:** the full rendered markdown body, wrapped in a four-backtick fenced block so any internal three-backtick fences render verbatim.
    - **Change summary:** `<n> commits, <m> files changed, +<add>/−<rm>`.
-   - **Draft state:** `ready` (the default) or `draft` (only if the user has previously asked, or local checks haven't been run).
+   - **Draft state:** `ready`. Always. Mark the PR ready for review; never open or leave it as a draft.
    - **A literal prompt to approve**, e.g. *"Reply `ship it` (or `lgtm`, `approved`) to push and open. Reply with edits (e.g. `change type to fix`, `drop the scope`, `rewrite the summary`) for changes first."*
 
    Then **wait**. Do not push. Do not call any GitHub MCP write tool. The agent only proceeds on explicit approval.
@@ -88,7 +90,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 7. **Push and open (or update).** On approval:
 
    - **Push.** `git push -u origin <branch>` if no upstream is set, otherwise `git push`. If the push is rejected because the remote has new commits (rare for a feature branch the agent owns), stop and report — do not force-push without an explicit instruction.
-   - **Open or update.** In new-PR mode: `mcp__github__create_pull_request` with `owner`, `repo`, `title`, `body`, `head=<branch>`, `base=<default-branch>`, `draft=false`. In update mode: `mcp__github__update_pull_request` with `pull_number=<n>`, `title`, `body`.
+   - **Open or update.** In new-PR mode: `mcp__github__create_pull_request` with `owner`, `repo`, `title`, `body`, `head=<branch>`, `base=<default-branch>`, `draft=false`. In update mode: `mcp__github__update_pull_request` with `pull_number=<n>`, `title`, `body`, `draft=false` so an existing draft is marked ready for review. Confirm the PR is not a draft before continuing.
    - **Capture the result.** Record the PR number, URL, and the SHA the PR currently points at.
 
 8. **Drive CI to green.** Poll the PR's check runs via `mcp__github__pull_request_read` (request `method: "status"` or the checks view). For each failing check:
@@ -241,7 +243,7 @@ Use the GitHub MCP tools — not `gh` CLI, not raw API. The tools accept structu
 |---|---|---|
 | `mcp__github__list_pull_requests` | Step 3 — dedupe | `owner`, `repo`, `head=<owner>:<branch>`, `state=open` |
 | `mcp__github__create_pull_request` | Step 7 — new-PR mode | `owner`, `repo`, `title`, `body`, `head`, `base`, `draft=false` |
-| `mcp__github__update_pull_request` | Step 7 — update mode | `owner`, `repo`, `pull_number`, `title`, `body` |
+| `mcp__github__update_pull_request` | Step 7 — update mode | `owner`, `repo`, `pull_number`, `title`, `body`, `draft=false` |
 | `mcp__github__pull_request_read` | Step 8 — CI polling, Step 9 — fetching review threads | `owner`, `repo`, `pullNumber`, `method` (`get_status`, `get_check_runs`, `get_review_comments`, `get_reviews`, `get_comments` as needed) |
 | `mcp__github__add_issue_comment` | Step 8 — flake comment | `owner`, `repo`, `issue_number=<pull_number>`, `body` |
 | `mcp__github__subscribe_pr_activity` | Step 9 — start monitoring | `owner`, `repo`, `pullNumber` |
@@ -251,7 +253,7 @@ Use the GitHub MCP tools — not `gh` CLI, not raw API. The tools accept structu
 
 **Defaults to enforce:**
 
-- `draft: false`. Open PRs as **ready for review**, not draft. Draft mode hides the PR from review queues and bypasses required-reviewer policies — use it only when the user explicitly asks, or when local checks haven't been run and the PR exists just to share a WIP link.
+- `draft: false`. Mark every PR **ready for review**. Never open a PR as a draft, and if the PR is already a draft, mark it ready before you stop. Draft mode hides the PR from review queues and bypasses required-reviewer policies. There is no WIP exception.
 - **Do not** call `mcp__github__merge_pull_request`, `mcp__github__enable_pr_auto_merge`, `mcp__github__pull_request_review_write` (for `APPROVE`), or `mcp__github__request_copilot_review` from this workflow. Merging and approving are out of scope.
 
 **Fallback when MCP is unavailable.** If the GitHub MCP server is disconnected (the tools fail with "tool not found" or similar), do **not** improvise with `gh` CLI or `curl` — that's a different transport with different auth. Stop and report the title + body to the user so they can open the PR by hand. The agent's job ends at "PR content drafted, transport unavailable."
@@ -296,7 +298,7 @@ Pleasantries, broad approvals, status-echo bot comments, and questions that don'
 The title, body, and review-reply rules are in §§ 1–3 and § 6 and in `pr-conventions`; these are the
 failure modes those rules don't already name.
 
-- **The dodge-the-review draft.** Opening as `draft: true` so required-reviewer policies don't apply. Drafts are for actual WIP, not for sneaking changes past a review gate.
+- **The draft PR.** Opening as `draft: true`, or leaving an existing PR in draft mode. Every PR is marked ready for review. Draft mode hides it from review queues and bypasses required-reviewer policies.
 - **The self-resolved pushback.** Resolving a review thread on a comment the agent disagreed with. The agent only resolves threads it actually fixed; reviewers and maintainers resolve disagreements they accept.
 - **The force-push that buries the review.** `git push --force` (or `--force-with-lease`) on top of fixes for review comments — the reviewer's inline anchors detach and the conversation loses its line context. Use force-push only when an explicit rebase is the change being made.
 - **The poll-when-you-could-subscribe.** Calling `pull_request_read` in a `sleep` loop waiting for new comments instead of subscribing and ending the turn. Step 9 is the contract: subscribe, end the turn, wake on event.

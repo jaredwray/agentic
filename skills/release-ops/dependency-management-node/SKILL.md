@@ -13,6 +13,8 @@ Workflow for upgrading both **devDependencies** (with CI tooling) and **runtime 
 >
 > **One PR at a time.** Open a PR, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next dep PR`, or similar. Never open a second dep-management PR while one is already in flight.
 >
+> **Every PR is ready for review, never a draft.** Mark the PR ready for review when you open it (`draft: false`, or the tool's ready-for-review equivalent). If it was created as a draft — including when the environment defaults to draft — mark it ready for review before you stop. Do not leave any PR in draft mode.
+>
 > **Overrides, then dev, then runtime.** Finish every override that can be removed or updated before any upgrade group. Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it).
@@ -256,7 +258,7 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
    - **For Dev Container image groups**, update every `image` value per [Dev Container images](#dev-container-images) and the [7-day age gate](#7-day-age-gate). Verify each file still parses as JSON.
    - **For the `packageManager` field**, `corepack use pnpm@<version>` with the target from [Version targeting](#version-targeting) is the bump and the hash pin in one; commit the lockfile changes its install makes, then verify as above.
    - **For AI model groups**, run `ai-model-discovery` first and take only the one provider's approved bumps it hands back. Replace every approved reference (code, config, env templates, docs), make the request-shape changes the provider's migration guide requires, and verify as above; if the tests call the provider live and no credentials are available, say so in the PR body. The PR body lists each `current → target` with the provider's catalog link, and any out-of-repo values (CI repository variables, deployment config) the user must change by hand.
-   - Open the PR — title and body per [Pull request rules](#pull-request-rules).
+   - Open the PR **ready for review**, never as a draft — title and body per [Pull request rules](#pull-request-rules). Pass `draft: false` (or the tool's ready-for-review equivalent). If the PR was created as a draft, mark it ready for review before continuing.
 
    Then hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait.
    Report what's left in the active phase and whether the runtime phase still has work.
@@ -264,8 +266,8 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 ## Pull request rules
 
 Loop invariants (one group per PR, one open PR at a time, branch from latest `main`,
-branch-constrained environments) are `shipping-conventions`. Review replies and the pleasantry-loop
-exception are `pr-conventions`. What's specific to this workflow:
+branch-constrained environments, ready for review and never a draft) are `shipping-conventions`.
+Review replies and the pleasantry-loop exception are `pr-conventions`. What's specific to this workflow:
 
 ### Version targeting
 

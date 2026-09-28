@@ -14,6 +14,8 @@ Operation manual for rolling out a hardened npm release pipeline (signer policy,
 >
 > **One PR at a time.** Open a PR for one item, drive its CI to green, then stop and wait. Resume only when the user says `continue`, `next`, `next release PR`, or similar. Never open a second release-management PR while one is already in flight.
 >
+> **Every PR is ready for review, never a draft.** Mark the PR ready for review when you open it (`draft: false`, or the tool's ready-for-review equivalent). If it was created as a draft — including when the environment defaults to draft — mark it ready for review before you stop. Do not leave any PR in draft mode.
+>
 > **Phase order is strict.** Phase 1 must be complete before any Phase 2 item begins; Phase 2 before Phase 3; Phase 3 before Phase 4. Within a phase, pick items top-to-bottom from the catalog. Manual / external items are tracked in `DEFENSE_IN_DEPTH.md` so the maintainer can tick them off; the agent never opens a PR for those, but a phase is not "complete" until all items including manual ones are checked.
 >
 > This skill follows the shared `shipping-conventions` loop and `pr-conventions`; the `DEFENSE_IN_DEPTH.md` status-block format and reconciliation rules live in `security-status-tracking`.
@@ -133,7 +135,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
    - Implement the item per the matching section in [Reference](#reference). Touch only what the item requires.
    - Update the `Release Management status` block: leave the checkbox unchecked, append `(PR #<n> pending)`. If the PR number isn't known yet, write `(PR pending)` and push a follow-up commit with the real PR number after opening.
    - Run any local verification the section spec calls for (e.g. `cosign verify-blob` for signer-policy items, `git tag -v` for release-intent items, dry-run the verification scripts on a sample release).
-   - Open the PR — title and body per [Pull request rules](#pull-request-rules).
+   - Open the PR ready for review — title and body per [Pull request rules](#pull-request-rules). Pass `draft: false` (or the tool's ready-for-review equivalent). If the PR was created as a draft, mark it ready for review before continuing. Never leave it in draft mode.
 
 5. **Drive CI to green.** Watch CI on the PR. If any check fails, diagnose, fix, and push until every check is green. **Do not stop on a red PR.**
 
@@ -151,6 +153,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 ## Pull request rules
 
 - **One item per PR.** Don't bundle multiple unchecked items, even within the same phase. Negative tests in Phase 3 are individual items.
+- **Ready for review, never a draft.** Mark every PR ready for review when you open it. If it is already a draft, mark it ready before you stop. Draft mode is not allowed.
 - **Only one open release-management PR at a time.** If a previous one is still open, drive its CI to green if needed, then stop and wait.
 - Every PR uses a unique branch from latest `main`. Branch naming: `chore/release-p<phase>-<item-key>`.
 
