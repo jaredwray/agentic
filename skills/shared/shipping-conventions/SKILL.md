@@ -39,7 +39,11 @@ skill-specific variant like `next dep PR`).
 
 4. **Open the PR.** Branch from the latest `main` using the consumer skill's naming scheme. Make
    only the change this item requires — no opportunistic refactors. Run the local verification the
-   item calls for (build/tests if present). Title and body follow `pr-conventions`.
+   item calls for (build/tests if present). Title and body follow `pr-conventions`. **Mark the PR
+   ready for review, never as a draft.** Pass `draft: false` (or the tool's ready-for-review
+   equivalent) when creating it. If the PR was created as a draft — including when the environment
+   defaults to draft — mark it ready for review before you continue. Do not leave any PR in draft
+   mode.
 
 5. **Drive CI to green.** Watch the PR's checks. If any check fails, diagnose, fix, push, and
    re-check until every required check passes (or a red check is a confirmed pre-existing flake on
@@ -57,6 +61,8 @@ skill-specific variant like `next dep PR`).
 
 - **One open PR at a time.** If a previous PR from this workflow is still open, drive its CI green if
   needed, then stop and wait — do not open a second.
+- **Every PR is ready for review.** Mark it ready when you open it, and if it is already a draft,
+  mark it ready before you stop. Never leave a PR in draft mode.
 - **One item per PR.** Even within the same category/section.
 - **Every PR branches from the latest `main`.**
 - **Branch capability is resolved up front.** See
