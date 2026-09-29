@@ -27,7 +27,7 @@ Operation manual for **writing tests that catch real production bugs** — not c
 1. **Test target** — what code or behavior the tests are protecting, with a clear boundary.
 2. **Existing coverage assessment** — what's already tested (and what those tests actually catch), what's tested-but-useless, what's untested.
 3. **Failure-mode inventory** — drawn from the six categories in [§ 2](#2-the-six-categories): real user behavior, concurrency, boundary values, dependency failures, past production bugs, hot-path performance contracts.
-4. **Trivial tests to drop** — explicit list of tests that should be removed because they catch nothing real (see [§ 3](#3-trivial-tests-cheat-sheet)).
+4. **Trivial tests to drop** — explicit list of tests that should be removed because they catch nothing real, judged by the `test-audit` skill's junk patterns and retention bar.
 5. **New tests** — real code, named after what they catch, with one assertion each, grouped by category.
 6. **Coverage delta** — what the new tests catch that the old suite didn't, stated as failure modes covered, not as a percentage.
 
@@ -54,7 +54,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
 2. **Audit the existing tests.** Read the current test file (or the closest one) and the production code. For each existing test, classify it:
    - **Catches a real failure mode** — keep.
    - **Catches a real failure mode but the assertion is too loose** — keep but tighten in the plan.
-   - **Trivial / type-restating / mock-verifying** — propose to delete (see [§ 3](#3-trivial-tests-cheat-sheet)).
+   - **Matches a `test-audit` junk pattern** that no retention-bar contract justifies — propose to delete, or to fold into the stronger test that already covers it.
    - **Catches a real failure mode but is currently broken / skipped** — surface as a separate finding.
 
    Record the classification in the report. The deliverable's value depends on this honesty — silently leaving trivial tests in place is what makes test suites grow forever while bugs still ship.
@@ -66,7 +66,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - **Pull from the codebase's history.** If `git log` or the incident log shows past bugs in this target, those become regression tests. Past bugs are the highest-value failure modes — they shipped once, they will ship again under regression.
    - **Don't pad.** Twelve failure modes that each catch a real bug beats thirty that include "handles null", "handles undefined", "handles empty string" listed separately when one test covers them all.
 
-4. **Drop the trivial.** Explicitly list which tests from Step 2 should be **deleted** because they catch nothing real. Each entry has the test name and the one-line reason ("re-asserts the type signature", "verifies the mock", "snapshot with no behavioral assertion"). See [§ 3](#3-trivial-tests-cheat-sheet) for the canonical list.
+4. **Drop the trivial.** Explicitly list which tests from Step 2 should be **deleted** because they catch nothing real. Each entry has the test name and the one-line reason ("re-asserts the type signature", "verifies the mock", "snapshot with no behavioral assertion"). The `test-audit` skill's junk patterns are the canonical list.
 
    This is the part most "add more tests" reports skip. Don't skip it. A suite that grows by five and shrinks by three is a stronger suite than one that grows by five and keeps the deadweight.
 
@@ -78,6 +78,8 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - **Why this catches the bug** — one line explaining how the assertion would fail if the bug returned.
 
    For concurrency tests specifically: name the **scheduling assumption** the test challenges (e.g. "two `submit` calls with the same idempotency key, simulated by `Promise.all`, must result in exactly one row in the `payouts` table").
+
+   Run each design through the `test-audit` authoring gate; redesign or drop what fails it.
 
 6. **Write the tests as real code.** Not sketches, not pseudocode — runnable code in the project's test framework. Imports resolved, fixtures real, assertions concrete. The user should be able to paste the output into the test file and run it.
 
@@ -169,27 +171,3 @@ The six failure-mode sources. The plan must draw from at least three; most real 
 - **External dependencies.** What happens when a thing the target depends on fails. Examples: the upstream API returns 500, returns 200 with malformed body, returns 200 with a new field the parser didn't expect, times out, rate-limits with `429`, returns partial results, returns the wrong shape entirely, the database loses the connection mid-transaction, the cache returns a stale value, the message bus is full and the publish blocks. Mock these deterministically; don't run the real upstream in tests.
 - **Past production bugs (regressions).** Every bug that ever shipped gets a test so it cannot ship again. Examples: an incident report on this target, a commit subject like `fix the X bug`, a `// HACK` comment with a date. The regression test names the incident (`test_regression_inc_1234_negative_amounts_now_rejected`) so future readers see why it exists.
 - **Hot-path performance contracts.** Where the code has a stated or implied performance budget. Examples: an endpoint that's supposed to respond in 100ms, a batch processor that's supposed to handle 10k records in 10s, a database query that's supposed to use an index, an algorithm that's supposed to be O(n log n) not O(n²). The test exercises the contract: at the target N, the operation completes within the budget; at 10x the target N, it does not blow up.
-
-## 3. Trivial tests cheat sheet
-
-Always drop these. They produce coverage numbers, not safety.
-
-- **Type-system restatement.** `expect(typeof x).toBe('string')` when `x: string` is in the signature. Your compiler / type checker already enforces this; the test catches nothing the type system doesn't.
-- **Constructor-doesn't-throw smoke tests.** `expect(() => new Foo()).not.toThrow()`. No assertion about behavior; passes when `Foo` is empty.
-- **Mock-verification tests.** `expect(mockDb.insert).toHaveBeenCalled()`. Verifies the mock, not the code. The function could still produce wrong output and this passes.
-- **Truthy-return tests.** `expect(result).toBeTruthy()`. `'a'` is truthy. `1` is truthy. `[]` is truthy. The assertion passes for everything that isn't `null` / `undefined` / `0` / `''` / `false`.
-- **Snapshot tests with no behavioral assertion.** A snapshot that captures the rendered HTML / serialized object and is updated on every UI change. Passes when the snapshot updates; catches a regression only by accident, and humans approve the diff anyway.
-- **"Imports correctly" smoke tests.** `import { Foo } from './foo'; expect(Foo).toBeDefined();`. Passes when the file parses; catches nothing the build doesn't already catch.
-- **Tests that re-implement the function in the assertion.** `expect(add(2, 3)).toBe(2 + 3)`. The arrangement and the assertion are the same code; one being wrong makes the other wrong identically.
-- **Per-method getter / setter tests.** `expect(obj.getName()).toBe(name)` when the getter is one line that returns the field. Nothing to break.
-- **Coverage-hitting tests with no assertion.** `test('it runs', () => { foo(); });`. Coverage tools count this as covered; reality does not.
-
-Also drop, and say why:
-
-- **The mock that lies** — a hardcoded response the real dependency would never give (sync when the real one is async, never errors when the real one errors weekly). Write an integration test instead.
-- **The shared mutable fixture** — Test A mutates it, Test B passes or fails on ordering. Fresh fixture per test, or freeze it.
-- **The test that documents a bug** — `// FIXME: passes because of #42`. It locks the wrong behavior in. Assert the correct behavior and let it fail, or delete it.
-- **The skipped test** — `xit`, `test.skip`, `@Disabled`. Skipped tests rot and read as coverage. Fix now or delete.
-- **The five tests that are one edge** — `handles_null`, `handles_undefined`, `handles_empty_string`… One test of the empty-input contract covers them.
-
-The skip-list is the part this manual is most insistent on. If the test catches nothing real, dropping it is not negligence — it is honesty about what the suite actually protects.

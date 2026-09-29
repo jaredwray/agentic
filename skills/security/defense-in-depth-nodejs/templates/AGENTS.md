@@ -21,3 +21,27 @@ before starting anything else:
   comments to skip are ones that need no answer — your own replies echoed back, plain approvals,
   pleasantries, and status-only bot notices — because answering those just restarts the loop.
 - After each push, wait again and repeat until CI is green and every actionable thread has a reply.
+
+## Test audit
+
+Every pull request that adds, changes, or deletes a test puts those tests through this gate before it
+is opened or updated. It is the authoring gate of the `test-audit` skill from `jaredwray/agentic`; run
+that skill when it is installed. Keep a new or changed test only when all four have an answer:
+
+1. What observable behavior, invariant, or contract does it protect?
+2. What credible regression makes it fail?
+3. Why doesn't existing coverage already catch that? Extend the owning test or its table rather than
+   adding a near-duplicate.
+4. Does it need an export, flag, or hook that no production caller uses? Then test at the real
+   boundary instead.
+
+- A bug-fix regression test must fail on the pre-fix code for the intended reason.
+- Drop tests that assert nothing, restate the implementation or what the type checker enforces, or
+  prove only a mock.
+- Coverage targets never lower this bar: reach an uncovered line through its public entry point, and
+  remove a branch no caller can reach rather than probing it.
+- Delete a test only by naming the test that still proves its contract, or why the contract is gone.
+  Never delete a test because it fails.
+- Note the gate in the PR body's verification list, with each test it dropped, rewrote, or deleted
+  and why.
+- Leave existing tests this change does not touch to a separate audit pull request.

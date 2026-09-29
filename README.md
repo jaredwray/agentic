@@ -92,8 +92,9 @@ lets real problems through.
 scopes strictly to what was asked — which quietly guts a workflow built on breadth. Skills whose value
 *is* that breadth carry an `**Effort.**` line in their preamble stating what they need: `xhigh` for
 `refactor`, `production-function`, one-way-door `adr`, and `viral-launch`; `high` or above for
-`code-review`, `debug`, `performance`, `test`, and `codebase-archaeology`. The mechanical one-PR loops
-don't carry the note — they run fine at the default.
+`code-review`, `debug`, `performance`, `test`, `codebase-archaeology`, and a `test-audit` audit (its
+per-PR gate runs at any level). The mechanical one-PR loops don't carry the note — they run fine at
+the default.
 
 The authoring rules behind all of this live in `skills/shared/writing-great-skills`.
 
@@ -120,6 +121,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `hemingway` | Editing-first pass on a growing change — delete, inline, narrow before adding; a Cut / Simplify / Keep / Smallest Change report. |
 | `production-function` | Write one function at a fintech bar — typed, validated, logged, tested, idempotent. |
 | `test` | Tests that catch real bugs — a failure-mode inventory, plus which trivial tests to drop. |
+| `test-audit` | Whether a test earns its place — a four-question gate every new or changed test passes before its PR, and an evidence-first audit that prunes low-value tests one PR at a time. |
 | `adr` | An Architecture Decision Record — options, 10x stress test, recommendation, 2-year regret check. |
 | `codebase-archaeology` | Map an unfamiliar codebase — entry points, main flow, safe first changes, risky areas. |
 | `codebase-design` | Shared design vocabulary (deep vs shallow, coupling, seams) other skills reach for. |
@@ -174,7 +176,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
 | `writing-great-skills` | How to author a SKILL.md for this plugin (also the contributor guide). |
 | `ai-model-discovery` | Find the AI model IDs a repo calls, look up each provider's catalog and deprecations, and recommend the newest same-tier model — one line per reference, approval per provider before anything changes. |
-| `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog against `jaredwray/agentic` `main`; refresh stale copies, report edited ones and catalog drift. |
+| `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog against `jaredwray/agentic` `main`; refresh stale copies, add missing `AGENTS.md` sections (creating the file in any repo), report edited ones and catalog drift. |
 
 ## Composition
 
