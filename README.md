@@ -176,7 +176,7 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
 | `writing-great-skills` | How to author a SKILL.md for this plugin (also the contributor guide). |
 | `ai-model-discovery` | Find the AI model IDs a repo calls, look up each provider's catalog and deprecations, and recommend the newest same-tier model — one line per reference, approval per provider before anything changes. |
-| `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog against `jaredwray/agentic` `main`; refresh stale copies, report edited ones and catalog drift. |
+| `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog against `jaredwray/agentic` `main`; refresh stale copies, add missing `AGENTS.md` sections (creating the file in any repo), report edited ones and catalog drift. |
 
 ## Composition
 

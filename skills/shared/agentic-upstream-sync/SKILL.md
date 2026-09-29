@@ -22,10 +22,12 @@ resume, before any upgrade group; on its own it answers "is this repo current wi
 | `AGENTS.md` sections whose `## ` heading matches a template section (`Safe Chain`, `Pull requests`, …) | `skills/security/defense-in-depth-nodejs/templates/AGENTS.md` | section copies |
 | `DEFENSE_IN_DEPTH.md` catalog — section headings and item lines | the `DEFENSE_IN_DEPTH.md` scaffold in `skills/security/defense-in-depth-nodejs/reference.md` § 1 | catalog |
 
-A row whose target file is absent does not apply. Nothing else is compared: `lockdown-repo.sh` and
+A row whose target file is absent does not apply — except `AGENTS.md`, which is created when absent:
+its template sections are agent policy for every repo, not only hardened ones. The Safe Chain section
+applies only where `pnpm-lock.yaml` exists. Nothing else is compared: `lockdown-repo.sh` and
 `check-npmjs.sh` are never copied into a target repo, and templates that are merged rather than copied
-(`devcontainer.json`, `environment.json`, `.claude/settings.json`, the `CLAUDE.md` import, workflow
-files) belong to their own items.
+(`devcontainer.json`, `environment.json`, `.claude/settings.json`, workflow files) belong to their own
+items.
 
 ## Compare
 
@@ -42,9 +44,12 @@ files) belong to their own items.
 
 ## Act
 
-- Stale verbatim copy or section → replace with the upstream text; missing section → append it.
-  Together these are one PR: branch `chore/agentic-sync`, title `<scope> - chore: sync defense-in-depth files from
-  agentic`, body listing each file and the upstream commit it now matches. Verify with `bash -n` on
+- Stale verbatim copy or section → replace with the upstream text; missing section → append it,
+  creating `AGENTS.md` when absent. When `AGENTS.md` gains a section, make sure Claude Code reads it:
+  write `@AGENTS.md` as `CLAUDE.md` when that file is absent, otherwise add it as the first line
+  unless `CLAUDE.md` already imports `AGENTS.md` or is a symlink to it. Together these are one PR:
+  branch `chore/agentic-sync`, title `<scope> - chore: sync defense-in-depth files from agentic`,
+  body listing each file and the upstream commit it now matches. Verify with `bash -n` on
   each shell script; the sections are prose.
 - Locally edited section → leave it and list it in the PR body (or the report) with a link to the
   upstream diff, for the user to reconcile.

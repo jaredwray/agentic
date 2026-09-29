@@ -1,6 +1,6 @@
 ---
 name: test-audit
-description: Decide whether a test earns its place. The authoring gate — four questions and a junk-pattern check — runs on every new or changed test before the pull request that carries it is opened or updated; the audit sweeps existing tests for ones that assert nothing, restate the implementation, prove only a mock, duplicate stronger proof, or keep test-only production code alive, and removes them one evidence-backed PR at a time. Invoke whenever writing, changing, reviewing, or sweeping tests, including before opening or updating a pull request that touches a test. Use when asked to audit, prune, or clean up a test suite, find low-value, redundant, or implementation-coupled tests, or judge whether a test is worth keeping.
+description: Decide whether a test earns its place. The authoring gate — four questions and a junk-pattern check — runs on every test a pull request adds, changes, or deletes before that pull request is opened or updated; the audit sweeps existing tests for ones that assert nothing, restate the implementation, prove only a mock, duplicate stronger proof, or keep test-only production code alive, and removes them one evidence-backed PR at a time. Invoke whenever writing, changing, reviewing, or sweeping tests, including before opening or updating a pull request that touches a test. Use when asked to audit, prune, or clean up a test suite, find low-value, redundant, or implementation-coupled tests, or judge whether a test is worth keeping.
 user-invocable: true
 ---
 
@@ -10,12 +10,12 @@ Operation manual for **deciding whether a test earns its place**. One value bar,
 
 > **When this document is loaded, begin executing immediately.** Pick the mode from the situation:
 >
-> - **Authoring gate** — you are writing or changing tests, reviewing a change that does, or about to open or update a pull request that adds or changes a test. Run [the gate](#authoring-gate) on exactly those tests. In your own change, fix or drop what fails and carry on with the task — no stop; in someone else's, report each failure as a review finding.
+> - **Authoring gate** — you are writing or changing tests, reviewing a change that does, or about to open or update a pull request that adds, changes, or deletes a test. Run [the gate](#authoring-gate) on exactly those tests. In your own change, fix or drop what fails and carry on with the task — no stop; in someone else's, report each failure as a review finding.
 > - **Audit** — the user asked to audit, prune, or clean up tests. Start at [Audit workflow](#audit-workflow) Step 1. Discovery is read-only; nothing is edited until the user approves the batch.
 >
 > **Persona.** Act as a **maintainer who keeps every test green through every refactor and pays for each one on every CI run.** A test is a standing cost; it earns its keep only by failing on a regression that would otherwise ship.
 >
-> **Scope bound.** The gate covers only the tests the current change adds or edits. An audit covers one owner boundary — a module, package, or feature path — per pull request. Never widen a feature PR into an audit; a broad audit continues as separate follow-up PRs.
+> **Scope bound.** The gate covers only the tests the current change adds, edits, or deletes. An audit covers one owner boundary — a module, package, or feature path — per pull request. Never widen a feature PR into an audit; a broad audit continues as separate follow-up PRs.
 >
 > **Effort.** The gate runs at any effort level. The audit needs `high` or above — below it, the evidence pass skips callers and history, and tests that guard a real contract get deleted.
 
@@ -43,7 +43,8 @@ Then check the test against every [junk pattern](#junk-patterns). A match fails 
 
 - **Regression tests** must fail on the pre-fix code for the intended reason and pass after the fix — run each against the pre-fix code and watch it fail. A regression test that never failed proves the mock, not the fix. One regression at the owner boundary covers the bug; do not replay the scenario at every layer it crosses.
 - **Coverage targets** never lower the gate. Reach an uncovered line through its public entry point with a test that answers all four questions. A branch no caller can reach is dead code to remove, not a line to probe.
-- **Record the gate** in the PR body's Verification list: one line for the tests that passed, plus one line per test dropped or rewritten, naming the question or pattern it failed.
+- **Deleted tests** count as changed. Name the keeper — the test that still proves the deleted test's contract — or the reason the contract no longer exists. Never delete a test because it fails; a failing test is a possible product bug, per [Scope](#scope).
+- **Record the gate** in the PR body's Verification list: one line for the tests that passed, plus one line per test dropped, rewritten, or deleted, naming the question or pattern it failed or its keeper.
 
 ## Junk patterns
 
@@ -89,9 +90,9 @@ Static or slow is not a reason to delete. In an audit, an existing test that mus
 
 ## Audit workflow
 
-Run on the first invocation and again for each follow-up batch.
+The audit runs the `shipping-conventions` loop. Its item is one owner-boundary batch on a branch named `test/audit-<boundary>`, and it adds one stop: the user approves the batch before anything is edited. Run on the first invocation and again on each `next`.
 
-1. **Fix the target and read the rules.** Pick one owner boundary — a module, package, or feature path. Read the root and scoped `AGENTS.md` and `CLAUDE.md`, the test config, and the CI workflow that runs these tests.
+1. **Sync, fix the target, and record the baseline.** Run the loop's first step: clean working tree, latest `main`, per-item branches possible. Pick one owner boundary — a module, package, or feature path — and read the root and scoped `AGENTS.md` and `CLAUDE.md`, the test config, and the CI workflow that runs these tests. Then run the in-scope tests once and record which pass and which fail: the baseline.
 2. **Sweep every test in scope.** Read each in full, including parameter tables, and record every test that matches a junk pattern, with the pattern it matched. Record; do not judge or rank yet. For a broad target, split the sweep into lanes along production owner boundaries plus one cross-cutting pattern lane, and run the lanes as parallel read-only subagents when available.
 3. **Gather evidence per candidate.** Read the production owner, its entry point, callers, callees, sibling implementations, overlapping tests, CI routing, and `git log` history; when the test claims dependency-backed behavior, read the dependency's source or types. Record every field — a candidate missing one is not ready:
    - test name and location;
@@ -102,16 +103,16 @@ Run on the first invocation and again for each follow-up batch.
    - the production or test-support code its removal unlocks;
    - risk, and the focused command that validates the change.
 4. **Mark each candidate, then pick the batch.** One mark per test; an `it.each` gets one mark unless its rows need different ones.
-   - `R` retain — the retention bar names its contract; a false positive.
+   - `R` retain — the retention bar names its contract; a false positive. A test that fails on the baseline is always `R`, reported as a possible product bug.
    - `F` fix — the contract is real, but the assertion is vacuous, loose, or proves the mock.
    - `C` consolidate — fold it into its keeper: a sibling table row or a stronger boundary suite.
    - `D` delete — name the keeper, or why no contract exists.
 
    Pick **one coherent owner-boundary batch** of `F`, `C`, and `D` candidates with complete evidence. The rest become named follow-ups; never pad the batch with uncertain candidates to raise the count.
 5. **Report and stop.** Render per [Audit report](#audit-report) and wait. Edit, commit, push, or open a PR only after the user approves the batch.
-6. **Apply the marks.** `D`: delete the test and the test-only exports, globals, wrappers, and dead production paths it kept alive — no aliases left behind. `C`: move the assertion into its keeper, collapsing repeated package or dependency assertions into one table-driven contract. `F`: repair the assertion so it fails on the regression it names. Move retained regressions to their canonical owner. Add no replacement test that restates the same implementation, and prefer a net-negative production diff.
-7. **Validate.** Run the owner and sibling tests with the repo's narrowest test command, then the full check CI runs (`pnpm test`, `cargo test`, …). For each contract now proved only by its keeper, mutate the production owner once, confirm the keeper fails, and restore the file exactly. For a removed assertion on source text or generated output, run the script, build, or dry-run that owns the real contract. Run the formatter on changed files and `git diff --check`, and split `git diff --numstat` into production and tooling lines versus test and test-support lines. Then run the `code-review` skill on the diff and resolve its findings.
-8. **Ship one PR, then continue.** Open it per `pr-conventions` with the report in the body, drive CI to green, and post the PR URL. After it merges, refresh from `main` and rerun Steps 2–5 for the next batch.
+6. **Apply the marks** on the batch's branch, cut from the latest `main`. `D`: delete the test and the test-only exports, globals, wrappers, and dead production paths it kept alive — no aliases left behind. `C`: move the assertion into its keeper, collapsing repeated package or dependency assertions into one table-driven contract. `F`: repair the assertion so it fails on the regression it names. Move retained regressions to their canonical owner. Add no replacement test that restates the same implementation, and prefer a net-negative production diff.
+7. **Validate.** Run the owner and sibling tests with the repo's narrowest test command, then the full check CI runs (`pnpm test`, `cargo test`, …); every test that passed on the baseline must still pass. For each contract now proved only by its keeper, mutate the production owner once, confirm the keeper fails, and restore the file exactly. For a removed assertion on source text or generated output, run the script, build, or dry-run that owns the real contract. Run the formatter on changed files and `git diff --check`, and split `git diff --numstat` into production and tooling lines versus test and test-support lines. Then run the `code-review` skill on the diff and resolve its findings.
+8. **Ship one PR, then stop.** Finish the `shipping-conventions` loop: commit, push, and open the PR ready for review — title and body per `pr-conventions`, with the report in the body — then drive CI to green, check for already-merged, and stop and wait. On `next`, start again at Step 1 for the next batch.
 
 ## Audit report
 
