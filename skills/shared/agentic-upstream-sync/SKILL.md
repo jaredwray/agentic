@@ -34,20 +34,22 @@ items.
 1. `git clone --filter=blob:none --quiet https://github.com/jaredwray/agentic "$tmp"` — a fresh clone
    every run, never a cached plugin copy.
 2. Verbatim copies: `diff` each verbatim row against upstream. Different → stale. `bash -n` each shell script after a refresh.
-3. Sections: for each template section (from its `## ` heading to the next), compare the repo's
-   section with the same heading. Identical → current. Absent → missing. Different but equal to an
-   earlier upstream revision (`git log -p -- skills/security/defense-in-depth-nodejs/templates/AGENTS.md`
-   in the clone) → stale. Different and matching no upstream revision → locally edited.
-4. Catalog: compare the section headings and `- [ ]`-style item lines of the repo's
+3. Sections: for each template section (from its `## ` heading to the next, ignoring blank lines at
+   either end), compare the repo's section with the same heading. Identical → current. Absent →
+   missing. Different but equal to an earlier upstream revision
+   (`git log -p -- skills/security/defense-in-depth-nodejs/templates/AGENTS.md` in the clone) →
+   stale. Different and matching no upstream revision → locally edited.
+4. Import: `AGENTS.md` has a template section, or gains one in step 3, and `CLAUDE.md` neither
+   imports `AGENTS.md` nor is a symlink to it (or is absent) → missing import.
+5. Catalog: compare the section headings and `- [ ]`-style item lines of the repo's
    `DEFENSE_IN_DEPTH.md` with the upstream scaffold's, ignoring checkbox state and PR annotations. Any
    difference → catalog drift.
 
 ## Act
 
 - Stale verbatim copy or section → replace with the upstream text; missing section → append it,
-  creating `AGENTS.md` when absent. When `AGENTS.md` gains a section, make sure Claude Code reads it:
-  write `@AGENTS.md` as `CLAUDE.md` when that file is absent, otherwise add it as the first line
-  unless `CLAUDE.md` already imports `AGENTS.md` or is a symlink to it. Together these are one PR:
+  creating `AGENTS.md` when absent; missing import → write `@AGENTS.md` as `CLAUDE.md` when that
+  file is absent, otherwise add it as the first line. Together these are one PR:
   branch `chore/agentic-sync`, title `<scope> - chore: sync defense-in-depth files from agentic`,
   body listing each file and the upstream commit it now matches. Verify with `bash -n` on
   each shell script; the sections are prose.
