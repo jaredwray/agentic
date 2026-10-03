@@ -5,8 +5,9 @@ free of charge from <https://www.asd-ste100.org>. STE applies to all text that y
 repository, its pull requests, and its issues. This text includes documentation, code comments,
 commit messages, review replies, and changelog entries.
 
-- Use only approved STE words with their approved meanings. You can also use technical names and
-  technical verbs.
+- Use approved STE words with their approved meanings. You can also use technical names and
+  technical verbs. If you cannot confirm that a word is approved, use a short, common word with one
+  meaning.
 - Use one word for one meaning.
 - Write an instruction in the imperative. Write one instruction in each sentence.
 - Do not write more than 20 words in an instruction or 25 words in a descriptive sentence.
@@ -74,8 +75,8 @@ task:
    resolve the thread. The reviewer closes it.
 6. If a comment asks a question, answer it on the thread.
 7. If CI fails, find the root cause and fix it. Do not skip or disable a test to make CI pass.
-8. After each push, do steps 1 to 7 again. Stop when CI passes and each finding, question, and
-   change request has a reply.
+8. If you pushed a change or CI did not finish, do steps 1 to 7 again. Stop when CI passes and each
+   finding, question, and change request has a reply.
 
 Do not reply to a comment that needs no answer: your own replies, approvals, thanks, and bot status
 notices. A reply to one of these comments starts the loop again.

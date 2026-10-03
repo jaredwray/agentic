@@ -22,4 +22,5 @@ unedited copy followed by a repo's own section therefore counts as stale, not as
 also checks the `CLAUDE.md` import on every run, not only when `AGENTS.md` gets a new section. The
 dependency-management skills open the `chore/agentic-sync` PR when the sync changes any file.
 `defense-in-depth-nodejs` refers to "every template section" and no longer keeps its own list of
-section names.
+section names. It now uses the same section compare as the sync: it replaces a stale section, and
+the Safe Chain item is not done while a template section is stale.
