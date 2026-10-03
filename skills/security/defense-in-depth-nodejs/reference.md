@@ -236,7 +236,7 @@ Merge — never blindly overwrite:
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
 | `.claude/settings.json` | Write the template | Keep other keys and hooks. Replace a SessionStart hook that already runs the bootstrap (inline or via `session-start.sh`) with the template's hook (`bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh`, `"timeout": 600`, no `matcher`, not `async`); if none does, add the template's `SessionStart` group. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
 | `.gitignore` | Append the `.claude/*` block above | Replace a `.claude` or `.claude/` directory rule with that block. If `.claude/*` is already there, add `!.claude/settings.json` and `!.claude/hooks/` when missing. |
-| `AGENTS.md` | Write the template's sections (Safe Chain, Pull requests, Test audit) | Append each section that is absent; leave existing content alone. |
+| `AGENTS.md` | Write every template section | Compare each template section per `agentic-upstream-sync` (Compare, step 3): append a missing one, replace a stale one, and list a locally edited one in the PR body. Leave other content alone. |
 | `CLAUDE.md` | Write `@AGENTS.md` | Add `@AGENTS.md` as the first line unless it already imports `AGENTS.md` (or is a symlink to it); leave the rest alone. |
 
 Stop and report if `devcontainer.json`, `environment.json`, or `.claude/settings.json` is not valid
@@ -246,11 +246,11 @@ body).
 Reconcile Safe Chain as done when the bootstrap script is present, the Dev Container and Cursor
 configs invoke it, `.claude/hooks/session-start.sh` matches the template, `.claude/settings.json`
 runs that hook with timeout 600, `.gitignore` does not ignore `.claude/settings.json` or
-`.claude/hooks/`, `CLAUDE.md` imports `@AGENTS.md`, and `AGENTS.md` has every template section
-(Safe Chain, Pull requests, Test audit) — a repo hardened before the hook script, the timeout,
-the stderr redirect, the gitignore exceptions, or a template section existed is not done until they
-are added. Image digest pinning is the next item — a greenfield copy of the template already
-satisfies it.
+`.claude/hooks/`, `CLAUDE.md` imports `@AGENTS.md`, and every template section in `AGENTS.md` is
+current or locally edited — a repo hardened before the hook script, the timeout, the stderr
+redirect, the gitignore exceptions, or a template section existed is not done until they are added,
+and a stale section is not done until it is replaced. Image digest pinning is the next item — a
+greenfield copy of the template already satisfies it.
 
 ### Codex cloud and Claude Code environments (manual)
 
