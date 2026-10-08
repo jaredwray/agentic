@@ -42,7 +42,7 @@ All templates live in this skill's `templates/` directory. The mapping below sho
 When multiple templates are missing, drifted, or need customization, work them in this order — one PR per row, top-to-bottom:
 
 1. `LICENSE` — required for OSS distribution.
-2. `SECURITY.md` — required for responsible disclosure.
+2. `SECURITY.md` — required so vulnerability reports are a public GitHub issue and an email.
 3. `CODE_OF_CONDUCT.md` — required to set behavior expectations.
 4. `CONTRIBUTING.md` — required for contributor onboarding.
 5. `.github/PULL_REQUEST_TEMPLATE.md` — improves contribution quality.
@@ -177,6 +177,7 @@ Each template was sourced from a working project and may need light edits for th
 ### `SECURITY.md`
 
 - Confirm the reporting email (`me@jaredwray.com`) is the right contact for the project owner.
+- Keep both reporting steps: a public GitHub issue titled `[SECURITY]`, and the same report emailed to that address with a link to the issue. On a private repository, drop the public-issue step and keep the email.
 - If the repo already has a legacy `Defense in Depth status` or `Release Management status` block appended (they now live in `DEFENSE_IN_DEPTH.md`), **keep it** — the `defense-in-depth-nodejs` skill migrates it. The template boilerplate goes at the top; anything appended lives below.
 
 ### `CODE_OF_CONDUCT.md`
