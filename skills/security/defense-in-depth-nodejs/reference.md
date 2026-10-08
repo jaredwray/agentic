@@ -14,9 +14,9 @@ Two files, two jobs:
 
 ### SECURITY.md
 
-The reporting boilerplate (private disclosure channels, what to include in a report) is the
-`project-templates` skill's bundled template — reuse it rather than writing new prose. This skill
-owns the summary section appended after it:
+The reporting boilerplate (a public GitHub issue plus an email to the maintainer, and what to
+include in a report) is the `project-templates` skill's bundled template — reuse it rather than
+writing new prose. This skill owns the summary section appended after it:
 
 ```md
 ## How this repository is secured
@@ -40,8 +40,8 @@ that completes a section. A `SECURITY.md` that advertises controls the repo does
 than none. In the Safe Chain bullet, name Codex cloud only once its environment item is done, not
 ticked off as not used. Keep the whole file under ~40 lines.
 
-Private repos: drop the GitHub private-vulnerability-reporting bullet from the boilerplate (the
-feature is public-only) — the email contact is the reporting channel. Drop the "outside
+Private repos: drop the public GitHub issue step from the boilerplate (a private repository has
+no public issue tracker) — the email contact is the reporting channel. Drop the "outside
 collaborators require maintainer approval" clause from the summary (GitHub does not allow fork PR
 approval on private repositories); keep the Actions allowlist clause.
 

@@ -1,13 +1,13 @@
 # Security Policy
 
-We take security seriously and work to keep this project up to date. If you discover a security vulnerability, please report it **privately** so we can investigate and ship a fix before the issue becomes public.
+We take security seriously and work to keep this project up to date. If you discover a security vulnerability, report it in public and email the maintainer. Security work on this project stays transparent.
 
 ## Reporting a vulnerability
 
-Please use one of the following private channels — **do not open a public issue, pull request, or discussion** for security concerns:
+Do both:
 
-1. **Preferred:** open a private report via GitHub's [Privately reporting a security vulnerability](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability) flow on this repository's **Security** tab.
-2. **Email:** send the details to me@jaredwray.com. If the issue is urgent, include `[SECURITY]` in the subject line and we will respond as soon as possible.
+1. **Open a public GitHub issue** on this repository. Put `[SECURITY]` in the title and include the details below. The issue is the public record.
+2. **Email** the same report to me@jaredwray.com with `[SECURITY]` in the subject line, and include the link to the issue you opened.
 
 When reporting, please include as much of the following as you can:
 
@@ -16,7 +16,7 @@ When reporting, please include as much of the following as you can:
 - The affected version(s) and platform.
 - Any suggested remediation, if you have one.
 
-We will acknowledge receipt, work with you on a coordinated disclosure timeline, and credit you in the advisory once a fix is published unless you ask to remain anonymous.
+We will acknowledge receipt on the issue and by email, fix it in public, and credit you on the issue once a fix is published unless you ask to remain anonymous.
 
 ## How this repository is secured
 
