@@ -11,10 +11,12 @@ The authoring guide for skills in this repo. It is also the contributor referenc
 
 ## What a skill is
 
-A skill is a folder under `skills/<category>/<name>/` containing a `SKILL.md` with YAML frontmatter
-and a markdown body. The folder name **is** the invocation name and must match the frontmatter
-`name` (kebab-case). Large skills add sibling supporting files (`reference.md`, `scripts/`) that load
-only when the body points at them.
+A skill is a folder containing a `SKILL.md` with YAML frontmatter and a markdown body. The usual
+place is `skills/<category>/<name>/`. Skills that are used often live one level under `skills/` —
+`skills/<name>/` — so the default plugin scan picks them up without a category entry. The
+dependency-management skills live there. The folder name **is** the invocation name and must match
+the frontmatter `name` (kebab-case). Large skills add sibling supporting files (`reference.md`,
+`scripts/`) that load only when the body points at them.
 
 These skills exist to counter four failure modes of AI-assisted engineering:
 
@@ -62,7 +64,8 @@ The description is the only thing the model sees when deciding whether to reach 
   dependency, defense-in-depth, SEO, project-templates, viral-launch). Set
   `disable-model-invocation: true` so they fire **only** when explicitly invoked — a release loop or
   launch pipeline must never auto-start from a vague prompt. CI enforces this for every skill under
-  `release-ops/`, `security/`, `growth/`, and `project-setup/`.
+  `release-ops/`, `security/`, `growth/`, and `project-setup/`, and for the dependency-management
+  skills at the `skills/` root.
 
 ## Body structure (lean, with on-demand detail)
 
@@ -153,6 +156,7 @@ node scripts/validate-skills.mjs
 
 It checks: required frontmatter and kebab-case name matching the folder; the description budget;
 unique names; that every relative link and `reference.md`/`scripts/` pointer resolves; that
-supporting files aren't orphaned; that the manifests parse; that orchestration-category skills
-are manual-only; that staged publishing in skills uses `pnpm stage publish` (pnpm ≥ 11.3), not
+supporting files aren't orphaned; that the manifests parse; that orchestration skills (category
+directories and the dependency-management skills at the `skills/` root) are manual-only; that staged
+publishing in skills uses `pnpm stage publish` (pnpm ≥ 11.3), not
 the npm CLI; and that those tarball paths are prefixed with `./` and include `--no-git-checks`.
