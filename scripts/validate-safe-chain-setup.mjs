@@ -270,8 +270,8 @@ if (/javascript-node:latest/.test(reference)) {
 }
 
 for (const [label, rel] of [
-  ['dependency-management-node', 'skills/release-ops/dependency-management-node/SKILL.md'],
-  ['dependency-management-rust', 'skills/release-ops/dependency-management-rust/SKILL.md'],
+  ['dependency-management-node', 'skills/dependency-management-node/SKILL.md'],
+  ['dependency-management-rust', 'skills/dependency-management-rust/SKILL.md'],
 ]) {
   const dep = readFileSync(join(ROOT, rel), 'utf8');
   if (!/Dev Container images/.test(dep) || !/7-day age gate/.test(dep) || !/chore\/devcontainer-images/.test(dep)) {

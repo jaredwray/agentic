@@ -57,9 +57,10 @@ files. Remove it with `claude plugin disable agentic@skills-dir` or by deleting 
 ### Model-invoked vs. manual
 
 The **engineering** and **shared** skills are *model-invoked* — the agent reaches for them
-automatically when a task fits. The **features, release, security, growth, and project-setup** skills
-are *manual-only* (`disable-model-invocation`) so a money-moving or repo-mutating workflow never fires
-on a vague prompt; run those with the slash command.
+automatically when a task fits. The **dependency-management** skills (at the `skills/` root), and the
+**features, release, security, growth, and project-setup** skills, are *manual-only*
+(`disable-model-invocation`) so a money-moving or repo-mutating workflow never fires on a vague
+prompt; run those with the slash command.
 
 ## Updating — will installs pull my changes?
 
@@ -110,6 +111,16 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 ## Catalog
 
+### Dependency management — `skills/<name>/`, manual (`/agentic:<name>`)
+
+These live one level under `skills/` — the default plugin scan — because they are used often.
+Category skills load only when their directory is listed in `plugin.json`.
+
+| Skill | Does |
+|---|---|
+| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — a sync of defense-in-depth files and `AGENTS.md` sections from `jaredwray/agentic` and overrides first, then the dev phase (with a hash-pinned `packageManager`) before runtime, including digest-pinned Dev Container images on a 7-day age gate, and last the AI model IDs the code calls (recommend the provider's latest, bump on approval); npm bumps link Drydock artifact diffs. |
+| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time — syncing `AGENTS.md` sections and defense-in-depth files from `jaredwray/agentic` first — respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins; last, recommend and bump the AI model IDs the code calls. |
+
 ### engineering/ — model-invoked disciplines (one deliverable, then stop)
 
 | Skill | Does |
@@ -142,8 +153,6 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 | `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. |
 | `migrations` | Set up MongoDB migrations with migrate-mongo (changelog ledger, single-writer lock, file-hash change detection, dry-run/plan, `migrate:development`/`migrate:production` scripts) or conform to an existing tool, then author idempotent data/index migrations one PR at a time. |
 | `release-management-nodejs` | Roll out a hardened npm release pipeline (signing, stage-only trusted publishing, Drydock review) one PR at a time. |
-| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — a sync of defense-in-depth files and `AGENTS.md` sections from `jaredwray/agentic` and overrides first, then the dev phase (with a hash-pinned `packageManager`) before runtime, including digest-pinned Dev Container images on a 7-day age gate, and last the AI model IDs the code calls (recommend the provider's latest, bump on approval); npm bumps link Drydock artifact diffs. |
-| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time — syncing `AGENTS.md` sections and defense-in-depth files from `jaredwray/agentic` first — respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins; last, recommend and bump the AI model IDs the code calls. |
 | `resolve-merge-conflicts` | Resolve merge/rebase conflicts preserving both sides' intent, verified before continuing. |
 
 ### security/ — manual

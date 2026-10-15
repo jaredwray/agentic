@@ -10,8 +10,9 @@
 //  6. Supporting files (`reference.md`, `scripts/*`) are referenced by their SKILL.md, and any
 //     `reference.md`/`scripts/` pointer in a SKILL.md resolves to a real file (no orphans either way).
 //  7. plugin.json / marketplace.json parse and their referenced paths exist.
-//  8. Orchestration-category skills (release-ops, security, growth, project-setup) set
-//     `disable-model-invocation: true` so a mutating/expensive loop never auto-fires.
+//  8. Orchestration skills set `disable-model-invocation: true` so a mutating/expensive loop
+//     never auto-fires. That is every skill under release-ops, security, growth, and
+//     project-setup, plus the dependency-management skills at the skills/ root.
 //  9. `pnpm publish` / `pnpm stage publish` (and leftover `npm publish`) tarball args in skills/
 //     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
 // 10. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
@@ -23,6 +24,9 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DESC_BUDGET = 1536;
 const ORCHESTRATION = new Set(['release-ops', 'security', 'growth', 'project-setup']);
+// Used often, so they live at skills/<name>/ (the default one-level scan) instead of a category.
+// They are still orchestration skills and stay manual-only.
+const ROOT_ORCHESTRATION = new Set(['dependency-management-node', 'dependency-management-rust']);
 // Skills in an orchestration category that are genuinely read-only may opt out here.
 const MODEL_INVOCABLE_EXCEPTIONS = new Set();
 
@@ -158,9 +162,12 @@ function validateSkill(file, seenNames) {
   }
 
   // 8. orchestration skills must be manual-only
-  if (category && ORCHESTRATION.has(category) && !MODEL_INVOCABLE_EXCEPTIONS.has(data.name)) {
+  const orchestration =
+    (category && ORCHESTRATION.has(category)) || (!category && ROOT_ORCHESTRATION.has(folderName));
+  if (orchestration && !MODEL_INVOCABLE_EXCEPTIONS.has(data.name)) {
     if (data['disable-model-invocation'] !== true) {
-      err(file, `skill in orchestration category "${category}" must set \`disable-model-invocation: true\``);
+      const where = category ? `orchestration category "${category}"` : 'the skills/ root';
+      err(file, `skill in ${where} must set \`disable-model-invocation: true\``);
     }
   }
 
