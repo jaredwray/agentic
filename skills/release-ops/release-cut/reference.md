@@ -168,7 +168,7 @@ Append `(breaking)` to the title for any release that contains a major bump.
 - Merge then create a GitHub Release at tag `<tag>` — the `release.yaml` workflow publishes to npm.
 - Merge then push tag `<tag>` — the publish workflow runs on tag push.
 - Merge — auto-tag and publish run on merge to `main`.
-- Merge — **no publish workflow detected**; publish manually with `npm publish` or set up a workflow per the `release-management-nodejs` skill.
+- Merge — **no publish workflow detected**; publish manually with `npm publish` or set up a workflow per the `defense-in-depth-nodejs` skill.
 ```
 
 Don't add commentary beyond the skeleton unless something genuinely surprising came up (e.g. a flaky test on `main`, a contributor who needs an attribution fix).
@@ -258,4 +258,3 @@ Some workspace packages are marked `"private": true` and never publish. Skip the
 - It does not run `npm publish`. The publish is the project's existing workflow.
 - It does not create the GitHub Release. (If the project's workflow triggers off a GitHub Release, the maintainer creates that after merge — call this out in the post-merge section of the PR body.)
 - It does not push the release tag. Either the publish workflow does it after publish, or the maintainer creates it via the GitHub Release. Pushing tags from a PR-bump branch couples two concerns and bypasses review.
-- It does not sign the release intent or upload signature bundles. That's covered by the `release-management-nodejs` skill Phase 2 and Phase 3.

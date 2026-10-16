@@ -17,7 +17,7 @@ Operation manual for **cutting a release** of an OSS project — finding the unr
 >
 > **Every PR is ready for review, never a draft.** Mark the release PR ready for review when you open it (`draft: false`, or the tool's ready-for-review equivalent). If it was created as a draft — including when the environment defaults to draft — mark it ready for review before you stop. Do not leave it in draft mode.
 >
-> **Scope is the version bump, not the publish.** This doc covers the bump-and-notes PR. The actual publish is triggered after merge by the project's existing release workflow (e.g. GitHub Release → npm). If no publish workflow exists, surface that in the final report — do not invent one. For setting up a hardened publish pipeline, see the `release-management-nodejs` skill. This skill follows the shared `shipping-conventions` loop and `pr-conventions`.
+> **Scope is the version bump, not the publish.** This doc covers the bump-and-notes PR. The actual publish is triggered after merge by the project's existing release workflow (e.g. GitHub Release → npm). If no publish workflow exists, surface that in the final report — do not invent one. For setting up a hardened publish pipeline, see the `defense-in-depth-nodejs` skill. This skill follows the shared `shipping-conventions` loop and `pr-conventions`.
 
 ## Scope and summary
 
@@ -123,7 +123,7 @@ Run these steps on the **first** invocation, and again on every resume when the 
    - PR URL and the release(s) it cuts (e.g. `keyv@5.4.0`, `cacheable@2.1.0`).
    - Confirmation that CI is green.
    - The next manual step: typically "merge the PR, then create a GitHub Release at tag `<tag>` to trigger publish" — or, if the project's release workflow auto-tags on merge, just "merge the PR".
-   - If the project has **no publish workflow at all**, say so explicitly and recommend setting one up (link to the `release-management-nodejs` skill).
+   - If the project has **no publish workflow at all**, say so explicitly and recommend setting one up (link to the `defense-in-depth-nodejs` skill).
 
    Then wait. Do not cut another release until the user says so.
 

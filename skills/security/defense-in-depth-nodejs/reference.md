@@ -606,8 +606,7 @@ Drydock connection and human 2FA promotion are not npmjs API settings; they stay
 A skip is not a pass. On start the script compares itself to `jaredwray/agentic@main` and
 warns if this copy is stale (does not fail the run).
 
-Signer policy, release-intent, and verification gates belong to the `release-management-nodejs`
-skill. This section owns the stage-publish workflow below plus the registry-side settings.
+This section owns the stage-publish workflow below plus the registry-side settings.
 
 ### release.yaml
 
@@ -728,8 +727,7 @@ whole setup, and each item is verified by its check appearing on PRs.
   findings. Code its release gate into the release workflow (`release.yaml` / `publish.yml`): an
   `aikido-gate` job runs `aikido-api-client scan-release … --fail-on-sast-scan --fail-on-iac-scan
   --fail-on-secrets-scan` and the stage-publish job `needs:` it, so nothing is staged while new
-  findings are open — the job is in the § 5 `release.yaml` template (signed-release variant in
-  the `release-management-nodejs` reference § 14).
+  findings are open — the job is in the § 5 `release.yaml` template.
 - **Socket** ([socket.dev](https://socket.dev)) is the dependency security linter: it reviews every
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI

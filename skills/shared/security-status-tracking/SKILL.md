@@ -1,15 +1,14 @@
 ---
 name: security-status-tracking
-description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs and release-management-nodejs skills. Use when recording or reconciling security-hardening progress.
+description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs skill. Use when recording or reconciling security-hardening progress.
 user-invocable: true
 ---
 
 # Security status tracking
 
-How the `defense-in-depth-nodejs` and `release-management-nodejs` skills record rollout state in a
-target repo's `DEFENSE_IN_DEPTH.md`. The consumer skill owns the **catalog** (the actual list of
-items); this skill owns the **format and reconciliation rules** so both consumers track state
-identically.
+How the `defense-in-depth-nodejs` skill records rollout state in a target repo's
+`DEFENSE_IN_DEPTH.md`. The consumer skill owns the **catalog** (the actual list of items); this
+skill owns the **format and reconciliation rules**.
 
 > Background discipline. The consumer skill decides which items exist and their priority; it calls
 > here for how to write and reconcile the status block.
@@ -20,9 +19,8 @@ identically.
 
 ## The status block
 
-Each consumer maintains one block in the target repo's `DEFENSE_IN_DEPTH.md` (the
-`defense-in-depth-nodejs` sections, a `## Release Management status` block appended below). It is
-the source of truth for what's done, pending, deferred, or manual.
+The consumer maintains one block in the target repo's `DEFENSE_IN_DEPTH.md`. It is the source of
+truth for what's done, pending, deferred, or manual.
 
 - Blocks are **appended** to `DEFENSE_IN_DEPTH.md`, preserving any content above and below.
 - Item ordering follows the consumer skill's catalog. **Do not invent items** — the catalog defines
@@ -40,9 +38,6 @@ the source of truth for what's done, pending, deferred, or manual.
   ```md
   Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md.
   ```
-
-  (Release-management's block links to
-  `https://github.com/jaredwray/agentic/blob/main/skills/release-ops/release-management-nodejs/SKILL.md`.)
 
 - **Migration:** older repos carry these blocks inside `SECURITY.md`. On first contact, move each
   status block into `DEFENSE_IN_DEPTH.md` unchanged (then let the consumer skill reconcile), and
