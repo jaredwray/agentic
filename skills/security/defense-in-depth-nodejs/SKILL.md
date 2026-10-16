@@ -29,8 +29,7 @@ failure: no direct pushes or tags, no write token on jobs that only generate fil
 publish credentials, no fresh-off-the-registry dependencies, no unreviewed workflow changes, and no
 release that a human didn't approve.
 
-Out of scope: signer policy, release-intent, and verification-gate internals
-(`release-management-nodejs`); governance boilerplate (`project-templates`).
+Out of scope: version bumps and release notes (`release-cut`); governance boilerplate (`project-templates`).
 
 ## Two files in the target repo
 
@@ -93,14 +92,12 @@ Run on the first invocation and on every resume (`continue`, `next`, `next defen
      [reference.md § 1](./reference.md#1-security-docs), dropping sections the profile excludes —
      happens in that item's PR in Step 4, never during the audit.
    - If the defense-in-depth sections don't match the current catalog, replace those sections with
-     the catalog in [reference.md § 1](./reference.md#1-security-docs) (leave any
-     `Release Management status` block untouched), then reconcile against repo state. Do not map
-     old checkboxes.
+     the catalog in [reference.md § 1](./reference.md#1-security-docs), then reconcile against repo
+     state. Do not map old checkboxes.
    - **Migration (rides the § 1 PR):** if `SECURITY.md` contains an old `Defense in Depth status`
      block, move its state into `DEFENSE_IN_DEPTH.md` (map matching items; list dropped ones in the
-     PR body) and cut `SECURITY.md` down to the simple shape. Same for a `Release Management status`
-     block — it moves over untouched. The move is one-shot: afterwards status is never read from
-     `SECURITY.md` again.
+     PR body) and cut `SECURITY.md` down to the simple shape. The move is one-shot: afterwards
+     status is never read from `SECURITY.md` again.
    - Reconcile every checkbox against actual repo state per `security-status-tracking`. For § 5
      (npm libraries) run [`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh) with `--repo` and
      `--workflow` taken from the checkout per [reference.md § 5](./reference.md#5-npm-publishing--npm-libraries-only).

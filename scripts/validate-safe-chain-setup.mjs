@@ -397,12 +397,6 @@ if (spacedRef.length) {
   err(`reference.md workflow/job names must not contain spaces: ${spacedRef.join(', ')}`);
 }
 
-const releaseRef = readFileSync(join(ROOT, 'skills/release-ops/release-management-nodejs/reference.md'), 'utf8');
-const spacedRelease = spacedWorkflowOrJobNames(releaseRef);
-if (spacedRelease.length) {
-  err(`release-management reference.md workflow/job names must not contain spaces: ${spacedRelease.join(', ')}`);
-}
-
 const wfDir = join(ROOT, '.github/workflows');
 for (const file of readdirSync(wfDir)) {
   if (!/\.ya?ml$/.test(file)) continue;

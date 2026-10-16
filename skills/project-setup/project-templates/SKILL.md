@@ -21,7 +21,7 @@ Operation manual for setting up a new OSS project with the standard governance, 
 
 **Scope:** baseline OSS governance files for Node.js/TypeScript packages — `LICENSE`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/ISSUE_TEMPLATE/feature_request.md`.
 
-**Out of scope:** workflow files (`.github/workflows/**`), CODEOWNERS, release-policy files, and agent instruction files (`AGENTS.md`, `CLAUDE.md`). Workflows and CODEOWNERS are covered by the `defense-in-depth-nodejs` skill and release-policy files by the `release-management-nodejs` skill. Agent instruction files are repo-specific by design.
+**Out of scope:** workflow files (`.github/workflows/**`), CODEOWNERS, release-policy files, and agent instruction files (`AGENTS.md`, `CLAUDE.md`). Workflows and CODEOWNERS are covered by the `defense-in-depth-nodejs` skill. Agent instruction files are repo-specific by design.
 
 ## Catalog
 
@@ -30,7 +30,7 @@ All templates live in this skill's `templates/` directory. The mapping below sho
 | Source (this repo)                                        | Target path (in the project)                       | Customization                                                                                                                          |
 | --------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `templates/LICENSE`                                       | `LICENSE`                                          | Confirm copyright holder (default `Jared Wray`); confirm MIT is the intended license.                                                  |
-| `templates/SECURITY.md`                                   | `SECURITY.md`                                      | Confirm reporting email (default `me@jaredwray.com`). Preserve the bullets in any existing `How this repository is secured` section (owned by `defense-in-depth-nodejs`). A legacy `Defense in Depth status` / `Release Management status` block belongs in `DEFENSE_IN_DEPTH.md` — leave it for that skill to migrate, don't delete it. |
+| `templates/SECURITY.md`                                   | `SECURITY.md`                                      | Confirm reporting email (default `me@jaredwray.com`). Preserve the bullets in any existing `How this repository is secured` section (owned by `defense-in-depth-nodejs`). A legacy `Defense in Depth status` block belongs in `DEFENSE_IN_DEPTH.md` — leave it for that skill to migrate, don't delete it. |
 | `templates/CODE_OF_CONDUCT.md`                            | `CODE_OF_CONDUCT.md`                               | Confirm enforcement email (default `me@jaredwray.com`). Do not modify the Contributor Covenant body.                                  |
 | `templates/CONTRIBUTING.md`                               | `CONTRIBUTING.md`                                  | Replace every `{{PROJECT_NAME}}` with the repo name (e.g. `keyv`, `cacheable`). Adjust `pnpm install` / `pnpm test` if the project uses a different toolchain. Adjust the release-cadence line if the project does not ship monthly. |
 | `templates/.github/PULL_REQUEST_TEMPLATE.md`              | `.github/PULL_REQUEST_TEMPLATE.md`                 | None required. The `../blob/main/` URLs work via GitHub's rewrite — leave them alone.                                                  |
@@ -62,8 +62,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
 
    When auditing, **respect intentional additions**. Common per-repo extensions to keep:
    - `SECURITY.md` with a filled-in `How this repository is secured` section, or a legacy
-     `Defense in Depth status` / `Release Management status` block awaiting migration to
-     `DEFENSE_IN_DEPTH.md`.
+     `Defense in Depth status` block awaiting migration to `DEFENSE_IN_DEPTH.md`.
    - `CONTRIBUTING.md` with extra sections like "Test / Verify Exports" or "Releasing a new version".
    - `LICENSE` with a different copyright holder or a non-MIT body (do **not** overwrite — confirm with the user).
 
@@ -78,7 +77,7 @@ Run these steps on the **first** invocation, and again on **every resume** when 
      - Replace `{{PROJECT_NAME}}` with the target repo name. Never leave a placeholder in.
      - For `CONTRIBUTING.md`, align the install/test commands with the repo's actual toolchain (check `package.json` `scripts` and the lockfile — `pnpm-lock.yaml` → `pnpm`, `package-lock.json` → `npm`, `yarn.lock` → `yarn`).
      - For `CONTRIBUTING.md`, adjust the release-cadence sentence if the project does not ship on a monthly cadence (some projects ship weekly, on-demand, or follow a SemVer release train).
-     - For `SECURITY.md`, keep the bullets of an existing `How this repository is secured` section when refreshing the boilerplate, and keep any legacy `Defense in Depth status` / `Release Management status` block appended below (the `defense-in-depth-nodejs` skill migrates those to `DEFENSE_IN_DEPTH.md`).
+     - For `SECURITY.md`, keep the bullets of an existing `How this repository is secured` section when refreshing the boilerplate, and keep any legacy `Defense in Depth status` block appended below (the `defense-in-depth-nodejs` skill migrates it to `DEFENSE_IN_DEPTH.md`).
    - Run local verification:
      - Files are valid plaintext / Markdown (no broken local links).
      - If the repo has a docs site that surfaces these files, run the site build.
@@ -159,7 +158,7 @@ Never overwrite without confirmation when:
 
 - `LICENSE` has a different copyright holder or a non-MIT body. The project may be intentionally licensed differently or owned by a different entity.
 - `CONTRIBUTING.md` has extra sections beyond the template (export verification, release process, code style guide). These are almost always intentional — keep them.
-- `SECURITY.md` contains a filled-in `How this repository is secured` section, a legacy status block (`Defense in Depth status`, `Release Management status`), or a longer disclosure policy. These are intentional and produced by other operation manuals.
+- `SECURITY.md` contains a filled-in `How this repository is secured` section, a legacy `Defense in Depth status` block, or a longer disclosure policy. These are intentional and produced by other operation manuals.
 - A template file's frontmatter or YAML metadata differs from the canonical version (e.g. issue template `labels:` set to project-specific labels).
 
 For each escalation, report exactly what differs and ask whether to keep the existing content, refresh from template, or merge selectively.
@@ -178,7 +177,7 @@ Each template was sourced from a working project and may need light edits for th
 
 - Confirm the reporting email (`me@jaredwray.com`) is the right contact for the project owner.
 - Keep both reporting steps: a public GitHub issue titled `[SECURITY]`, and the same report emailed to that address with a link to the issue. On a private repository, drop the public-issue step and keep the email.
-- If the repo already has a legacy `Defense in Depth status` or `Release Management status` block appended (they now live in `DEFENSE_IN_DEPTH.md`), **keep it** — the `defense-in-depth-nodejs` skill migrates it. The template boilerplate goes at the top; anything appended lives below.
+- If the repo already has a legacy `Defense in Depth status` block appended (it now lives in `DEFENSE_IN_DEPTH.md`), **keep it** — the `defense-in-depth-nodejs` skill migrates it. The template boilerplate goes at the top; anything appended lives below.
 
 ### `CODE_OF_CONDUCT.md`
 
@@ -208,7 +207,7 @@ Each template was sourced from a working project and may need light edits for th
 These templates are the baseline. Most projects layer additional governance on top — that work is covered by other manuals in this repo:
 
 - **CI workflows, action pinning, CODEOWNERS, pnpm policy** → the `defense-in-depth-nodejs` skill.
-- **Release pipeline, signer policy, trusted publishing, release-intent signing** → the `release-management-nodejs` skill.
+- **Cutting a release** → the `release-cut` skill.
 - **Dependency upgrades** → the `dependency-management-node` skill (or the `dependency-management-rust` skill for Rust projects).
 - **Agent instruction files (`AGENTS.md`, `CLAUDE.md`)** — repo-specific by design; not templated.
 

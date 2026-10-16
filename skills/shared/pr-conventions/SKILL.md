@@ -8,8 +8,8 @@ user-invocable: true
 
 The PR title, body, and review-response conventions shared across this plugin's shipping workflows.
 The detailed PR-authoring discipline lives in the `submit-pr` skill; this file holds the rules the
-**automated** ops loops (`dependency-management-*`, `defense-in-depth-nodejs`,
-`release-management-nodejs`, `seo`, `project-templates`) reuse so they don't each restate them.
+**automated** ops loops (`dependency-management-*`, `defense-in-depth-nodejs`, `release-cut`, `seo`,
+`project-templates`) reuse so they don't each restate them.
 
 ## Conventional Commit type
 
