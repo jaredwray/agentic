@@ -150,7 +150,7 @@ Category skills load only when their directory is listed in `plugin.json`.
 | Skill | Does |
 |---|---|
 | `submit-pr` | Open/update one PR — Conventional-Commit title, readable body, driven to green CI, then watch reviews. |
-| `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. |
+| `release-cut` | Cut a release — find unreleased work, decide semver, generate notes, open one bump PR. Publish stays with the repo's existing workflow. |
 | `migrations` | Set up MongoDB migrations with migrate-mongo (changelog ledger, single-writer lock, file-hash change detection, dry-run/plan, `migrate:development`/`migrate:production` scripts) or conform to an existing tool, then author idempotent data/index migrations one PR at a time. |
 | `resolve-merge-conflicts` | Resolve merge/rebase conflicts preserving both sides' intent, verified before continuing. |
 

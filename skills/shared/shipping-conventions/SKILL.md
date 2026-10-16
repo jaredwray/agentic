@@ -7,7 +7,7 @@ user-invocable: true
 # Shipping conventions
 
 The shared loop every iterative, repo-mutating workflow in this plugin follows. Skills that ship
-changes one PR at a time (`dependency-management-node`, `dependency-management-rust`,
+changes one PR at a time (`release-cut`, `dependency-management-node`, `dependency-management-rust`,
 `defense-in-depth-nodejs`, `seo`, `project-templates`) reference this
 instead of restating it. The consumer skill supplies the **item taxonomy** (what counts as one
 unit of work) and the **branch-naming scheme**; everything below is common.

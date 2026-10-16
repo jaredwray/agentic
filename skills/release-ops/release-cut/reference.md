@@ -168,7 +168,7 @@ Append `(breaking)` to the title for any release that contains a major bump.
 - Merge then create a GitHub Release at tag `<tag>` — the `release.yaml` workflow publishes to npm.
 - Merge then push tag `<tag>` — the publish workflow runs on tag push.
 - Merge — auto-tag and publish run on merge to `main`.
-- Merge — **no publish workflow detected**; publish manually with `npm publish` or set up a workflow per the `defense-in-depth-nodejs` skill.
+- Merge — **no publish workflow detected**; publish manually with `npm publish`.
 ```
 
 Don't add commentary beyond the skeleton unless something genuinely surprising came up (e.g. a flaky test on `main`, a contributor who needs an attribution fix).

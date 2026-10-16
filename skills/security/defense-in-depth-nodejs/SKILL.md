@@ -29,7 +29,7 @@ failure: no direct pushes or tags, no write token on jobs that only generate fil
 publish credentials, no fresh-off-the-registry dependencies, no unreviewed workflow changes, and no
 release that a human didn't approve.
 
-Out of scope: governance boilerplate (`project-templates`).
+Out of scope: version bumps and release notes (`release-cut`); governance boilerplate (`project-templates`).
 
 ## Two files in the target repo
 

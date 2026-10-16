@@ -206,7 +206,8 @@ Each template was sourced from a working project and may need light edits for th
 
 These templates are the baseline. Most projects layer additional governance on top — that work is covered by other manuals in this repo:
 
-- **CI workflows, action pinning, CODEOWNERS, pnpm policy, staged publishing** → the `defense-in-depth-nodejs` skill.
+- **CI workflows, action pinning, CODEOWNERS, pnpm policy** → the `defense-in-depth-nodejs` skill.
+- **Cutting a release** → the `release-cut` skill.
 - **Dependency upgrades** → the `dependency-management-node` skill (or the `dependency-management-rust` skill for Rust projects).
 - **Agent instruction files (`AGENTS.md`, `CLAUDE.md`)** — repo-specific by design; not templated.
 
