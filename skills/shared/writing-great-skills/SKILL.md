@@ -1,6 +1,6 @@
 ---
 name: writing-great-skills
-description: How to author a great SKILL.md for this plugin — frontmatter fields, writing a description that triggers at the right time, the lean-body-plus-on-demand-reference structure, the model-invoked vs manual-only rule, the Claude 5 authoring rules (no self-verification nudges, explicit output length, constrained scope, full-coverage-then-filter for reviews, effort notes), and the checks CI enforces. Use when adding a new skill, editing an existing skill's frontmatter or structure, or reviewing a skill contribution.
+description: How to author a great SKILL.md for agentic — frontmatter fields, writing a description that triggers at the right time, the lean-body-plus-on-demand-reference structure, the model-invoked vs manual-only rule, the Claude 5 authoring rules (no self-verification nudges, explicit output length, constrained scope, full-coverage-then-filter for reviews, effort notes), and the checks CI enforces. Use when adding a new skill, editing an existing skill's frontmatter or structure, or reviewing a skill contribution.
 user-invocable: true
 ---
 
@@ -13,9 +13,8 @@ The authoring guide for skills in this repo. It is also the contributor referenc
 
 A skill is a folder containing a `SKILL.md` with YAML frontmatter and a markdown body. The usual
 place is `skills/<category>/<name>/`. Skills that are used often live one level under `skills/` —
-`skills/<name>/` — so the default plugin scan picks them up without a category entry. The
-dependency-management skills live there. The folder name **is** the invocation name and must match
-the frontmatter `name` (kebab-case). Large skills add sibling supporting files (`reference.md`,
+`skills/<name>/`. The dependency-management skills live there. The folder name **is** the skill name
+and must match the frontmatter `name` (kebab-case). Large skills add sibling supporting files (`reference.md`,
 `scripts/`) that load only when the body points at them.
 
 These skills exist to counter four failure modes of AI-assisted engineering:
@@ -34,8 +33,8 @@ These skills exist to counter four failure modes of AI-assisted engineering:
 ```yaml
 ---
 name: my-skill                      # required; kebab-case; must equal the folder name
-description: <what it does + when to use it + trigger words>   # required; <= 1536 chars
-disable-model-invocation: true      # optional; true = only runs when typed as /agentic:my-skill
+description: <what it does + when to use it + trigger words>   # required; <= 1024 chars
+disable-model-invocation: true      # optional; true = only when the user explicitly invokes it
 user-invocable: true                # optional; default true
 allowed-tools: [Bash, Read]         # optional; pre-approved tools
 argument-hint: "[base branch]"      # optional; autocomplete hint
@@ -52,7 +51,7 @@ The description is the only thing the model sees when deciding whether to reach 
 
 - Lead with the capability, then the triggers. Include natural phrasings ("what changed", "is this
   slow", "cut a release").
-- Keep it under the 1536-char budget; CI fails over it. Be specific, not exhaustive.
+- Keep it under the 1024-char budget; CI fails over it. Be specific, not exhaustive.
 - Don't describe implementation; describe the job and the moment to invoke it.
 
 ### Model-invoked vs manual-only — the safety rule
@@ -95,8 +94,10 @@ path (with the leading `./`) for a bundled helper. CI requires those targets to 
 `scripts/<file>` is treated as a path in the *target* repo (what the ops skills create), so it is not
 checked.
 
-**Discoverability.** Every category directory under `skills/` must be listed in
-`.claude-plugin/plugin.json`'s `skills` array, or its skills won't load. CI enforces this.
+**Catalog.** Every `skills/**/SKILL.md` is served by the MCP worker. There is no manifest. A
+`SKILL.md` directly in `skills/` is rejected. A file whose path contains a dot-segment (for example
+`templates/.github/`) is not a `skill://` resource; the server serves it at `agentic://skills/…` and
+through `read_skill_file`.
 
 ## Writing for Claude 5
 
@@ -156,7 +157,7 @@ node scripts/validate-skills.mjs
 
 It checks: required frontmatter and kebab-case name matching the folder; the description budget;
 unique names; that every relative link and `reference.md`/`scripts/` pointer resolves; that
-supporting files aren't orphaned; that the manifests parse; that orchestration skills (category
+supporting files aren't orphaned; that orchestration skills (category
 directories and the dependency-management skills at the `skills/` root) are manual-only; that staged
 publishing in skills uses `pnpm stage publish` (pnpm ≥ 11.3), not
 the npm CLI; and that those tarball paths are prefixed with `./` and include `--no-git-checks`.

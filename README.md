@@ -1,81 +1,58 @@
 # agentic
 
-Operation manuals as installable [Claude Code Agent Skills](https://code.claude.com/docs/en/skills) —
-disciplined, reusable workflows for shipping, releasing, hardening, and reviewing OSS software. Each
-skill is a self-contained playbook an agent loads and executes, with explicit stop-and-report points,
-one deliverable per invocation.
+Operation manuals served as a remote [MCP](https://modelcontextprotocol.io) server at
+[https://agentic.jaredwray.com/mcp](https://agentic.jaredwray.com/mcp). Each skill is a self-contained
+playbook an agent loads and follows, with explicit stop-and-report points and one deliverable per
+invocation.
 
-## Install
+The server is public and read-only. It does not authenticate callers.
 
-Pick the method that matches what you're doing. After any of them, skills appear in the `/` menu
-namespaced as `/agentic:<name>`.
+## Connect
 
-### 1. From GitHub — recommended for everyday use
+The endpoint speaks Streamable HTTP. Point a client at `https://agentic.jaredwray.com/mcp`.
 
-```bash
-# In Claude Code:
-/plugin marketplace add jaredwray/agentic
-/plugin install agentic@jaredwray
-```
-
-Or from your shell:
+Claude Code:
 
 ```bash
-claude plugin marketplace add jaredwray/agentic
-claude plugin install agentic@jaredwray --scope user   # user (default) | project | local
+claude mcp add --transport http agentic https://agentic.jaredwray.com/mcp
 ```
 
-Scopes: **`user`** enables it across all your projects; **`project`** writes to the repo's
-`.claude/settings.json` so everyone who clones the repo gets it; **`local`** is this project only and
-gitignored.
+Cursor (`.cursor/mcp.json`):
 
-### 2. From a local clone — to test your own edits before publishing
+```json
+{
+  "mcpServers": {
+    "agentic": { "url": "https://agentic.jaredwray.com/mcp" }
+  }
+}
+```
+
+Claude.ai and Claude Desktop: Customize → Connectors → Add custom connector, URL
+`https://agentic.jaredwray.com/mcp`, authentication **No sign in**.
+
+A browser will not show a useful page at `/mcp`. `GET /` returns a short plain-text description.
+Smoke the protocol with:
 
 ```bash
-git clone https://github.com/jaredwray/agentic
-# In Claude Code, point the marketplace at the clone (the dir containing .claude-plugin/):
-/plugin marketplace add ./agentic
-/plugin install agentic@jaredwray
+curl -s -X POST https://agentic.jaredwray.com/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-Marketplace installs are **copied into a cache**, so edits to the clone are *not* live — re-sync with
-`/plugin marketplace update jaredwray` then `/plugin update agentic@jaredwray`.
+## What the server exposes
 
-### 3. As a live skills directory — for active development
+- **Tools.** `list_skills` returns the catalog. `get_skill` loads one manual and an index of its
+  files. `read_skill_file` reads `reference.md`, a script, or a template when the manual points at
+  it. Follow the manual literally.
+- **Prompts.** One prompt per skill. The prompt text is the manual body.
+- **Resources.** Each file is `skill://<path>`, for example `skill://engineering/code-review/SKILL.md`.
+  A path that contains a dot-segment (such as `templates/.github/`) is `agentic://skills/<path>`
+  instead, because those paths are outside the `skill://` catalog.
 
-Clone (or symlink) the repo into a skills directory:
-
-```bash
-git clone https://github.com/jaredwray/agentic ~/.claude/skills/agentic         # personal: all projects
-# or project-scoped, shared via the repo:  <your-project>/.claude/skills/agentic
-```
-
-On the next session it loads in place as `agentic@skills-dir` — no install step, and **edits to any
-`SKILL.md` take effect immediately**. Run `/reload-plugins` (or restart) after changing non-skill
-files. Remove it with `claude plugin disable agentic@skills-dir` or by deleting the folder.
-
-### Model-invoked vs. manual
-
-The **engineering** and **shared** skills are *model-invoked* — the agent reaches for them
-automatically when a task fits. The **dependency-management** skills (at the `skills/` root), and the
-**features, release, security, growth, and project-setup** skills, are *manual-only*
-(`disable-model-invocation`) so a money-moving or repo-mutating workflow never fires on a vague
-prompt; run those with the slash command.
-
-## Updating — will installs pull my changes?
-
-It depends on how it was installed:
-
-| Install method | Picks up new commits when… |
-|---|---|
-| GitHub / local-path **marketplace** (methods 1–2) | **Not automatically.** Installs are cached, and `plugin.json` pins a `version`, so installers update **only when you bump that version**, then run `/plugin marketplace update jaredwray` + `/plugin update agentic@jaredwray`. Bump it with `npx @changesets/cli version` (runs `scripts/sync-plugin-version.mjs`). |
-| **Skills directory** clone (method 3) | **Immediately.** It's read in place — `git pull` (or your own edit) is live for any `SKILL.md`; run `/reload-plugins` for other components. |
-
-> **Want every pushed commit to be an update for marketplace installs, with no version bumps?** Remove
-> the `version` field from `.claude-plugin/plugin.json`. Claude Code then keys updates off the git
-> commit SHA, so `/plugin update` always pulls the latest commit. The trade-off is you lose controlled,
-> semver'd releases — which is why `version` is set by default here.
-
+Skills with `disable-model-invocation: true` are reported as **manual**. Load those only when the
+user explicitly asks. The others are **model-invoked** and may be loaded when a task matches their
+description.
 
 ## Written for Claude 5
 
@@ -111,10 +88,9 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 ## Catalog
 
-### Dependency management — `skills/<name>/`, manual (`/agentic:<name>`)
+### Dependency management — `skills/<name>/`, manual
 
-These live one level under `skills/` — the default plugin scan — because they are used often.
-Category skills load only when their directory is listed in `plugin.json`.
+These live one level under `skills/` because they are used often.
 
 | Skill | Does |
 |---|---|
@@ -138,14 +114,14 @@ Category skills load only when their directory is listed in `plugin.json`.
 | `codebase-design` | Shared design vocabulary (deep vs shallow, coupling, seams) other skills reach for. |
 | `explain` | Explain a concept in three layers — 30-second, 5-minute, and a deep dive. |
 
-### features/ — manual product-feature recipes (`/agentic:<name>`)
+### features/ — manual product-feature recipes
 
 | Skill | Does |
 |---|---|
 | `whats-new` | Scaffold an in-app "What's New" feed — markdown release notes rendered to sanitized HTML at build time, with a quiet "New" indicator that clears on view (localStorage default, optional per-user server variant). |
 | `social-pipeline` | Scaffold an AI-assisted social-posting back office — sources → AI-drafted platform posts → a human approval inbox → a scheduling calendar with posting windows → a publishing provider, with idempotent dedup, timezone-correct window scheduling, and a sync-first publishing adapter that keeps the local store and the provider in lockstep. |
 
-### release-ops/ — manual shipping workflows (`/agentic:<name>`)
+### release-ops/ — manual shipping workflows
 
 | Skill | Does |
 |---|---|
@@ -182,7 +158,7 @@ Category skills load only when their directory is listed in `plugin.json`.
 | `pr-conventions` | Conventional-Commit types, title-prefix scheme, PR-body skeleton, review-reply rules. |
 | `security-status-tracking` | The `DEFENSE_IN_DEPTH.md` status-block format and reconciliation rules. |
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
-| `writing-great-skills` | How to author a SKILL.md for this plugin (also the contributor guide). |
+| `writing-great-skills` | How to author a SKILL.md for this catalog (also the contributor guide). |
 | `ai-model-discovery` | Find the AI model IDs a repo calls, look up each provider's catalog and deprecations, and recommend the newest same-tier model — one line per reference, approval per provider before anything changes. |
 | `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog against `jaredwray/agentic` `main`; refresh stale copies, add missing `AGENTS.md` sections (creating the file in any repo), report edited ones and catalog drift. |
 
@@ -196,19 +172,43 @@ language via `codebase-design`. This keeps each SKILL.md lean and the convention
 
 ## Authoring
 
-See `skills/shared/writing-great-skills` for how to write a SKILL.md that triggers at the right time:
-frontmatter fields, writing a discoverable `description`, the lean-body-plus-`reference.md` structure,
-the model-invoked vs manual rule, and the conventions CI enforces.
+See `skills/shared/writing-great-skills`. Descriptions must be 1024 characters or fewer. `pnpm test`
+fails if a skill on disk is missing from the catalog.
 
 ## Development
 
+Node.js 22. The package manager is pnpm, pinned in `package.json`.
+
 ```bash
-node scripts/validate-skills.mjs   # frontmatter, links, discoverability, and manifests (runs in CI)
+corepack enable
+corepack prepare
+pnpm install
+pnpm dev          # http://localhost:8787/mcp
+pnpm test
+pnpm validate
+pnpm check
 ```
 
-The validator is dependency-free. Versioning uses [Changesets](https://github.com/changesets/changesets)
-via `npx`; `scripts/sync-plugin-version.mjs` keeps `.claude-plugin/plugin.json` in step with
-`package.json`.
+`pnpm build` compiles `skills/` into `src/generated/catalog.json`, which the worker bundles. That
+file is generated and gitignored. Skills on disk are the source of truth.
+
+## Deploy
+
+A push to `main` runs `.github/workflows/deploy.yml`, which validates, typechecks, tests, and runs
+`wrangler deploy`. Pull requests do not deploy.
+
+The workflow cannot create the Cloudflare token or the DNS name. Do this once:
+
+1. `jaredwray.com` is an active zone on the Cloudflare account that will own the worker.
+   `agentic.jaredwray.com` must not already have a DNS record. A custom domain cannot attach over an
+   existing CNAME. The first deploy creates the record and the certificate.
+2. Create an API token (My Profile → API Tokens → Create Custom Token) scoped to that account and
+   zone: Account / Workers Scripts / Edit, Account / Account Settings / Read, Zone / Workers Routes /
+   Edit. Add Zone / DNS / Edit if the first deploy fails to attach the hostname.
+3. Copy the account ID from the Workers overview.
+4. In the GitHub repo, add Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+`wrangler.jsonc` routes the worker to `agentic.jaredwray.com` and leaves `workers.dev` off.
 
 ## License
 

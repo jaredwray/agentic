@@ -1,3 +1,8 @@
 node_modules/
 *.log
 .DS_Store
+src/generated/
+worker-configuration.d.ts
+dist/
+.wrangler/
+.dev.vars
