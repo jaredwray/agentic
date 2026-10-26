@@ -1,13 +1,32 @@
 {
   "name": "agentic",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Operation manuals as installable Claude Code Agent Skills.",
+  "description": "Operation manuals served as a remote MCP server.",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.15.0+sha512.b3951d6d6ff4a9f13dc7cf56cd28d2b8eb37dbcc9c68e52e1e1191873ea9f82a017287ab50baadc5ccc494f036c67c0e47eb13608c2fa36f47711b61ea128e61",
   "scripts": {
+    "build": "node scripts/build-catalog.mjs",
+    "dev": "pnpm build && wrangler dev",
+    "typecheck": "pnpm build && wrangler types && tsc --noEmit",
+    "test": "pnpm build && vitest run",
     "validate": "node scripts/validate-skills.mjs && node scripts/validate-safe-chain-setup.mjs",
-    "changeset": "npx -y @changesets/cli",
-    "version": "npx -y @changesets/cli version && node scripts/sync-plugin-version.mjs"
+    "check": "pnpm validate && pnpm typecheck && pnpm test && wrangler deploy --dry-run --outdir dist",
+    "deploy": "pnpm build && wrangler deploy"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@types/node": "24.13.6",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5",
+    "wrangler": "4.151.2"
   },
   "author": "Jared Wray <me@jaredwray.com>",
   "license": "MIT"

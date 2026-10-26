@@ -1,28 +1,29 @@
 #!/usr/bin/env node
-// Validates the agentic skills plugin. Zero dependencies so CI needs no install step.
+// Validates the agentic skills catalog served by the MCP worker.
+// Zero dependencies so CI needs no install step.
 //
 // Checks:
 //  1. Every skills/**/SKILL.md has `name` (kebab-case, matching its folder) and `description`.
-//  2. `description` (+ `when_to_use` if present) is <= 1536 characters.
+//  2. `description` (+ `when_to_use` if present) is <= 1024 characters.
 //  3. Flag types are sane (`disable-model-invocation`/`user-invocable` boolean; `allowed-tools` list).
-//  4. `name` is unique across the plugin.
+//  4. `name` is unique across the catalog.
 //  5. Every relative markdown link inside a SKILL.md resolves to a file that exists.
 //  6. Supporting files (`reference.md`, `scripts/*`) are referenced by their SKILL.md, and any
 //     `reference.md`/`scripts/` pointer in a SKILL.md resolves to a real file (no orphans either way).
-//  7. plugin.json / marketplace.json parse and their referenced paths exist.
-//  8. Orchestration skills set `disable-model-invocation: true` so a mutating/expensive loop
+//  7. Orchestration skills set `disable-model-invocation: true` so a mutating/expensive loop
 //     never auto-fires. That is every skill under release-ops, security, growth, and
 //     project-setup, plus the dependency-management skills at the skills/ root.
-//  9. `pnpm publish` / `pnpm stage publish` (and leftover `npm publish`) tarball args in skills/
+//  8. `pnpm publish` / `pnpm stage publish` (and leftover `npm publish`) tarball args in skills/
 //     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
-// 10. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
+//  9. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
+// 10. skills/SKILL.md does not exist — a skill must live in its own folder.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, SKILLS_DIR, walk, skillMarkdownFiles } from './lib/skill-files.mjs';
+import { parseFrontmatter } from './lib/frontmatter.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const DESC_BUDGET = 1536;
+const DESC_BUDGET = 1024;
 const ORCHESTRATION = new Set(['release-ops', 'security', 'growth', 'project-setup']);
 // Used often, so they live at skills/<name>/ (the default one-level scan) instead of a category.
 // They are still orchestration skills and stay manual-only.
@@ -34,24 +35,6 @@ const errors = [];
 const warnings = [];
 const err = (file, msg) => errors.push(`${relative(ROOT, file)}: ${msg}`);
 const warn = (file, msg) => warnings.push(`${relative(ROOT, file)}: ${msg}`);
-
-function walk(dir, acc = []) {
-  if (!existsSync(dir)) return acc;
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name);
-    if (entry.isDirectory()) walk(p, acc);
-    else acc.push(p);
-  }
-  return acc;
-}
-
-function stripQuotes(s) {
-  s = s.trim();
-  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-    return s.slice(1, -1);
-  }
-  return s;
-}
 
 // Return content with fenced code blocks removed, so prose-only checks don't match inside example
 // snippets (e.g. a workflow YAML that runs `./scripts/x.sh` in a TARGET repo). Tracks the opening
@@ -75,48 +58,6 @@ function stripCodeFences(content) {
     if (!open) out.push(line);
   }
   return out.join('\n');
-}
-
-// Minimal YAML-frontmatter parser: top-level `key: value` pairs, folded multi-line scalars
-// (indented continuation lines joined with spaces), flow arrays `[a, b]`, block sequences (`- x`),
-// and `true`/`false` booleans. Sufficient for the SKILL.md frontmatter shape this repo uses.
-function parseFrontmatter(content) {
-  if (!content.startsWith('---')) return { error: 'missing YAML frontmatter (no leading `---`)' };
-  const close = content.indexOf('\n---', 3);
-  if (close === -1) return { error: 'unterminated YAML frontmatter (no closing `---`)' };
-  const block = content.slice(content.indexOf('\n') + 1, close);
-  const data = {};
-  let key = null;
-  for (const line of block.split('\n')) {
-    if (!line.trim()) continue;
-    const indented = /^\s/.test(line);
-    const m = line.match(/^([A-Za-z0-9_-]+):\s?(.*)$/);
-    if (m && !indented) {
-      key = m[1];
-      data[key] = m[2];
-    } else if (key && indented) {
-      const t = line.trim();
-      if (t.startsWith('- ')) {
-        if (!Array.isArray(data[key])) {
-          const seed = String(data[key] ?? '').trim();
-          data[key] = seed ? [seed] : [];
-        }
-        data[key].push(stripQuotes(t.slice(2)));
-      } else {
-        data[key] = `${String(data[key] ?? '').trim()} ${t}`.trim();
-      }
-    }
-  }
-  for (const k of Object.keys(data)) {
-    if (Array.isArray(data[k])) continue;
-    const v = String(data[k]).trim();
-    if (v === 'true') data[k] = true;
-    else if (v === 'false') data[k] = false;
-    else if (v.startsWith('[') && v.endsWith(']')) {
-      data[k] = v.slice(1, -1).split(',').map((s) => stripQuotes(s)).filter(Boolean);
-    } else data[k] = stripQuotes(v);
-  }
-  return { data };
 }
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -208,66 +149,6 @@ function validateSkill(file, seenNames) {
   }
 }
 
-function validateManifests() {
-  const pluginPath = join(ROOT, '.claude-plugin', 'plugin.json');
-  const marketplacePath = join(ROOT, '.claude-plugin', 'marketplace.json');
-
-  if (!existsSync(pluginPath)) err(pluginPath, 'missing .claude-plugin/plugin.json');
-  else {
-    try {
-      const plugin = JSON.parse(readFileSync(pluginPath, 'utf8'));
-      if (!plugin.name) err(pluginPath, 'plugin.json missing `name`');
-    } catch (e) {
-      err(pluginPath, `plugin.json does not parse: ${e.message}`);
-    }
-  }
-
-  if (!existsSync(marketplacePath)) err(marketplacePath, 'missing .claude-plugin/marketplace.json');
-  else {
-    try {
-      const mkt = JSON.parse(readFileSync(marketplacePath, 'utf8'));
-      if (!mkt.name) err(marketplacePath, 'marketplace.json missing `name`');
-      if (!Array.isArray(mkt.plugins) || mkt.plugins.length === 0) err(marketplacePath, 'marketplace.json has no plugins');
-      for (const p of mkt.plugins ?? []) {
-        if (typeof p.source === 'string' && p.source.startsWith('.')) {
-          if (!existsSync(resolve(ROOT, p.source))) err(marketplacePath, `plugin source path does not exist: ${p.source}`);
-        }
-      }
-    } catch (e) {
-      err(marketplacePath, `marketplace.json does not parse: ${e.message}`);
-    }
-  }
-}
-
-// Build the set of SKILL.md files Claude Code would actually discover, using the same rule as
-// plugin loading: the default `skills/` scan plus any directories listed in plugin.json's `skills`
-// field, each scanned one level deep for `<name>/SKILL.md` (or a SKILL.md directly inside a listed
-// dir). A SKILL.md that exists on disk but isn't in this set would pass every other check yet never
-// appear as /agentic:<name> after install — so category-nested skills must be enumerated.
-function discoverableSkillFiles() {
-  const found = new Set();
-  const scanDir = (d) => {
-    if (!existsSync(d)) return;
-    if (existsSync(join(d, 'SKILL.md'))) found.add(resolve(d, 'SKILL.md'));
-    for (const e of readdirSync(d, { withFileTypes: true })) {
-      if (e.isDirectory() && existsSync(join(d, e.name, 'SKILL.md'))) found.add(resolve(d, e.name, 'SKILL.md'));
-    }
-  };
-  scanDir(join(ROOT, 'skills')); // default scan (one level under skills/)
-  try {
-    const plugin = JSON.parse(readFileSync(join(ROOT, '.claude-plugin', 'plugin.json'), 'utf8'));
-    const listed = typeof plugin.skills === 'string' ? [plugin.skills] : Array.isArray(plugin.skills) ? plugin.skills : [];
-    for (const p of listed) {
-      const d = resolve(ROOT, p);
-      if (!existsSync(d)) err(join(ROOT, '.claude-plugin', 'plugin.json'), `skills entry does not exist: ${p}`);
-      else scanDir(d);
-    }
-  } catch {
-    /* manifest parse errors are reported in validateManifests */
-  }
-  return found;
-}
-
 // Local tarball args to publish / stage publish must be prefixed with ./. npm 11+ (npa) treats a
 // slashed arg without a leading ./ or / as GitHub owner/repo shorthand, so
 // `npm stage publish packed/foo.tgz` becomes git ls-remote of packed/foo.tgz.git and dies with
@@ -322,18 +203,13 @@ function validatePublishTarballPaths() {
 }
 
 // --- run ---
-const skillFiles = walk(join(ROOT, 'skills')).filter((f) => basename(f) === 'SKILL.md');
+if (existsSync(join(SKILLS_DIR, 'SKILL.md'))) {
+  err(join(SKILLS_DIR, 'SKILL.md'), 'SKILL.md must not sit directly in skills/; each skill needs its own folder');
+}
+const skillFiles = skillMarkdownFiles();
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
-validateManifests();
 validatePublishTarballPaths();
-
-const discoverable = discoverableSkillFiles();
-for (const file of skillFiles) {
-  if (!discoverable.has(resolve(file))) {
-    err(file, 'skill is not discoverable — add its parent category directory to plugin.json "skills"');
-  }
-}
 
 if (warnings.length) {
   console.log(`\n⚠️  ${warnings.length} warning(s):`);

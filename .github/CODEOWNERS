@@ -7,3 +7,10 @@
 /.claude/ @jaredwray
 /.codex/ @jaredwray
 /scripts/ @jaredwray
+/src/ @jaredwray
+/test/ @jaredwray
+/wrangler.jsonc @jaredwray
+/package.json @jaredwray
+/pnpm-lock.yaml @jaredwray
+/pnpm-workspace.yaml @jaredwray
+/tsconfig.json @jaredwray
