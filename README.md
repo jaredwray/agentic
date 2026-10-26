@@ -17,7 +17,7 @@ Claude Code:
 claude mcp add --transport http agentic https://agentic.jaredwray.com/mcp
 ```
 
-Cursor (`.cursor/mcp.json`):
+Cursor, every project: open **Customize** in the sidebar, then **MCPs**, and add a global server. That edits `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -26,6 +26,10 @@ Cursor (`.cursor/mcp.json`):
   }
 }
 ```
+
+Save and restart Cursor. The server appears on that MCPs page, where you can turn it off without deleting it.
+
+To share it with one repo instead, put the same entry in `.cursor/mcp.json`. If both files define `agentic`, the project entry wins.
 
 Claude.ai and Claude Desktop: Customize → Connectors → Add custom connector, URL
 `https://agentic.jaredwray.com/mcp`, authentication **No sign in**.
