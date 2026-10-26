@@ -206,11 +206,12 @@ The workflow cannot create the Cloudflare token or the DNS name. Do this once:
 1. `jaredwray.com` is an active zone on the Cloudflare account that will own the worker.
    `agentic.jaredwray.com` must not already have a DNS record. A custom domain cannot attach over an
    existing CNAME. The first deploy creates the record and the certificate.
-2. Create an API token (My Profile → API Tokens → Create Custom Token) scoped to that account and
-   zone: Account / Workers Scripts / Edit, Account / Account Settings / Read, Zone / Workers Routes /
-   Edit. Add Zone / DNS / Edit if the first deploy fails to attach the hostname.
-3. Copy the account ID from the Workers overview.
-4. In the GitHub repo, add Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+2. Create an API token (My Profile → API Tokens → Create Custom Token) scoped to account
+   `b09b24c345713c704e71dea8bd81f713` and the `jaredwray.com` zone: Account / Workers Scripts / Edit,
+   Account / Account Settings / Read, Zone / Workers Routes / Edit. Add Zone / DNS / Edit if the
+   first deploy fails to attach the hostname.
+3. In the GitHub repo, add the Actions secret `CLOUDFLARE_API_TOKEN`. The account ID is already set
+   in the deploy workflow.
 
 `wrangler.jsonc` routes the worker to `agentic.jaredwray.com` and leaves `workers.dev` off.
 
