@@ -181,7 +181,7 @@ fails if a skill on disk is missing from the catalog.
 
 ## Development
 
-Node.js 22. The package manager is pnpm, pinned in `package.json`.
+Node.js 24, the current LTS. The package manager is pnpm, pinned in `package.json`.
 
 ```bash
 corepack enable
