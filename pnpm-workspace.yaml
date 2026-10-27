@@ -6,6 +6,10 @@ strictDepBuilds: true
 dangerouslyAllowAllBuilds: false
 trustPolicy: no-downgrade # fail if a later version has weaker trust evidence
 
+# miniflare@5.20261019.0-beta pins undici exactly at the vulnerable release.
+overrides:
+  "miniflare@5.20261019.0-beta>undici": "7.30.1"
+
 # wrangler ships its worker runtime and bundler as native packages. Their
 # install scripts select the prebuilt binary; nothing else is allowed to build.
 allowBuilds:
