@@ -139,6 +139,7 @@ These live one level under `skills/` because they are used often.
 | Skill | Does |
 |---|---|
 | `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, digest-pinned Dev Container images, Safe Chain on cloud agents, staged OIDC publishing — one item per PR. |
+| `security-audit` | Source-first vulnerability review of a codebase — reconnaissance, coverage-led hunting, independent validation, and a target-neutral report. Cloudflare's security-audit skill. Manual. |
 
 ### growth/ — manual
 
