@@ -172,16 +172,17 @@ green, check for already-merged, stop and wait — is `shipping-conventions`. St
    table on the first run. The total is the item count for `shipping-conventions`'
    single-mandated-branch decision, which completes here, before anything changes. Nothing remaining
    anywhere: render the [Done report](#done-report) and stop.
-2. **Check `jaredwray/agentic` for updates.** Run `agentic-upstream-sync`. If it changes any file, that
+2. **Check `jaredwray/agentic` for updates** — skipped under a scoped request that did not ask for it.
+   Run `agentic-upstream-sync`. If it changes any file, that
    is this iteration's PR — branch `chore/agentic-sync`, title e.g.
    `mono - chore: sync defense-in-depth files from agentic`. A catalog behind upstream is reported;
    then continue.
 3. **Overrides.** For each Node root in path order, follow the Overrides section of its rules file.
    The first pin that removes or updates is this iteration's PR.
 4. **Dev phase.** For each root in path order, its highest-priority remaining dev group; then the
-   repo-wide dev groups in order. The first group with work is this iteration's PR.
+   repo-wide dev groups in order, unless a scoped request leaves them out. The first group with work is this iteration's PR.
 5. **Runtime phase.** For each root in path order, its highest-priority remaining runtime group; then
-   the repo-wide runtime groups in order. The first group with work is this iteration's PR.
+   the repo-wide runtime groups in order, unless a scoped request leaves them out. The first group with work is this iteration's PR.
 6. **AI models.** Run `ai-model-discovery` once across the roots in scope, scanning the source files and
    provider SDKs each present rules file's AI models section names. Ship only the first approved
    provider — branch `chore/ai-models-<provider>`, title e.g. `mono - chore: upgrade Anthropic models`.
