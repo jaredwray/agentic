@@ -13,7 +13,7 @@ The authoring guide for skills in this repo. It is also the contributor referenc
 
 A skill is a folder containing a `SKILL.md` with YAML frontmatter and a markdown body. The usual
 place is `skills/<category>/<name>/`. Skills that are used often live one level under `skills/` —
-`skills/<name>/`. The dependency-management skills live there. The folder name **is** the skill name
+`skills/<name>/`. The `dependency-management` skill lives there. The folder name **is** the skill name
 and must match the frontmatter `name` (kebab-case). Large skills add sibling supporting files (`reference.md`,
 `scripts/`) that load only when the body points at them.
 
@@ -63,8 +63,8 @@ The description is the only thing the model sees when deciding whether to reach 
   dependency, defense-in-depth, SEO, project-templates, viral-launch). Set
   `disable-model-invocation: true` so they fire **only** when explicitly invoked — a release loop or
   launch pipeline must never auto-start from a vague prompt. CI enforces this for every skill under
-  `release-ops/`, `security/`, `growth/`, and `project-setup/`, and for the dependency-management
-  skills at the `skills/` root.
+  `release-ops/`, `security/`, `growth/`, and `project-setup/`, and for the `dependency-management`
+  skill at the `skills/` root.
 
 ## Body structure (lean, with on-demand detail)
 
@@ -84,8 +84,7 @@ Reuse the `shared/` skills instead of restating conventions: the one-PR loop
 (`shipping-conventions`), PR titles/bodies and review replies (`pr-conventions`),
 `DEFENSE_IN_DEPTH.md` status tracking (`security-status-tracking`), AI model lookup and
 recommendation (`ai-model-discovery`), the refresh of files copied from this repo
-(`agentic-upstream-sync`), and the release-age gate, GitHub Actions, and container image groups
-every dependency skill shares (`repo-dependency-groups`).
+(`agentic-upstream-sync`).
 
 **Cross-references.** Refer to *another* skill by its name in backticks (e.g. "defer to the
 `code-review` skill"), not by a relative file path — paths are fragile across the category tree and
@@ -159,6 +158,6 @@ node scripts/validate-skills.mjs
 It checks: required frontmatter and kebab-case name matching the folder; the description budget;
 unique names; that every relative link and `reference.md`/`scripts/` pointer resolves; that
 supporting files aren't orphaned; that orchestration skills (category
-directories and the dependency-management skills at the `skills/` root) are manual-only; that staged
+directories and the `dependency-management` skill at the `skills/` root) are manual-only; that staged
 publishing in skills uses `pnpm stage publish` (pnpm ≥ 11.3), not
 the npm CLI; and that those tarball paths are prefixed with `./` and include `--no-git-checks`.

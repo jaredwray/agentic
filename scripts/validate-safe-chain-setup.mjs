@@ -269,20 +269,13 @@ if (/javascript-node:latest/.test(reference)) {
   err('reference.md must not recommend javascript-node:latest');
 }
 
-const repoGroups = readFileSync(join(ROOT, 'skills/shared/repo-dependency-groups/SKILL.md'), 'utf8');
-if (
-  !/Dev Container images/.test(repoGroups) ||
-  !/7-day age gate/.test(repoGroups) ||
-  !/chore\/devcontainer-images/.test(repoGroups) ||
-  !/@sha256:/.test(repoGroups)
-) {
-  err('repo-dependency-groups must refresh Dev Container image digest pins under a 7-day age gate');
+const dependencySkill = readFileSync(join(ROOT, 'skills/dependency-management/SKILL.md'), 'utf8');
+const dependencyContainers = readFileSync(join(ROOT, 'skills/dependency-management/containers.md'), 'utf8');
+if (!/chore\/devcontainer-images/.test(dependencySkill) || !/7-day age gate/.test(dependencySkill)) {
+  err('dependency-management must refresh Dev Container image pins under a 7-day age gate');
 }
-for (const label of readdirSync(join(ROOT, 'skills')).filter((name) => /^dependency-management-/.test(name))) {
-  const dep = readFileSync(join(ROOT, 'skills', label, 'SKILL.md'), 'utf8');
-  if (!/chore\/devcontainer-images/.test(dep) || !dep.includes('`repo-dependency-groups`')) {
-    err(`${label} must run the Dev Container image group from repo-dependency-groups`);
-  }
+if (!/devcontainer\.json/.test(dependencyContainers) || !/7-day age gate/.test(dependencyContainers) || !/@sha256:/.test(dependencyContainers)) {
+  err('dependency-management containers.md must pin Dev Container images by digest under a 7-day age gate');
 }
 if (!reference.includes(SHIM_PATH_EXPORT)) {
   err('reference.md merge guidance must export Safe Chain shims onto PATH for follow-on commands');

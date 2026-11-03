@@ -7,8 +7,7 @@ user-invocable: true
 # Agentic upstream sync
 
 Repos hardened with this plugin carry copies of files that live in `jaredwray/agentic` and keep
-moving there. The dependency-management skills run this check on every resume, before any upgrade
-group — the `dependency-management` router once for a whole monorepo; on its own it answers "is this repo current with agentic?".
+moving there. `dependency-management` runs this check on every resume, before any upgrade group; on its own it answers "is this repo current with agentic?".
 
 > Refreshing a copy is a chore, not a judgment call: a stale copy is refreshed without asking. A
 > locally edited copy and a changed catalog are reported, never overwritten.
