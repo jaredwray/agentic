@@ -54,7 +54,7 @@ module file lives. Enumerate **tracked** files only (`git ls-files`), so `node_m
   `composer.json`, `Package.swift`, `pubspec.yaml`, `mix.exs`, and conda `environment.yml` have no
   skill here — list them as **unsupported**.
 
-Order roots by path. Render the result once per run, one line each, before the first item:
+Order roots by path. The root table is one line per root:
 
 ```
 javascript/server  · Node (npm)    · dependency-management-node
@@ -69,29 +69,42 @@ Each package group belongs to the root's language skill. Hand it one root and on
 - **Root.** The skill works only inside that root — its manifests, lockfiles, and source — plus the
   CI lines that pin the root's own package manager or toolchain when its group calls for them. Its
   commands run from the root.
-- **Phase.** `overrides` (Node only), `dev`, or `runtime`. The skill audits that phase for the root
-  and either ships its highest-priority remaining group or reports "nothing left in `<phase>`".
+- **Phase.** One of:
+  - `audit` — read-only: the skill lists its remaining groups in each phase, one line each, and
+    changes nothing. Node lists each collected override as a possible item.
+  - `overrides` (Node only), `dev`, or `runtime` — the skill ships its highest-priority remaining
+    group in that phase.
 - **Router-owned.** The skill skips every step it marks *(router-owned)*: `agentic-upstream-sync`,
   every `repo-dependency-groups` group, and AI models.
-- **One group.** The skill applies the group, verifies it, opens the PR, and drives CI green
-  (`shipping-conventions` steps 4–5). It then hands back the PR URL and group name. The router does
-  the already-merged check and the stop.
-- **Names.** With more than one root, insert the root's slug into the branch:
-  `chore/<root-slug>-<group-key>`, e.g. `chore/javascript-web-code-quality`. The slug is the root's
-  path with `/` → `-`; for the repo root it is the ecosystem (`node`, `python`, …), and when two
-  roots share a directory the ecosystem is appended (`tools-python`). The PR title
-  prefix is the root's package name. A repo-wide group keeps its plain branch and uses `mono - `
-  (`root - ` when the repo has a single root).
+- **Result.** Exactly one of:
+  - **Shipped** — the skill applied the group, verified it, opened the PR, and drove CI green
+    (`shipping-conventions` steps 4–5), then hands back the PR URL and group name instead of stopping.
+    The router does the already-merged check and the stop.
+  - **Nothing left** in that phase.
+  - **Blocked** — a stop-and-report condition (an unsupported package manager, a version source
+    disagreement, a missing SDK), returned with its reason and nothing changed. The router records it
+    under *Blocked* in the [Done report](#done-report), skips that root for the rest of the run, and
+    continues. It stops to ask only when the reason needs the user's decision before anything else
+    can ship.
+- **Names.** With more than one root, insert the root's slug after `chore/`:
+  `chore/<root-slug>-<group-key>` (e.g. `chore/javascript-web-code-quality`,
+  `chore/javascript-server-override-semver`). The slug is the root's path with `/` → `-`; for the
+  repo root it is the ecosystem (`node`, `python`, …), and when two roots share a directory the
+  ecosystem is appended (`tools-python`). The PR title prefix is the root's package name. A repo-wide
+  group keeps its plain branch and uses `mono - ` (`root - ` when the repo has a single root).
 
 ## Workflow
 
 The loop — sync `main`, resolve branch capability, take stock, pick one item, open the PR, drive CI
-green, check for already-merged, stop and wait — is `shipping-conventions`. Run it with the steps
-below as its *take stock* and *pick one item*. For the single-mandated-branch decision, count the
-items remaining across every root and every repo-wide group.
+green, check for already-merged, stop and wait — is `shipping-conventions`. Run it with step 1 below
+as its *take stock* and steps 2–7 as its *pick one item*.
 
-1. **Detect package roots** per [Detect package roots](#detect-package-roots). If there are no
-   package roots and no repo-wide groups apply, report that and stop.
+1. **Take stock — read-only.** Detect package roots per
+   [Detect package roots](#detect-package-roots), run the comparison of `agentic-upstream-sync`
+   without acting on it, delegate phase `audit` to every root, and check each `repo-dependency-groups`
+   group. Render the root table on the first run. The total across all of them is the item count
+   for `shipping-conventions`' single-mandated-branch decision, which completes here, before anything
+   changes. Nothing remaining anywhere: render the [Done report](#done-report) and stop.
 2. **Check `jaredwray/agentic` for updates.** Run `agentic-upstream-sync`. If it changes any file,
    that is this iteration's PR — branch `chore/agentic-sync`, title e.g.
    `mono - chore: sync defense-in-depth files from agentic`. A catalog behind upstream is reported;
@@ -122,5 +135,6 @@ One line per entry, grouped under these headings, empty headings dropped:
 - **Deferred** — versions held back, with what holds them: a runtime floor (`pytest 9.1.1 needs
   Python ≥ 3.10; floor 3.8`), a new major that needs import changes, a declined model bump.
 - **Kept overrides** — pins that could neither be removed nor updated.
+- **Blocked** — roots a language skill could not work on, with its reason.
 - **Unmanaged / unsupported** — from detection.
 - **Past end of life** — any runtime floor the language skills flagged.

@@ -16,7 +16,7 @@ dependencies, one pull request at a time.
 >
 > **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
-> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names, and skip every step marked *(router-owned)*.
+> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names (`audit` changes nothing), skip every step marked *(router-owned)*, return **Blocked** with the reason instead of stopping on a stop-and-report condition, and once CI is green hand the PR back to the router instead of stopping.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions`. Release-age gating, the GitHub Actions group, and every container image group are `repo-dependency-groups`.
 
@@ -29,14 +29,17 @@ dependencies, one pull request at a time.
 
 - **The floor** is the `go` directive in `go.mod`: the oldest Go that can build the module, and for a
   library, the oldest Go its users may run. No upgrade may raise it. Read a candidate's minimum from
-  `go list -m -json <module>@<version>` (`GoVersion`); one above the floor is a deferral, and the target
-  is the newest gated version at or below it (`open-feature/go-sdk v1.17.0 needs go 1.24.0; floor 1.21
-  — deferred`). Since Go 1.21, `go get` raises the `go` line on its own to satisfy a dependency, so
-  check `git diff go.mod` after every bump and step back to an older version if the line moved. Raising
-  the floor is the user's call. Go supports its two newest releases
+  the `go` line of `curl -s https://proxy.golang.org/<module>/@v/<version>.mod` (for a private module,
+  of the `GoMod` file `go mod download -json <module>@<version>` names) — `go list -m -json` omits
+  `GoVersion` when it is newer than the local Go, so never treat a missing `GoVersion` as no minimum.
+  One above the floor is a deferral, and the target is the newest gated version at or below it
+  (`open-feature/go-sdk v1.17.0 needs go 1.24.0; floor 1.21 — deferred`). Since Go 1.21, `go get`
+  raises the `go` line on its own to satisfy a dependency, so check `git diff go.mod` after every bump
+  and step back to an older version if the line moved. Raising the floor is the user's call. Go supports its two newest releases
   ([release history](https://go.dev/doc/devel/release)); say in the done report when the floor is older.
-- **The toolchain** is the `toolchain` directive, the Go that builds the module locally and in CI. With
-  the default `GOTOOLCHAIN=auto`, a local `go` older than it downloads it.
+- **The toolchain** is the `toolchain` directive, the Go that builds the module locally and in CI.
+  Install that Go (or the floor's, without a `toolchain` directive) and run every `go` command with
+  `GOTOOLCHAIN=local`, so a candidate that needs a newer Go fails instead of silently downloading one.
 
 ## Environment
 
@@ -71,7 +74,7 @@ and not checked against the floor, so it is a candidate, never the target; see
 ### Dev groups
 
 1. **Toolchain → 1 PR** (only if `go.mod` or `go.work` has a `toolchain` directive):
-   Move it to the newest patch of its Go minor that passes the release-age gate, dated by `go list -m -json golang.org/toolchain@v0.0.1-go<version>.linux-amd64` (`Time`), with `go get toolchain@go<version>`. CI `go-version` pins that state the same exact patch move with it; floating ones (`1.22`, `1.22.x`) and ones that match the floor stay. A new minor is breaking — stop and ask. Never add a `toolchain` directive.
+   Move it to the newest patch of its Go minor that passes the release-age gate. List the patches with `go list -m -versions golang.org/toolchain` (entries `v0.0.1-go<version>.linux-amd64`) and date each with `go list -m -json golang.org/toolchain@v0.0.1-go<version>.linux-amd64` (`Time`). Write it with `go get toolchain@go<version>` in `go.mod`, or `go work edit -toolchain=go<version>` when the directive is in `go.work`. CI `go-version` pins that state the same exact patch move with it; floating ones (`1.22`, `1.22.x`) and ones that match the floor stay. A new minor is breaking — stop and ask. Never add a `toolchain` directive.
 
 2. **Test and code quality → 1 PR**:
    `github.com/stretchr/testify`, `github.com/google/go-cmp`, `go.uber.org/mock`, `github.com/golang/mock`, `github.com/onsi/ginkgo/v2`, `github.com/onsi/gomega`, `go.uber.org/goleak`, `gotest.tools/v3`, `github.com/DATA-DOG/go-sqlmock`, `github.com/jarcoal/httpmock`, `github.com/alicebob/miniredis/v2`, `github.com/testcontainers/testcontainers-go*`, any other test-only module, and lint tools — `golangci-lint`, `honnef.co/go/tools` (staticcheck), `mvdan.cc/gofumpt`, `golang.org/x/vuln` (govulncheck).
@@ -96,7 +99,6 @@ and not checked against the floor, so it is a candidate, never the target; see
    - HTTP frameworks → one PR each: `github.com/gin-gonic/gin` with `github.com/gin-contrib/*`; `github.com/labstack/echo/v4`; `github.com/go-chi/chi/v5`; `github.com/gofiber/fiber/*`
    - Databases → one PR each: `github.com/jackc/pgx/v5`; `gorm.io/gorm` with `gorm.io/driver/*`; `go.mongodb.org/mongo-driver*`; `github.com/redis/go-redis/v9`
    - CLI → `github.com/spf13/cobra`, `github.com/spf13/viper`, `github.com/spf13/pflag`
-   - OpenFeature → `github.com/open-feature/go-sdk`, `github.com/open-feature/go-sdk-contrib/*`
 
 3. **Everything else → 1 PR per module**.
 
@@ -120,8 +122,8 @@ that loop, not a replacement for it.
 2. **Check `jaredwray/agentic` for updates** *(router-owned)*. Run `agentic-upstream-sync`. If it changes any file, open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. A catalog behind upstream is reported; then continue.
 
 3. **Determine the active phase.**
-   - If any dev group has a module behind its target, or a router-owned dev group in `repo-dependency-groups` is outdated, the phase is **dev**.
-   - Otherwise, if any runtime group has a module behind its target, an image is outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral), the phase is **runtime**.
+   - If any dev group has a module behind its target, or, standalone, a `repo-dependency-groups` dev group is outdated, the phase is **dev**.
+   - Otherwise, if any runtime group has a module behind its target, or, standalone, an image is outdated or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral), the phase is **runtime**.
    - Otherwise the workflow is **done** — report the merged PRs, every deferral (versions blocked by the floor, declined model bumps), each new major version available, and whether the floor is older than Go's two supported releases, one line each, then stop.
 
 4. **Pick the next group** — the highest-priority group in the active phase with remaining work.
@@ -155,8 +157,11 @@ with `git log --first-parent -1 --before='7 days ago' --format=%H`, and use `go 
 If that commit's `GoVersion` exceeds the floor, the module is a deferral — do not walk older commits.
 
 **A new major version** is a different module path (`/v2`, `/v3`), so `go list -u` never shows it.
-For each direct dependency, check `go list -m -versions <path>/v<N+1>` (an error means no such
-module); a gated release there is reported in the done report, never applied — moving rewrites import paths, so it needs the user's
+For each direct dependency, check the next major's path with `go list -m -versions`: replace an
+existing `/vN` suffix with `/v<N+1>` (`github.com/redis/go-redis/v9` → `…/go-redis/v10`), add `/v2` to
+an unsuffixed v0 or v1 path, and for `gopkg.in` bump the `.vN` suffix (`gopkg.in/yaml.v3` →
+`gopkg.in/yaml.v4`). An error means no such module. A gated release there is reported in the done
+report, never applied — moving rewrites import paths, so it needs the user's
 approval and its own `(breaking)` PR.
 
 **For image groups**, the target is the newest digest in lineage at least 7 days old, per

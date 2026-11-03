@@ -17,7 +17,7 @@ Workflow for upgrading both **dev/build dependencies** (with CI tooling) and **r
 >
 > **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
-> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names, and skip every step marked *(router-owned)*.
+> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names (`audit` changes nothing), skip every step marked *(router-owned)*, return **Blocked** with the reason instead of stopping on a stop-and-report condition, and once CI is green hand the PR back to the router instead of stopping.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it). The GitHub Actions group and every container image group are `repo-dependency-groups`.
 
@@ -110,8 +110,8 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 2. **Check `jaredwray/agentic` for updates** *(router-owned)*. Run `agentic-upstream-sync`. If it changes any file (a stale copy, a missing or stale `AGENTS.md` section, or a missing `CLAUDE.md` import), open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration. A catalog behind upstream is reported; then continue to step 3. Re-run this step on every resume.
 
 3. **Determine the active phase.**
-   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or a router-owned dev group in `repo-dependency-groups` is outdated, the active phase is **dev**.
-   - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
+   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or, standalone, a `repo-dependency-groups` dev group is outdated, the active phase is **dev**.
+   - Otherwise, if any runtime group still has outdated deps, or, standalone, Docker runtime/service images are outdated or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred", declined model bumps) and stop.
 
 4. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected member crates (in workspaces, one group may span `[workspace.dependencies]` and several members).

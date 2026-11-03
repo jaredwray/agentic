@@ -17,7 +17,7 @@ Workflow for upgrading both **devDependencies** (with CI tooling) and **runtime 
 >
 > **Overrides, then dev, then runtime.** Finish every override that can be removed or updated before any upgrade group. Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
-> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names, and skip every step marked *(router-owned)*.
+> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names (`audit` changes nothing), skip every step marked *(router-owned)*, return **Blocked** with the reason instead of stopping on a stop-and-report condition, and once CI is green hand the PR back to the router instead of stopping.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it). The GitHub Actions group and every container image group are `repo-dependency-groups`.
 
@@ -35,16 +35,17 @@ Determine the repo shape first:
 
   | pnpm | npm |
   |---|---|
-  | `pnpm outdated --dev` / `--prod`, `pnpm -r outdated` | `npm outdated --long` (`--workspaces` in a monorepo); its `Package Type` column splits dev from runtime |
+  | `pnpm outdated --dev` / `--prod`, `pnpm -r outdated` | `npm ci`, then `npm outdated --long` (`--workspaces` in a monorepo) — without `node_modules` it lists only `dependencies`; its `Package Type` column splits dev from runtime |
   | "Latest" is the target | the target is the npm row of `repo-dependency-groups` → Release-age gate; see [Version targeting](#version-targeting) |
   | `pnpm install` | `npm install --min-release-age=7` |
   | `pnpm add [-D] <pkg>@<version>` | `npm install <pkg>@<version> --min-release-age=7`, with `--save-dev` for a devDependency, `--save-exact` when the current spec is exact, and `-w <workspace>` for a workspace package |
   | `pnpm why <pkg>` | `npm explain <pkg>` |
   | `pnpm build`, `pnpm test` | `npm run build`, `npm test` |
 
-  `--min-release-age` gates transitive resolution and needs npm 11.10 or newer: use the repo's npm
-  when it is new enough, otherwise `npx --yes npm@<version>` with the newest npm release that passes
-  the release-age gate. The `packageManager` rules in the monorepo tooling group cover pnpm only; an
+  `--min-release-age` gates transitive resolution and needs npm 11.10 or newer — older npm ignores it
+  without a warning. Check `npm --version` before the first install: use the repo's npm when it is new
+  enough, otherwise `npx --yes npm@<version>` with the newest npm release that passes the release-age
+  gate. The `packageManager` rules in the monorepo tooling group cover pnpm only; an
   npm project leaves `packageManager` and `engines.npm` as they are.
 - **Anything else** (`yarn.lock`, `bun.lock`) — stop and report.
 
@@ -157,14 +158,14 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 3. **Check `jaredwray/agentic` for updates** *(router-owned)*. Run `agentic-upstream-sync`. If it changes any file (a stale copy, a missing or stale `AGENTS.md` section, or a missing `CLAUDE.md` import), open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration. A catalog behind upstream is reported (running `defense-in-depth-nodejs` is the user's call); then continue to step 4. Re-run this step on every resume.
 
 4. **Determine the active phase.**
-   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above; a `packageManager` behind its target or missing its hash counts) or a router-owned dev group in `repo-dependency-groups` is outdated, the active phase is **dev**.
-   - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
+   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above; a `packageManager` behind its target or missing its hash counts) or, standalone, a `repo-dependency-groups` dev group is outdated, the active phase is **dev**.
+   - Otherwise, if any runtime group still has outdated deps, or, standalone, Docker runtime/service images are outdated or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs, any documented deferrals (e.g. "typescript 6 needs tsconfig migration — deferred", declined model bumps), and any overrides that were kept, then stop.
 
 5. **Pick the next group.** Within the active phase, pick the highest-priority group from [Standard groups](#standard-groups) that still has outdated deps. Plan the group across all affected workspaces (in monorepos, one group may span the root and multiple packages).
 
-6. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons.
-   - Bump it — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the target from [Version targeting](#version-targeting). **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, `pnpm up --latest`, `npm install <pkg>@latest`, `npm update`, or adding the package to `minimumReleaseAgeExclude` / `trustPolicyExclude` / `min-release-age-exclude` — they bypass the release-age gate and pull versions younger than it allows.
+6. **Apply the upgrade.** Branch: `chore/<group-key>` — e.g. `chore/code-quality`, `chore/typescript-build`, `chore/monorepo-tooling`, `chore/github-actions`, `chore/devcontainer-images`, `chore/react`, `chore/nextjs`, `chore/prisma`, `chore/<pkg>` for singletons (a scoped name drops the `@` and turns `/` into `-`: `chore/cacheable-node-cache`).
+   - Bump it — `pnpm add <pkg>@<version>` (or `pnpm add -D <pkg>@<version>` for devDeps and ecosystem-adjacent devDep members like `@types/react`). `<version>` is the target from [Version targeting](#version-targeting). **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, `pnpm up --latest`, `npm install <pkg>@latest`, or `npm update` — they bypass the release-age gate and pull versions younger than it allows.
    - Verify the upgrade. Check the relevant `package.json` `scripts` (root for single-package, the affected workspace for monorepos):
      - If a `build` script exists, run `pnpm build && pnpm test` — building first catches type and bundler regressions that tests alone won't.
      - Otherwise run `pnpm test`.

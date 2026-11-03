@@ -1,6 +1,6 @@
 ---
 name: repo-dependency-groups
-description: The dependency work every dependency-management skill shares — the 7-day release-age gate for package versions, toolchains, and container digests (native package-manager gates or registry publish times), the GitHub Actions group, the Docker build-time, runtime, and service image groups, the Dev Container image group, container image discovery and tag lineage, and the rule that images follow the project's declared runtime version. Background discipline: a language skill runs these groups itself in a single-ecosystem repo, and the dependency-management router runs them once for a whole monorepo. Use when upgrading GitHub Actions, Docker or Dev Container images, or deciding whether a release is old enough to adopt.
+description: The dependency work every dependency-management skill shares — the 7-day release-age gate for package versions, toolchains, GitHub Actions, and container digests (native package-manager gates or registry publish times), the GitHub Actions group, the Docker build-time, runtime, and service image groups, the Dev Container image group, container image discovery and tag lineage, and the rule that images follow the project's declared runtime version. Background discipline: a language skill runs these groups itself in a single-ecosystem repo, and the dependency-management router runs them once for a whole monorepo. Use when deciding whether a release is old enough to adopt or how an image or action pin should move; the groups themselves run only under a dependency-management skill.
 user-invocable: true
 ---
 
@@ -17,8 +17,8 @@ whole repo, and the language skills skip them.
 
 ## Release-age gate
 
-Nothing moves to a release published less than **7 days** ago — not a package, a toolchain, or an
-image digest. Almost every registry compromise is caught and pulled within days; the gate keeps
+Nothing moves to a release published less than **7 days** ago — not a package, a toolchain, an
+action, or an image digest. Almost every registry compromise is caught and pulled within days; the gate keeps
 those releases out.
 
 1. **Use the tool's own gate when it has one** and it can apply without committing anything new:
@@ -28,7 +28,7 @@ those releases out.
    | pnpm | `minimumReleaseAge` | Repo config in `pnpm-workspace.yaml`; `pnpm outdated` and installs honor it. |
    | npm ≥ 11.10 | `min-release-age` (days) | Pass `--min-release-age=7` to every `npm install`. |
    | Poetry ≥ 2.4 | `solver.min-release-age` (days) | Set `POETRY_SOLVER_MIN_RELEASE_AGE=7` on every Poetry command. `poetry.lock` does not record it. |
-   | uv | `exclude-newer` | Only when `[tool.uv]` or `uv.toml` already sets it to 7 days or more. Never pass it on the command line or through `UV_EXCLUDE_NEWER`: uv writes it into `uv.lock`, and `uv lock --check` then fails for everyone without the setting. |
+   | uv | `exclude-newer` | Only when `[tool.uv]` or `uv.toml` already sets it to a relative span of 7 days or more (`"7 days"`, `"1 week"`, `"P7D"`). A fixed date is a hard cap instead: versions after it are deferrals (`held by exclude-newer 2026-10-20`), and moving the date is the user's call. Never pass it on the command line or through `UV_EXCLUDE_NEWER`: uv writes it into `uv.lock`, and `uv lock --check` then fails for everyone without the setting. |
 
 2. **Otherwise compute it from the registry.** Walk candidate versions newest first. The target is
    the first stable release whose publish time is at least 7 days ago. Skip pre-releases, yanked,
@@ -40,7 +40,8 @@ those releases out.
    | npm | `npm view <pkg> time --json` → `time["<version>"]`. Never go past `npm view <pkg> dist-tags.latest`. |
    | PyPI | `curl -s -H 'Accept: application/vnd.pypi.simple.v1+json' https://pypi.org/simple/<name>/` → each file's `upload-time`, `yanked`, and `requires-python`. A version's time is its **newest** file's upload, because a wheel added later restarts the clock. |
    | NuGet | `curl -s --compressed https://api.nuget.org/v3/registration5-gz-semver2/<id-lowercase>/index.json` → `items[].items[].catalogEntry` `published` and `listed`. A page with no inline `items` is fetched from its `@id`. `listed: false` or a 1900 `published` date means unlisted (ineligible). `dependencyGroups[].targetFramework` lists the frameworks the version supports. |
-   | Go module proxy | `go list -m -json <module>@<version>` → `Time` (and `GoVersion`, the module's minimum Go). It honors `GOPROXY` and `GOPRIVATE`. |
+   | Go module proxy | `go list -m -json <module>@<version>` → `Time`. It honors `GOPROXY` and `GOPRIVATE`. |
+   | GitHub Actions | `gh api repos/<owner>/<repo>/releases --paginate` → each release's `tag_name` and `published_at`, which GitHub sets at publish time. Commit dates are set by whoever made the commit, so a tag with no published release is ineligible. |
    | Container registry | `Created` from `skopeo inspect` — see [Container images](#container-images). |
 
    A private feed uses its own metadata under the same rule; a feed that exposes no publish time
@@ -54,25 +55,28 @@ those releases out.
 ## Groups
 
 Each group is one branch and one PR. A dev-phase group ships before any runtime group, per the
-consumer skill's phases.
+consumer skill's phases. An image group is outdated when any of its references has a floating tag,
+lacks a digest, or pins a digest older than its [7-day age gate](#7-day-age-gate) target; an action
+is outdated when its pin is behind its gated target.
 
 ### Dev phase
 
 1. **GitHub Actions → 1 PR** (only if `.github/workflows/` exists):
-   Upgrade every `uses: <action>@<ref>` in `.github/workflows/*.yml|yaml` and
-   `.github/actions/*/action.yml|yaml` to the latest available version, language setup actions
-   included (`actions/setup-node`, `actions/setup-python`, `actions/setup-go`, `actions/setup-dotnet`,
+   Move every `uses: <action>@<ref>` in `.github/workflows/*.yml|yaml` and
+   `.github/actions/*/action.yml|yaml` to the action's newest release that passes the
+   [Release-age gate](#release-age-gate), language setup actions included
+   (`actions/setup-node`, `actions/setup-python`, `actions/setup-go`, `actions/setup-dotnet`,
    `dtolnay/rust-toolchain`, `astral-sh/setup-uv`, `abatilo/actions-poetry`). When a workflow installs
    Socket Firewall, also bump `firewall-version` to the latest reviewed
    [sfw-free](https://github.com/SocketDev/sfw-free/releases) release (no `v` prefix).
    - Branch: `chore/github-actions`
-   - PR title: e.g. `mono - chore: upgrade GitHub Actions` (`root - ` in a single-package repo); append `(breaking)` if any action's major changed
-   - Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`) — don't change pin style during the upgrade
+   - PR title: e.g. `root - chore: upgrade GitHub Actions` (`mono - ` in a monorepo); append `(breaking)` if any action's major changed
+   - Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`) — don't change pin style during the upgrade. A SHA pin takes the commit the target release's tag points to (`gh api repos/<owner>/<repo>/commits/<tag> --jq .sha`), with the version as its comment. A major-tag pin (`@v5`) floats inside its major by design; the gate decides only when it moves to a new major
    - Leave toolchain inputs (`node-version`, `python-version`, `go-version`, `dotnet-version`, `poetry-version`, uv `version`) alone; they follow [Image version agreement](#image-version-agreement) or the language skill's own toolchain group
    - Verify every changed file still parses as YAML. A workflow that never runs on `pull_request` (release, `workflow_dispatch`, schedule) is not exercised by the PR's CI — list it under Verification as parsed only
 
 2. **Docker build-time images → 1 PR** (only if `Dockerfile*`, `*.dockerfile`, or workflow `container:`/`services:` image refs exist):
-   Builder-stage `FROM` lines in multi-stage Dockerfiles and `container:`/`services:` image references in `.github/workflows/*.yml`. These images carry build tools and never ship in the final container.
+   Builder-stage `FROM` lines in multi-stage Dockerfiles and `container:`/`services:` image references in `.github/workflows/*.yml|yaml`. These images carry build tools and never ship in the final container.
    - Branch: `chore/docker-build-images`
    - PR title: e.g. `root - chore: upgrade Docker build-time images`; append `(breaking)` if any image's major changed
 
@@ -113,7 +117,7 @@ Package-manager "outdated" commands never surface images. Use this procedure for
 
 - `Dockerfile*`, `*.dockerfile` — every `FROM` line, including `AS <name>` aliases.
 - `compose.yml`, `docker-compose.yml`, `compose.*.yml`, `docker-compose.*.yml` — `image:` keys and `build:` contexts.
-- `.github/workflows/*.yml` — `container:` and `services:` image references.
+- `.github/workflows/*.yml|yaml` — `container:` and `services:` image references.
 - `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, repo-root `devcontainer.json` — each `image` value. These are the Dev Container group, not a Docker group. Parse each file as JSON and stop and report if one is invalid.
 - `ARG` / `ENV` indirection — resolve `ARG NODE_VERSION=20` used in `FROM node:${NODE_VERSION}-alpine` to the actual image and version.
 

@@ -54,7 +54,8 @@ Examples: `mono - chore: upgrade code quality dependencies`,
 
 A repo that documents its own PR-title rule (in `CONTRIBUTING.md`, or a PR-title check in CI)
 overrides this prefix scheme: when it asks for Conventional Commits scoped by package, write
-`chore(<scope>): upgrade code quality dependencies` with the scope it names.
+`chore(<scope>): upgrade code quality dependencies` with the scope it names, and leave a repo-wide
+change unscoped (`chore: upgrade GitHub Actions`) unless the rule names a scope for it.
 
 ## PR body skeleton
 

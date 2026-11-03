@@ -16,7 +16,7 @@ pull request at a time.
 >
 > **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
-> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names, and skip every step marked *(router-owned)*.
+> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names (`audit` changes nothing), skip every step marked *(router-owned)*, return **Blocked** with the reason instead of stopping on a stop-and-report condition, and once CI is green hand the PR back to the router instead of stopping.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions`. Release-age gating, the GitHub Actions group, and every container image group are `repo-dependency-groups`.
 
@@ -67,7 +67,7 @@ Run the two phases in order. Do not interleave.
 ## Standard groups
 
 Each group is **one branch and one PR** covering every project in the root. Surface packages with
-`dotnet package list --outdated --format json`, run against the solution. Its `latestVersion` is the
+`dotnet package list --outdated --format json --project <solution>`. Its `latestVersion` is the
 newest stable release on the feed — not age-gated and not checked against the target frameworks — so
 it is a candidate, never the target; see [Version targeting](#version-targeting).
 
@@ -106,7 +106,6 @@ Classify each package before grouping:
    - Messaging → `MassTransit`, `MassTransit.*`; or `NServiceBus`, `NServiceBus.*`
    - Data → `Npgsql` (without EF), `Dapper`, `StackExchange.Redis`, `MongoDB.Driver` — individually
    - API docs → `Swashbuckle.AspNetCore*`; or `NSwag.*`
-   - OpenFeature → `OpenFeature`, `OpenFeature.*`
    - Validation and mediation → `FluentValidation*`; `MediatR*` — individually
 
 3. **Everything else → 1 PR per package**.
@@ -132,8 +131,8 @@ selects.
 2. **Check `jaredwray/agentic` for updates** *(router-owned)*. Run `agentic-upstream-sync`. If it changes any file, open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. A catalog behind upstream is reported; then continue.
 
 3. **Determine the active phase.** Run `dotnet restore` first — with `--locked-mode` when lock files exist; a failure there means `main` is already stale, so stop and report.
-   - If any dev group has a package behind its target, or a router-owned dev group in `repo-dependency-groups` is outdated, the phase is **dev**.
-   - Otherwise, if any runtime group has a package behind its target, an image is outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral), the phase is **runtime**.
+   - If any dev group has a package behind its target, or, standalone, a `repo-dependency-groups` dev group is outdated, the phase is **dev**.
+   - Otherwise, if any runtime group has a package behind its target, or, standalone, an image is outdated or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral), the phase is **runtime**.
    - Otherwise the workflow is **done** — report the merged PRs, every deferral (versions blocked by the target framework rule, declined model bumps), and any target framework past end of support, one line each, then stop.
 
 4. **Pick the next group** — the highest-priority group in the active phase with remaining work.

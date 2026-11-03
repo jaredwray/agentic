@@ -16,7 +16,7 @@ pull request at a time.
 >
 > **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
-> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names, and skip every step marked *(router-owned)*.
+> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names (`audit` changes nothing), skip every step marked *(router-owned)*, return **Blocked** with the reason instead of stopping on a stop-and-report condition, and once CI is green hand the PR back to the router instead of stopping.
 >
 > This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions`. Release-age gating, the GitHub Actions group, and every container image group are `repo-dependency-groups`.
 
@@ -96,6 +96,7 @@ Classify each dependency:
 
 3. **Build tooling → 1 PR**:
    `[build-system] requires` entries pinned with `==` or `~=` (`hatchling`, `setuptools`, `poetry-core`, `flit-core`, `maturin`, `scikit-build-core`, `setuptools-scm`, `hatch-vcs`), and dev pins of `build`, `twine`, `wheel`, `cython`.
+   - `[build-system] requires` is not locked and no package-manager command edits it (`uv add` would add the backend to the runtime dependencies): edit the pin in place, then verify with a package build.
 
 4–6. **GitHub Actions, Docker build-time images, Dev Container images** *(router-owned)* — `chore/github-actions`, `chore/docker-build-images`, and `chore/devcontainer-images` per `repo-dependency-groups`, with the Python row of its Image version agreement.
 
@@ -116,7 +117,6 @@ Classify each dependency:
    - HTTP clients → `httpx` with `httpcore`; `aiohttp`; `requests` with `urllib3` — one PR each
    - Task queues → `celery`, `kombu`, `billiard`
    - OpenTelemetry → `opentelemetry-*`
-   - OpenFeature → `openfeature-sdk`, `openfeature-provider-*`
 
 3. **Everything else → 1 PR per package**.
 
@@ -140,19 +140,19 @@ that loop, not a replacement for it.
 2. **Check `jaredwray/agentic` for updates** *(router-owned)*. Run `agentic-upstream-sync`. If it changes any file, open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. A catalog behind upstream is reported; then continue.
 
 3. **Determine the active phase.**
-   - If any dev group has a dependency behind its target, or a router-owned dev group in `repo-dependency-groups` is outdated, the phase is **dev**.
-   - Otherwise, if any runtime group has a dependency behind its target, an image is outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral), the phase is **runtime**.
+   - If any dev group has a dependency behind its target, or, standalone, a `repo-dependency-groups` dev group is outdated, the phase is **dev**.
+   - Otherwise, if any runtime group has a dependency behind its target, or, standalone, an image is outdated or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral), the phase is **runtime**.
    - Otherwise the workflow is **done** — report the merged PRs, every deferral (versions blocked by the Python floor, declined model bumps), and whether the floor is past end of life, one line each, then stop.
 
 4. **Pick the next group** — the highest-priority group in the active phase with remaining work.
 
 5. **Apply the upgrade.** Branch `chore/<group-key>` — e.g. `chore/package-manager`, `chore/code-quality`, `chore/build-tooling`, `chore/django`, `chore/aws-sdk`, `chore/<package>` for singletons. Rewrite each requirement to the target, keeping its operator (`^`, `~=`, `>=`, `==`); then lock:
    - **uv** — `uv add --frozen '<name><op><target>'` with the flag for the section it lives in (`--group <name>`, `--optional <extra>`, `--dev`), then `uv lock --upgrade-package '<name>==<target>'`.
-   - **Poetry** — `POETRY_SOLVER_MIN_RELEASE_AGE=7 poetry add '<name>@<op><target>'`, with `--group <name>` for a non-main group.
+   - **Poetry** — `POETRY_SOLVER_MIN_RELEASE_AGE=7 poetry add --lock '<name>@<op><target>'`, with `--group <name>` for a non-main group.
    - **pip-tools** — raise the bound in the `.in` file if it pins one, then rerun the header's compile command with `--upgrade-package '<name>==<target>'`.
    - **pip** — edit the `==` line.
    - A requirements file exported from the lock (its header names `poetry export` or `uv export`) is regenerated with the same command after locking.
-   - **Transitive check (uv, pip-tools).** Their resolution is not gated, so date every package the lock diff adds or moves against the release-age gate; re-lock any that fails to its gated version with another `--upgrade-package '<dep>==<version>'`. Skip this when `[tool.uv] exclude-newer` is configured.
+   - **Transitive check (uv, pip-tools).** Their resolution is not gated, so date every package the lock diff adds or moves against the release-age gate; re-lock any that fails to its gated version with another `--upgrade-package '<dep>==<version>'`. Skip this only when `[tool.uv] exclude-newer` is a relative span of 7 days or more.
    - **Never** run `uv lock --upgrade`, `poetry update` without package names, `pip-compile --upgrade`, or `pip install -U`; never hand-edit `uv.lock`, `poetry.lock`, or a compiled requirements file.
    - Verify with what CI runs: install from the lock (`uv sync --locked --all-groups`, `poetry install`, `pip install -r …`), then the tests, linters, type checks, and package build (`uv build`, `poetry build`). If CI tests the floor Python, run the tests on it too.
    - For an image group, follow `repo-dependency-groups`. For the AI models group, run `ai-model-discovery` first and take only the one provider's approved bumps; replace every approved reference, make the request-shape changes the provider's migration guide requires, and verify as above. If the tests call the provider live and no credentials are available, say so in the PR body. The PR body lists each `current → target` with the provider's catalog link, and any out-of-repo values the user must change by hand.
@@ -167,9 +167,10 @@ Loop invariants are `shipping-conventions`; review replies are `pr-conventions`.
 ### Version targeting
 
 **The target is the newest final release that passes the release-age gate and whose
-`requires-python` admits the floor.** Under Poetry 2.4+ with the gate on, its "Latest" already applies
-the gate; otherwise date candidates with PyPI upload times per `repo-dependency-groups` → Release-age
-gate (PyPI row), newest first. Final means no `a`, `b`, `rc`, or `.dev` segment; a post-release
+`requires-python` admits the floor.** Walk candidates newest first in the PyPI simple JSON per
+`repo-dependency-groups` → Release-age gate (PyPI row): it gives each file's upload time and
+`requires-python`, so one fetch settles both. Under Poetry 2.4+ with the gate on, its "Latest" already
+applies the gate but not the floor; the solvers reject a floor violation, as a backstop. Final means no `a`, `b`, `rc`, or `.dev` segment; a post-release
 (`.post1`) is final. Yanked releases are ineligible. Do not cross-reference GitHub releases or
 changelogs to pick a different version. A package from a private index uses that index's upload times
 under the same rule; an index without them leaves the package ineligible — report it.
