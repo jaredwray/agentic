@@ -56,7 +56,11 @@ in the root and every workspace `package.json`, `overrides` in `pnpm-workspace.y
 **Try one** at a time, in listed order, on its branch from the latest `main`:
 
 1. **Try remove.** Delete the pin, run `pnpm install`, and check `pnpm why <pkg>` and the lockfile. If the resolved version is still ≥ the pin, the parent has caught up — that's the PR.
-2. **Try update.** If removal would regress the resolved version, keep that lockfile. Put the override back as `>=<current>` (`<current>` is the exact pin, or the range's lower bound) and run `pnpm install`, not `pnpm add`. The lockfile version is below `<current>`, so pnpm resolves from the registry — the newest version `minimumReleaseAge` allows. If that is newer than the original pin, rewrite the override to that exact version; that's the PR. Without a `minimumReleaseAge` of at least 10080 that resolution is ungated, so set the override to the newest version the npm registry row of the release-age gate allows instead. With npm, set the override to the newest version the npm registry row of the release-age gate allows and run `npm install --min-release-age=7`; if the pin moves, that's the PR.
+2. **Try update.** If removal would regress the resolved version, keep that lockfile.
+   - With a `minimumReleaseAge` of at least 10080: put the override back as `>=<current>` (`<current>` is the exact pin, or the range's lower bound) and run `pnpm install`, not `pnpm add`. The lockfile version is below `<current>`, so pnpm resolves from the registry — the newest version the gate allows. If that is newer than the original pin, rewrite the override to that exact version and run `pnpm install` again.
+   - Otherwise, and with npm: never probe with `>=<current>`, because that install would fetch an ungated release. Set the override to the newest version the npm registry row of the release-age gate allows, then run `pnpm install` (npm: `npm install --min-release-age=7`).
+
+   If the pin moves, that's the PR.
 3. **Keep** if neither applies. Discard the branch, return to `main`, and try the next pin.
 
 Stop at the first pin that removes or updates. Kept pins are not deferrals; a later run, usually after
@@ -88,6 +92,7 @@ a parent upgrade, may make them removable. PR titles: `root - chore: remove <pkg
 
 - Bump with `pnpm add <pkg>@<version>` (`pnpm add -D` for devDeps and ecosystem-adjacent devDep members like `@types/react`); `<version>` is the target from [Version targeting](#version-targeting). **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, `pnpm up --latest`, `npm install <pkg>@latest`, or `npm update` — they bypass the release-age gate.
 - For `packageManager`, `corepack use pnpm@<version>` is the bump and the hash pin in one; commit the lockfile changes its install makes.
+- **Transitive check (pnpm without a `minimumReleaseAge` of at least 10080).** pnpm's resolution is ungated, so after every install — bumps and overrides alike — date every package the lockfile diff adds or moves against the npm registry row of the release-age gate. If any fails, discard the change and record the group or override as deferred until those releases age.
 - Verify in each affected package: `pnpm build && pnpm test` when a `build` script exists — building first catches type and bundler regressions — otherwise `pnpm test`.
 
 ## Version targeting
