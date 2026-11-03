@@ -286,9 +286,9 @@ digest (manifest list), not a per-platform digest, so amd64 and arm64 stay under
 For each file's `image` property:
 
 1. Already `name:<tag>@sha256:<64 hex>` and `<tag>` is not `latest` → leave it. Refresh rides
-   `dependency-management-node` (and `dependency-management-rust`) under the same 7-day age gate.
+   the dependency-management skills (`repo-dependency-groups`) under the same 7-day age gate.
 2. Missing (`build` / `dockerFile` instead) → skip that file. Dockerfile `FROM` pins are the
-   Docker image groups in those skills.
+   Docker image groups in `repo-dependency-groups`.
 3. Unpinned or floating → inspect with `skopeo` (or `crane`). The target is the newest digest in
    the current lineage whose image `Created` is at least **7 days** ago — the same window as pnpm
    `minimumReleaseAge: 10080`. A missing `Created` is ineligible (fail closed). Rewrite to

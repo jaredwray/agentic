@@ -37,6 +37,22 @@ describe('catalog', () => {
     expect(catalog.byName.get('dependency-management-node')?.category).toBeNull();
   });
 
+  it('serves the dependency-management router and every language skill as manual root skills', () => {
+    const dependency = catalog.skills.filter((skill) => skill.name.startsWith('dependency-management'));
+    expect(dependency.map((skill) => skill.name).sort()).toEqual([
+      'dependency-management',
+      'dependency-management-dotnet',
+      'dependency-management-go',
+      'dependency-management-node',
+      'dependency-management-python',
+      'dependency-management-rust',
+    ]);
+    for (const skill of dependency) {
+      expect(skill.category, skill.name).toBeNull();
+      expect(skill.invocation, skill.name).toBe('manual');
+    }
+  });
+
   it('rejects a skill whose name does not match its folder', () => {
     expect(() =>
       loadCatalog({

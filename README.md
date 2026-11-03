@@ -96,10 +96,18 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 These live one level under `skills/` because they are used often.
 
+Start with `dependency-management`. It finds every package root in the repo, monorepos included, and
+hands each one to the right language skill. Run a language skill directly only for a repo with one
+ecosystem.
+
 | Skill | Does |
 |---|---|
-| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — a sync of defense-in-depth files and `AGENTS.md` sections from `jaredwray/agentic` and overrides first, then the dev phase (with a hash-pinned `packageManager`) before runtime, including digest-pinned Dev Container images on a 7-day age gate, and last the AI model IDs the code calls (recommend the provider's latest, bump on approval); npm bumps link Drydock artifact diffs. |
+| `dependency-management` | The entry point for any repo, polyglot monorepos included — detects every package root (Node with pnpm or npm, Rust, .NET, Python, Go), runs the agentic sync, GitHub Actions, Docker and Dev Container images, and AI model IDs once for the whole repo, and hands each root's groups to its language skill, keeping one PR in flight and every dev group ahead of any runtime group. |
+| `dependency-management-node` | Upgrade Node deps (pnpm or npm) one grouped PR at a time — a sync of defense-in-depth files and `AGENTS.md` sections from `jaredwray/agentic` and overrides first, then the dev phase (with a hash-pinned `packageManager`) before runtime, including digest-pinned Dev Container images on a 7-day age gate, and last the AI model IDs the code calls (recommend the provider's latest, bump on approval); npm bumps link Drydock artifact diffs. |
 | `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time — syncing `AGENTS.md` sections and defense-in-depth files from `jaredwray/agentic` first — respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins; last, recommend and bump the AI model IDs the code calls. |
+| `dependency-management-dotnet` | Upgrade NuGet deps one grouped PR at a time — test and build tooling, the SDK pin, then runtime ecosystems with the .NET platform packages moving together — on a 7-day release-age gate from NuGet publish dates, never dropping a target framework, with Central Package Management and `packages.lock.json` handled. |
+| `dependency-management-python` | Upgrade uv, Poetry, pip-tools, or requirements deps one grouped PR at a time — the package-manager pin first, then test and build tooling, then runtime ecosystems — on a 7-day release-age gate (Poetry's solver gate or PyPI upload times), never raising the project's minimum Python. |
+| `dependency-management-go` | Upgrade Go modules one grouped PR at a time — the toolchain directive, test and generator tools, then runtime ecosystems with `golang.org/x` and lockstep SDKs together — on a 7-day release-age gate from module proxy times, never raising the `go` directive, and reporting new major versions instead of rewriting imports. |
 
 ### engineering/ — model-invoked disciplines (one deliverable, then stop)
 

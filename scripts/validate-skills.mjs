@@ -17,6 +17,8 @@
 //     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
 //  9. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
 // 10. skills/SKILL.md does not exist — a skill must live in its own folder.
+// 11. The dependency-management router names every dependency-management-<language> skill, and each
+//     language skill supports the router's delegated mode and uses repo-dependency-groups.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
@@ -26,8 +28,9 @@ import { parseFrontmatter } from './lib/frontmatter.mjs';
 const DESC_BUDGET = 1024;
 const ORCHESTRATION = new Set(['release-ops', 'security', 'growth', 'project-setup']);
 // Used often, so they live at skills/<name>/ (the default one-level scan) instead of a category.
-// They are still orchestration skills and stay manual-only.
-const ROOT_ORCHESTRATION = new Set(['dependency-management-node', 'dependency-management-rust']);
+// They are still orchestration skills and stay manual-only: the router and every language skill.
+const DEPENDENCY_SKILL = /^dependency-management(-[a-z0-9]+)*$/;
+const ROUTER = 'dependency-management';
 // Skills in an orchestration category that are genuinely read-only may opt out here.
 const MODEL_INVOCABLE_EXCEPTIONS = new Set();
 
@@ -104,7 +107,7 @@ function validateSkill(file, seenNames) {
 
   // 8. orchestration skills must be manual-only
   const orchestration =
-    (category && ORCHESTRATION.has(category)) || (!category && ROOT_ORCHESTRATION.has(folderName));
+    (category && ORCHESTRATION.has(category)) || (!category && DEPENDENCY_SKILL.test(folderName));
   if (orchestration && !MODEL_INVOCABLE_EXCEPTIONS.has(data.name)) {
     if (data['disable-model-invocation'] !== true) {
       const where = category ? `orchestration category "${category}"` : 'the skills/ root';
@@ -202,6 +205,28 @@ function validatePublishTarballPaths() {
   }
 }
 
+// 11. Router coverage. A language skill the router does not name would never be picked for a
+// monorepo, and one without delegated mode would rerun the repo-wide groups once per root.
+function validateDependencyRouting() {
+  const routerFile = join(SKILLS_DIR, ROUTER, 'SKILL.md');
+  if (!existsSync(routerFile)) {
+    err(routerFile, `the ${ROUTER} router skill is missing`);
+    return;
+  }
+  const router = readFileSync(routerFile, 'utf8');
+  for (const entry of readdirSync(SKILLS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === ROUTER || !DEPENDENCY_SKILL.test(entry.name)) continue;
+    const file = join(SKILLS_DIR, entry.name, 'SKILL.md');
+    if (!existsSync(file)) continue;
+    if (!router.includes(`\`${entry.name}\``)) err(routerFile, `does not route to \`${entry.name}\``);
+    const content = readFileSync(file, 'utf8');
+    if (!content.includes('**Delegated mode.**') || !content.includes('*(router-owned)*')) {
+      err(file, 'must define **Delegated mode.** and mark the steps the router owns *(router-owned)*');
+    }
+    if (!content.includes('`repo-dependency-groups`')) err(file, 'must use the shared `repo-dependency-groups` skill');
+  }
+}
+
 // --- run ---
 if (existsSync(join(SKILLS_DIR, 'SKILL.md'))) {
   err(join(SKILLS_DIR, 'SKILL.md'), 'SKILL.md must not sit directly in skills/; each skill needs its own folder');
@@ -210,6 +235,7 @@ const skillFiles = skillMarkdownFiles();
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validatePublishTarballPaths();
+validateDependencyRouting();
 
 if (warnings.length) {
   console.log(`\n⚠️  ${warnings.length} warning(s):`);

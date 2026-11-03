@@ -7,8 +7,8 @@ user-invocable: true
 # AI model discovery
 
 The shared procedure for finding the AI model IDs a repo calls and recommending upgrades.
-`dependency-management-node` and `dependency-management-rust` run it as their last runtime group, once
-the provider SDKs are already at their targets; on its own it answers "are our models current?".
+The dependency-management skills run it as their last runtime group — the `dependency-management`
+router once for a whole monorepo — once the provider SDKs are already at their targets; on its own it answers "are our models current?".
 
 > This discipline is read-only: it ends with a recommendation and a stop. Applying an approved bump —
 > the edit, the verification, the PR — belongs to the consumer skill.

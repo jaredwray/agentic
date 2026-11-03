@@ -17,7 +17,9 @@ Workflow for upgrading both **dev/build dependencies** (with CI tooling) and **r
 >
 > **Dev phase before runtime phase.** Finish every dev group before starting any runtime group — tooling churn is lower risk than runtime changes.
 >
-> This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it).
+> **Delegated mode.** When the `dependency-management` router hands this skill one package root, follow its delegation contract: work only in that root, run only the phase it names, and skip every step marked *(router-owned)*.
+>
+> This skill follows the shared `shipping-conventions` loop; PR titles, bodies, and review replies follow `pr-conventions` (the dependency-specific PR-body skeletons below extend it). The GitHub Actions group and every container image group are `repo-dependency-groups`.
 
 ## Repository type
 
@@ -55,29 +57,7 @@ Surface with `cargo outdated --depth 1` (single-crate) or `cargo outdated --work
 3. **Workspace / dev orchestration tooling → 1 PR**:
    `cargo-make`, `cargo-xtask` helper deps, `cargo-husky`, repo-level dev scripts. (Tools installed globally via `cargo install` are not part of this group — surface them only if the repo pins them in CI.)
 
-4. **GitHub Actions → 1 PR** (only if `.github/workflows/` exists; not surfaced by `cargo outdated`):
-   Upgrade every `uses: <action>@<ref>` reference to the latest available version, including Rust-specific actions like `dtolnay/rust-toolchain`, `Swatinem/rust-cache`, `taiki-e/install-action`.
-   When a workflow installs Socket Firewall, also bump `firewall-version` to the latest reviewed
-   [sfw-free](https://github.com/SocketDev/sfw-free/releases) release (no `v` prefix).
-   - Branch: `chore/github-actions`
-   - PR title: e.g. `root - chore: upgrade GitHub Actions` (or `workspace - chore: …`); append `(breaking)` if any action's major changed
-   - Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`) — don't change pin style during the upgrade
-   - Verify the workflow YAML still parses before opening the PR
-
-5. **Docker build-time images → 1 PR** (only if `Dockerfile*`, `*.dockerfile`, or CI workflow `container:`/`services:` image refs exist; not surfaced by `cargo outdated`):
-   Builder-stage `FROM` lines in multi-stage Dockerfiles and `container:`/`services:` image references in `.github/workflows/*.yml`. These images carry build tools and never ship in the final container.
-   - Branch: `chore/docker-build-images`
-   - PR title: e.g. `root - chore: upgrade Docker build-time images`; append `(breaking)` if any image's major version changed
-   - See [Container image discovery](#container-image-discovery) for how to find and query image versions
-   - See [Container image version agreement](#container-image-version-agreement) for cross-checking `rust-toolchain.toml` / `Cargo.toml rust-version`
-
-6. **Dev Container images → 1 PR** (only if `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, or repo-root `devcontainer.json` exists; not surfaced by `cargo outdated`):
-   Every `image` value in those files. Pin floating tags and refresh digest pins to the newest digest in lineage that is at least 7 days old.
-   - Branch: `chore/devcontainer-images`
-   - PR title: e.g. `root - chore: upgrade Dev Container images` (or `pin` on a first digest pin)
-   - See [Container image discovery](#container-image-discovery) — including the [7-day age gate](#7-day-age-gate) and [Dev Container images](#dev-container-images)
-   - Skip files that use `build` / `dockerFile` instead of `image`; those `FROM` lines belong to the Docker groups
-   - Do not change Dev Container Features tags in this group
+4–6. **GitHub Actions, Docker build-time images, Dev Container images** *(router-owned)* — `chore/github-actions`, `chore/docker-build-images`, and `chore/devcontainer-images` (digest pins under the 7-day age gate) per `repo-dependency-groups`, with the Rust row of its Image version agreement. The GitHub Actions group includes Rust actions like `dtolnay/rust-toolchain`, `Swatinem/rust-cache`, and `taiki-e/install-action`.
 
 **Exclude from dev groups even when they appear in `cargo outdated`** — these belong to runtime ecosystem groups and ship in the runtime phase: any dev-dep that is the test/macro counterpart of a runtime crate (e.g. `tokio-test` when bumping `tokio`, `axum-test` when bumping `axum`, `sqlx-cli` when bumping `sqlx`). When the runtime ecosystem moves, its dev-dep companions move with it.
 
@@ -104,16 +84,9 @@ Surface with `cargo outdated --depth 1` filtered to `Normal` kind, or inspect `C
 4. **Everything else → 1 PR per crate**:
    Standalone runtime deps with no clear ecosystem partner each get their own PR.
 
-5. **Docker runtime images → 1 PR per ecosystem** (only if Dockerfiles or Compose files exist; not surfaced by `cargo outdated`):
-   Final-stage `FROM` lines in Dockerfiles and `image:` references in `compose.yml`/`docker-compose.yml` for application services. Group by image ecosystem (e.g. all Rust runtime images in one PR, all distroless/scratch images in another).
-   - Branch: `chore/docker-<ecosystem>` (e.g. `chore/docker-rust`, `chore/docker-distroless`)
-   - See [Container image discovery](#container-image-discovery) and [Container image version agreement](#container-image-version-agreement)
+5–6. **Docker runtime images, Docker service images** *(router-owned)* — per `repo-dependency-groups`.
 
-6. **Docker service images → 1 PR per service** (only if Compose files or CI `services:` exist):
-   Infrastructure service images — `postgres`, `redis`, `nginx`, `mysql`, `elasticsearch`, etc. — in Compose definitions and CI `services:` blocks. Each service ecosystem gets its own PR.
-   - Branch: `chore/docker-<service>` (e.g. `chore/docker-postgres`, `chore/docker-redis`)
-
-7. **AI models → 1 PR per provider** (only if the repo references AI model IDs; not surfaced by `cargo outdated`):
+7. **AI models → 1 PR per provider** *(router-owned)* (only if the repo references AI model IDs; not surfaced by `cargo outdated`):
    Every model ID the code, config, or env templates hand to an AI provider. Runs last so the provider crates (`async-openai`, `anthropic`, `rig-core`, `genai`, `aws-sdk-bedrockruntime`, `ollama-rs`, and the like) are already at their targets. The provider is whoever serves the call — `anthropic`, `openai`, `google`, `bedrock`, `vertex` — so a hosting platform's IDs are one group even when they front several vendors.
    - Branch: `chore/ai-models-<provider>` (e.g. `chore/ai-models-anthropic`, `chore/ai-models-bedrock`)
    - PR title: e.g. `root - chore: upgrade Anthropic models`
@@ -122,80 +95,6 @@ Surface with `cargo outdated --depth 1` filtered to `Normal` kind, or inspect `C
 ## MSRV rule
 
 When any crate declares `package.rust-version`, no upgrade may raise the effective MSRV past it. The floor is the first of: `package.rust-version` in the workspace root `Cargo.toml`; `package.rust-version` in any member crate (the highest wins); `rust-toolchain.toml` or `rust-toolchain`; the lowest Rust version a CI job runs against. If these disagree, stop and report. A crate whose new minimum exceeds the floor is documented as a deferral — `rust-version = "1.75"` never takes a crate that requires 1.76, even when "Latest" shows it — and `rust-version` is never raised silently inside a dep PR; when the project declares it but does not test it in CI, ask the user before touching it.
-
-## Container image discovery
-
-Container images are not surfaced by `cargo outdated`. Use this procedure when Docker build-time, Docker runtime, or Dev Container groups need upgrading.
-
-### Scan for image references
-
-Search the repo for all container image references:
-
-- `Dockerfile*`, `*.dockerfile` — parse every `FROM` line, including `AS <name>` aliases.
-- `compose.yml`, `docker-compose.yml`, `compose.*.yml`, `docker-compose.*.yml` — parse `image:` keys and `build:` contexts.
-- `.github/workflows/*.yml` — parse `container:` and `services:` image references.
-- `.devcontainer/devcontainer.json`, `.devcontainer/*/devcontainer.json`, repo-root `devcontainer.json` — parse each `image` value. These are the Dev Container group, not a Docker group.
-- `ARG` / `ENV` version indirection — resolve variables like `ARG RUST_VERSION=1.85` used in `FROM rust:${RUST_VERSION}-slim` to determine the actual image and version.
-
-### Classify stages
-
-In multi-stage Dockerfiles, identify builder vs runtime stages:
-
-- Every `FROM` line except the last is a builder stage (dev-phase group).
-- The last `FROM` is the runtime stage (runtime-phase group).
-- If a `FROM` uses `AS <name>` and no later `COPY --from=<name>` references it, it may be an unused stage — flag it but don't skip it.
-
-### Query for latest versions
-
-Use `skopeo` (does not require a Docker daemon) to inspect and list tags. Use the full image reference — `docker.io/library/<image>` for official Docker Hub images, or the full registry path for others (e.g. `ghcr.io/<owner>/<image>`, `<org>/<image>`):
-
-- `skopeo inspect docker://<registry>/<image>:<tag>` — returns the digest and labels for the current tag. `Created` is the image age; `Digest` is the multi-arch **index** digest to pin.
-- `skopeo inspect --format '{{.Digest}} {{.Created}}' docker://<registry>/<image>:<tag>` — digest + created in one call.
-- `skopeo list-tags docker://<registry>/<image>` — lists all available tags.
-- If `skopeo` is not available, install it or use `crane` as a fallback (`crane ls <image>`, `crane digest <image>:<tag>`, `crane config <image>:<tag>` for `created`).
-
-### Tag lineage targeting
-
-Parse the current tag into `<major>[.<minor>[.<patch>]][-<variant>]`. The upgrade target is the newest tag sharing the same **major** and **variant family** that passes the [7-day age gate](#7-day-age-gate). The variant family is the base variant name without its version — e.g. `alpine3.19` belongs to the `alpine` family, `bookworm` and `bullseye` are distinct families:
-
-- `rust:1.85.0-slim-bookworm` → latest `rust:1.*-slim-bookworm` (stays on `bookworm`; `bullseye` → `bookworm` would be a family change)
-- `rust:1.85-slim` → latest `rust:1.*-slim`
-- `debian:bookworm-slim` → latest `debian:bookworm-slim` digest (point releases)
-- `postgres:16.2-alpine` → latest `postgres:16.*-alpine*` (Alpine version may advance)
-
-Major version bumps (`ubuntu:22.04` → `ubuntu:24.04`, `postgres:16` → `postgres:17`) are breaking — **stop and ask the user** before proceeding. Do not open a major-version Docker image PR without explicit approval. If approved, use a separate PR with `(breaking)` suffix. For Rust, since `rust:1.x` images follow the Rust release train, a minor bump (`rust:1.85` → `rust:1.86`) is not breaking by Docker convention but must respect the [MSRV rule](#msrv-rule).
-
-**Floating tags** (e.g. `rust:1-slim` or a Dev Container `:latest` without a digest pin) resolve to the latest image at pull time. Upgrade them to a digest pin — resolve the floating tag to a versioned tag and rewrite as `name:<tag>@sha256:<index-digest>` (e.g. `rust:1-slim` → `rust:1.85.0-slim-bookworm@sha256:…`). The digest is the pin; the tag is for humans. Never leave `latest` as the tag, even with a digest. If the reference already has a digest, the upgrade is refreshing it under the [7-day age gate](#7-day-age-gate).
-
-### 7-day age gate
-
-Container registries have no crate-level cooldown. Apply the same 7-day window this plugin uses for npm (`minimumReleaseAge: 10080`):
-
-1. The candidate is the newest tag in the current lineage ([Tag lineage targeting](#tag-lineage-targeting)).
-2. Inspect it. The pin is the **index** digest (manifest list), not a per-platform digest. `Created` is the image age.
-3. If `Created` is missing, that candidate is ineligible (fail closed).
-4. If `Created` is less than 7 days ago, walk older tags in the same lineage until one is at least 7 days old. That digest is the target.
-5. If none qualify, skip and report. Do not pin or refresh to a digest younger than 7 days.
-
-The "latest" image for a group is this 7-day-aged digest, not whatever the registry's `latest` tag points at today.
-
-### Dev Container images
-
-Dev Container `image` values are one group (`chore/devcontainer-images`), not mixed into Docker build-time. Parse each `devcontainer.json` as JSON — stop and report if it is invalid. Skip files that use `build` / `dockerFile` instead of `image`.
-
-- Prefer the image's version + variant labels when rewriting the tag. A language-runtime major bump is breaking — stop and ask.
-- Verify the file still parses as JSON. Do not require the `devcontainer` CLI.
-- Features tags are not this group.
-
-### System packages and script-installed tools
-
-- System packages (`apt-get install`, `apk add`) are **not** independently upgraded. They follow base image upgrades — verify pins still exist in the new base image during `docker build`.
-- Script-installed tools (`cargo install <tool>@<version>`, `curl | sh`) fold into their ecosystem's Docker image PR if version-pinned.
-- `curl | sh` installs with no version pin are flagged for pinning but not upgraded (no version to upgrade from).
-
-### Container image version agreement
-
-Docker and Dev Container images follow `rust-toolchain.toml`, never the other way around. Every `FROM rust:<version>` and Rust-based Dev Container image must match the toolchain pin and stay compatible with the [MSRV rule](#msrv-rule); if a Dockerfile disagrees with `rust-toolchain.toml`, stop and report rather than upgrading the image on its own. A `rust:1.85` → `rust:1.86` bump ships only when `rust-toolchain.toml` already declares `1.86` or moves to it in the same PR. Non-Rust images follow the version source the project declares (`.python-version`, `go.mod`); without one, they follow [Tag lineage targeting](#tag-lineage-targeting).
 
 ## Workflow
 
@@ -208,10 +107,10 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
 
 1. **Start test services if `local`.** If the project documents a test-service bootstrap command (e.g. `make test-services-up`, `docker compose up -d`, `cargo xtask test-services`), run it — it should be idempotent. Docker must be running. On a container conflict, remove only the conflicting test-service container and retry — never remove unrelated containers. If the next group is a Docker or Dev Container image group, ensure `skopeo` is available (install if needed).
 
-2. **Check `jaredwray/agentic` for updates.** Run `agentic-upstream-sync`. If it changes any file (a stale copy, a missing or stale `AGENTS.md` section, or a missing `CLAUDE.md` import), open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration. A catalog behind upstream is reported; then continue to step 3. Re-run this step on every resume.
+2. **Check `jaredwray/agentic` for updates** *(router-owned)*. Run `agentic-upstream-sync`. If it changes any file (a stale copy, a missing or stale `AGENTS.md` section, or a missing `CLAUDE.md` import), open that PR — branch `chore/agentic-sync`, title e.g. `root - chore: sync defense-in-depth files from agentic` — and hand back to `shipping-conventions`: drive CI green, check for already-merged, stop and wait. Do not pick a standard group this iteration. A catalog behind upstream is reported; then continue to step 3. Re-run this step on every resume.
 
 3. **Determine the active phase.**
-   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or Docker build-time / Dev Container images are outdated (a floating tag, a missing digest, or a digest older than the 7-day target), the active phase is **dev**.
+   - If any dev group still has outdated deps (ignoring the dev-phase exclusions above) or a router-owned dev group in `repo-dependency-groups` is outdated, the active phase is **dev**.
    - Otherwise, if any runtime group still has outdated deps, Docker runtime/service images are outdated, or an AI model reference is behind its provider's latest per `ai-model-discovery` (a declined bump is a deferral, not remaining work), the active phase is **runtime**.
    - If neither phase has any remaining group, the workflow is **done** — report the full list of merged PRs and any documented deferrals (e.g. "tokio 2.0 bumps MSRV past 1.85 — deferred", declined model bumps) and stop.
 
@@ -221,14 +120,7 @@ stops on a dirty working tree — do not skip ahead to the numbered steps here, 
    - Bump it — `cargo upgrade --package <crate> --to <version>` (from `cargo-edit`; `cargo install cargo-edit` if missing) rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`. `<version>` is the exact value from the "Latest" column of `cargo outdated`. **Never** `cargo upgrade --incompatible` blindly across the workspace, and **never** edit `Cargo.lock` by hand.
    - Refresh the lockfile — run `cargo update -p <crate>` so `Cargo.lock` reflects the new resolutions, and commit `Cargo.lock` alongside the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive dep to its latest compatible version and balloons the diff.
    - Verify the upgrade. The minimum gate is `cargo build --workspace --all-targets && cargo test --workspace`; also run `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` if MSRV is declared (see [MSRV rule](#msrv-rule)). These are the same checks CI will run.
-   - **For Docker image groups**, the upgrade procedure differs:
-     1. Query the registry for the latest tag within the same lineage (see [Container image discovery](#container-image-discovery)).
-     2. Apply the [7-day age gate](#7-day-age-gate). Pin or refresh `name:<tag>@sha256:<index-digest>` in all matching locations across Dockerfiles, Compose files, and CI workflows.
-     3. Update `ARG`/`ENV` version variables if the image is indirected through them.
-     4. Check [Container image version agreement](#container-image-version-agreement) — `rust-toolchain.toml`, `Cargo.toml rust-version`, etc. must agree with the new image version.
-     5. Verify: run `docker build` on affected Dockerfiles if Docker is available. If in sandbox without Docker, verify syntax only and note the limitation in the PR body.
-     6. If the Dockerfile pins system packages (`apt-get install pkg=version`), verify they still resolve in the new base image during `docker build`; if not, update or remove the pin.
-   - **For Dev Container image groups**, update every `image` value per [Dev Container images](#dev-container-images) and the [7-day age gate](#7-day-age-gate). Verify each file still parses as JSON.
+   - **For a Docker or Dev Container image group**, follow `repo-dependency-groups`. An image's Rust version follows `rust-toolchain.toml` and the [MSRV rule](#msrv-rule): a `rust:1.85` → `rust:1.86` bump ships only when `rust-toolchain.toml` already declares `1.86` or moves to it in the same PR.
    - **For AI model groups**, run `ai-model-discovery` first and take only the one provider's approved bumps it hands back. Replace every approved reference (code, config, env templates, docs), make the request-shape changes the provider's migration guide requires, and verify as above; if the tests call the provider live and no credentials are available, say so in the PR body. The PR body lists each `current → target` with the provider's catalog link, and any out-of-repo values (CI repository variables, deployment config) the user must change by hand.
    - Open the PR **ready for review**, never as a draft — title and body per [Pull request rules](#pull-request-rules). Pass `draft: false` (or the tool's ready-for-review equivalent). If the PR was created as a draft, mark it ready for review before continuing.
 
@@ -245,7 +137,7 @@ Review replies and the pleasantry-loop exception are `pr-conventions`. What's sp
 
 **The "Latest" column from `cargo outdated` is the exact target version — never upgrade past it.** Don't cross-reference crates.io, GitHub releases, or CHANGELOGs to pick a newer version. `cargo outdated` shows two version columns — `Compat` (the newest version reachable inside the current `Cargo.toml` requirement) and `Latest` (the newest on crates.io regardless of requirement) — the upgrade target is **always** `Latest`. A `Latest` that raises the MSRV is a deferral, per the [MSRV rule](#msrv-rule).
 
-**For Docker and Dev Container image groups**, there is no `cargo outdated` equivalent. The target is the newest digest in the current lineage that is at least 7 days old, as determined by [Container image discovery](#container-image-discovery) and the [7-day age gate](#7-day-age-gate). Do not pin whatever the registry's `latest` tag points at today.
+**For Docker and Dev Container image groups**, there is no `cargo outdated` equivalent. The target is the newest digest in the current lineage that is at least 7 days old, per `repo-dependency-groups`. Do not pin whatever the registry's `latest` tag points at today.
 
 **For AI model groups**, the target is the provider's newest generally-available model in the same tier as the current reference, per `ai-model-discovery`; it becomes a bump only once the user approves it.
 

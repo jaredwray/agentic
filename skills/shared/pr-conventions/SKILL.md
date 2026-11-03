@@ -52,6 +52,10 @@ Examples: `mono - chore: upgrade code quality dependencies`,
 `root - chore: defense - set permissions: contents: read default`,
 `api - chore: upgrade Prisma dependencies`.
 
+A repo that documents its own PR-title rule (in `CONTRIBUTING.md`, or a PR-title check in CI)
+overrides this prefix scheme: when it asks for Conventional Commits scoped by package, write
+`chore(<scope>): upgrade code quality dependencies` with the scope it names.
+
 ## PR body skeleton
 
 Keep bodies short — a reviewer reads them in 30 seconds. Drop sections that don't apply; keep order.
