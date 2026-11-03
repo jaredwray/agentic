@@ -1,6 +1,6 @@
 ---
 name: ai-model-discovery
-description: Find every AI model ID a repository calls — Anthropic, OpenAI, Google, hosted Bedrock or Vertex IDs, or any other provider — in code, config, env templates, CI, and docs; look up each provider's current catalog and deprecations page; and recommend the newest generally-available model in the same tier, one line per reference, stopping for per-provider approval before anything changes. Read-only background discipline the dependency-management skills run as their last runtime group. Use when asked whether a project's AI models are current, which model to upgrade to, or whether any model ID in use is deprecated or retiring.
+description: Find every AI model ID a repository calls — Anthropic, OpenAI, Google, hosted Bedrock or Vertex IDs, or any other provider — in code, config, env templates, CI, and docs; look up each provider's current catalog and deprecations page; and recommend the newest generally-available model in the same tier, one line per reference, stopping for per-provider approval before anything changes. Read-only background discipline the dependency-management skill runs as its last runtime group. Use when asked whether a project's AI models are current, which model to upgrade to, or whether any model ID in use is deprecated or retiring.
 user-invocable: true
 ---
 

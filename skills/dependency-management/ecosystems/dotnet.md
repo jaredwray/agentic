@@ -85,11 +85,13 @@ and restores for every target framework — never past `latestVersion`, never a 
 version. A package from a private feed in `nuget.config` uses that feed's registration under the same
 rule; a feed with no publish time leaves the package ineligible.
 
+## Titles
+
+E.g. `root - chore: upgrade test and code quality dependencies`, `Contoso.Api - chore: upgrade .NET
+platform packages`, `root - chore: upgrade the .NET SDK`.
+
 ## AI models
 
 Scan `.cs`, `.fs`, `.vb`, `appsettings*.json`, and `launchSettings.json`. Provider SDKs: `Anthropic`,
 `OpenAI`, `Azure.AI.OpenAI`, `Microsoft.Extensions.AI*`, `Microsoft.SemanticKernel*`,
 `AWSSDK.BedrockRuntime`, `Google.Cloud.AIPlatform.V1`.
-
-Titles, e.g. `root - chore: upgrade test and code quality dependencies`, `Contoso.Api - chore: upgrade
-.NET platform packages`, `root - chore: upgrade the .NET SDK`.

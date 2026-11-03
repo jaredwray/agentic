@@ -6,7 +6,7 @@ the root and every member crate, and bump `[workspace.dependencies]` when member
 
 ## Package manager
 
-Cargo. Install `cargo-outdated` and `cargo-edit` if missing (`cargo install cargo-outdated cargo-edit`).
+Cargo. Install `cargo-outdated` and `cargo-edit` if missing (`cargo install --locked cargo-outdated cargo-edit`).
 When `rust-toolchain.toml` or `rust-toolchain` is present, confirm `rustc --version` matches it before
 any change.
 
@@ -56,8 +56,9 @@ ecosystem's runtime group.
 
 ## Apply and verify
 
-- Bump with `cargo upgrade --package <crate> --to <version>`, which rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`; `<version>` is the target from [Version targeting](#version-targeting). **Never** run `cargo upgrade --incompatible` blindly across the workspace.
-- Refresh the lockfile with `cargo update -p <crate>` and commit `Cargo.lock` with the `Cargo.toml` changes. **Never** run an unscoped `cargo update` — it pulls every transitive crate to its newest compatible version — and never edit `Cargo.lock` by hand.
+- Bump with `cargo upgrade -p <crate>@<version>`, which rewrites the requirement in `Cargo.toml` and `[workspace.dependencies]`; `<version>` is the target from [Version targeting](#version-targeting). **Never** run `cargo upgrade --incompatible` blindly across the workspace.
+- Lock it with `cargo update -p <crate> --precise <version>` and commit `Cargo.lock` with the `Cargo.toml` changes. A plain `cargo update -p` takes the newest compatible release, which the gate may not allow. **Never** run an unscoped `cargo update`, and never edit `Cargo.lock` by hand.
+- **Transitive check.** Date every crate the `Cargo.lock` diff adds or moves against the crates.io row of the release-age gate; re-pin any that fails with another `cargo update -p <dep> --precise <version>`.
 - Verify: `cargo build --workspace --all-targets && cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -- --check`, and `cargo +<msrv> build --workspace --all-targets` when an MSRV is declared.
 
 ## Version targeting
@@ -66,12 +67,16 @@ ecosystem's runtime group.
 newest on crates.io). `Latest` is the ceiling, never the target by itself: the target is the newest
 non-yanked, non-pre-release version at or below it that was published at least 7 days ago and whose
 `rust_version` is at or below the floor — both from the crates.io row of the release-age gate in
-`SKILL.md`. Don't cross-reference GitHub releases or changelogs to pick another version.
+`SKILL.md`. A `rust_version` of `null` means the crate declares no minimum and is eligible; with no
+floor declared, skip that check. Don't cross-reference GitHub releases or changelogs to pick another
+version.
+
+## Titles
+
+E.g. `workspace - chore: upgrade code quality dependencies`, `api - chore: upgrade build tooling`,
+`workspace - chore: upgrade tokio dependencies`.
 
 ## AI models
 
 Scan `.rs` source, including `build.rs`, examples, and tests; skip `Cargo.lock`. Provider crates:
 `async-openai`, `anthropic`, `rig-core`, `genai`, `aws-sdk-bedrockruntime`, `ollama-rs`.
-
-Titles, e.g. `workspace - chore: upgrade code quality dependencies`, `api - chore: upgrade build
-tooling`, `workspace - chore: upgrade tokio dependencies`.

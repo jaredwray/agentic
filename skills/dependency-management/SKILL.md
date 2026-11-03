@@ -15,8 +15,7 @@ several; the workflow is the same, and each package root follows the rules file 
 > document, or a rules file says to, or when a decision genuinely requires the user.
 >
 > **One PR at a time across the whole repo.** Open a PR, drive its CI green, stop, and resume only on
-> `continue`, `next`, `next dep PR`, or similar. Every PR is ready for review, never a draft — mark
-> it ready if the tool or environment created it as a draft.
+> `continue`, `next`, `next dep PR`, or similar. Every PR is ready for review, never a draft.
 >
 > **Overrides, then dev, then runtime — across the whole repo.** No root starts a runtime group while
 > any root or repo-wide group still has dev work.
@@ -27,8 +26,10 @@ several; the workflow is the same, and each package root follows the rules file 
 
 In scope: every package root in [Package roots](#package-roots), the
 [repo-wide groups](#repo-wide-groups), the `agentic-upstream-sync` check, and AI model IDs. When the
-user names ecosystems or roots ("only the Python package"), work only those, and the repo-wide groups
-only if asked. Out of scope: an ecosystem with no rules file (report it, never improvise one), moving
+user names ecosystems or roots ("only the Python package"), that selection holds for every step of the
+[Workflow](#workflow): take stock of and ship only the selected roots, scan only their source for AI
+models, and run the agentic sync and the repo-wide groups only if the user asked for them. Out of
+scope: an ecosystem with no rules file (report it, never improvise one), moving
 a runtime floor (always the user's call), and dependency bots' config.
 
 ## Package roots
@@ -56,12 +57,14 @@ module file lives. Enumerate **tracked** files only (`git ls-files`), so `node_m
 Read the rules file of every ecosystem the repo has, and only those. Each one has the same sections:
 **Package manager**, **Runtime version** (the floor no upgrade may raise, and the version its images
 follow), **Candidates** (how to list what is outdated and classify it), **Dev groups** and
-**Runtime groups** in priority order, **Apply and verify**, **Version targeting**, and **AI models**.
+**Runtime groups** in priority order, **Apply and verify**, **Version targeting**, **Titles**, and
+**AI models**.
 A stop-and-report condition in a rules file blocks that root only: record it under *Blocked*, skip
 the root for the rest of the run, and continue. Stop to ask only when nothing else can ship without
 the user's decision.
 
-Order roots by path. The root table is one line per root:
+Order roots by path; a root at the top of the repo renders as `.`. The root table is one line per
+root:
 
 ```
 dotnet             · .NET (solution)  · ecosystems/dotnet.md
@@ -80,7 +83,8 @@ javascript/web/examples/web-sdk · unmanaged (package.json, no lockfile)
   container. `sandbox` is anything else; resolve branch capability per `shipping-conventions` →
   Branch-constrained environments.
 - **Names.** Each group is one branch and one PR. Its branch is `chore/<group-key>` with the group key
-  from the rules file. With more than one root, insert the root's slug after `chore/`:
+  from the rules file; a group the rules file gives no key uses its lowercase name (`chore/axum`,
+  `chore/aws-sdk`, `chore/opentelemetry`). With more than one root, insert the root's slug after `chore/`:
   `chore/javascript-web-code-quality`, `chore/javascript-server-override-semver`. The slug is the
   root's path with `/` → `-`; for the repo root it is the ecosystem (`node`, `python`, …), and when two
   roots share a directory the ecosystem is appended (`tools-python`). The PR title prefix is the root's
@@ -98,7 +102,7 @@ gate keeps those releases out.
    | Tool | Gate | How |
    |---|---|---|
    | pnpm | `minimumReleaseAge` | Repo config in `pnpm-workspace.yaml`; `pnpm outdated` and installs honor it. |
-   | npm ≥ 11.10 | `min-release-age` (days) | Pass `--min-release-age=7` to every `npm install`. Older npm ignores the flag without a warning. |
+   | npm ≥ 11.10 | `min-release-age` (days) | Pass `--min-release-age=7` to every `npm install`, per the Node rules. |
    | Poetry ≥ 2.4 | `solver.min-release-age` (days) | Set `POETRY_SOLVER_MIN_RELEASE_AGE=7` on every Poetry command. `poetry.lock` does not record it. |
    | uv | `exclude-newer` | Only when `[tool.uv]` or `uv.toml` already sets it to a relative span of 7 days or more (`"7 days"`, `"1 week"`, `"P7D"`). A fixed date is a hard cap instead: versions after it are deferrals (`held by exclude-newer 2026-10-20`), and moving the date is the user's call. Never pass it on the command line or through `UV_EXCLUDE_NEWER`: uv writes it into `uv.lock`, and `uv lock --check` then fails for everyone without the setting. |
 
@@ -112,7 +116,7 @@ gate keeps those releases out.
    | npm | `npm view <pkg> time --json` → `time["<version>"]`. Never go past `npm view <pkg> dist-tags.latest`. |
    | crates.io | `curl -s -A dependency-management https://crates.io/api/v1/crates/<name>/versions` → each version's `num`, `created_at`, `yanked`, and `rust_version`. |
    | PyPI | `curl -s -H 'Accept: application/vnd.pypi.simple.v1+json' https://pypi.org/simple/<name>/` → each file's `upload-time`, `yanked`, and `requires-python`. A version's time is its **newest** file's upload, because a wheel added later restarts the clock. |
-   | NuGet | `curl -s --compressed https://api.nuget.org/v3/registration5-gz-semver2/<id-lowercase>/index.json` → `items[].items[].catalogEntry` `published` and `listed`. A page with no inline `items` is fetched from its `@id`. `listed: false` or a 1900 `published` date means unlisted (ineligible). |
+   | NuGet | `curl -s --compressed https://api.nuget.org/v3/registration5-gz-semver2/<id-lowercase>/index.json` → `items[].items[].catalogEntry` `published` and `listed`. A page with no inline `items` is fetched from its `@id`. `listed: false` or a 1900 `published` date means unlisted (ineligible). `dependencyGroups[].targetFramework` lists the frameworks the version supports. |
    | Go module proxy | `go list -m -json <module>@<version>` → `Time`. It honors `GOPROXY` and `GOPRIVATE`. |
    | GitHub Actions | `gh api repos/<owner>/<repo>/releases --paginate` → each release's `tag_name` and `published_at`, which GitHub sets at publish time. Commit dates are set by whoever made the commit, so a tag with no published release is ineligible. |
    | Container registry | `Created` from `skopeo inspect` — see [containers.md](./containers.md). |
@@ -137,7 +141,9 @@ target.
 1. **GitHub Actions → 1 PR** (only if `.github/workflows/` exists) — branch `chore/github-actions`.
    Move every `uses: <action>@<ref>` in `.github/workflows/*.yml|yaml` and
    `.github/actions/*/action.yml|yaml` to the action's newest release that passes the
-   [Release-age gate](#release-age-gate), language setup actions included. When a workflow installs
+   [Release-age gate](#release-age-gate), language setup actions included (`actions/setup-node`,
+   `actions/setup-python`, `actions/setup-go`, `actions/setup-dotnet`, `dtolnay/rust-toolchain`,
+   `Swatinem/rust-cache`, `astral-sh/setup-uv`, `abatilo/actions-poetry`). When a workflow installs
    Socket Firewall, also bump `firewall-version` to the latest reviewed
    [sfw-free](https://github.com/SocketDev/sfw-free/releases) release (no `v` prefix).
    - Match the existing pin style (full SHA, `@vX`, or `@vX.Y.Z`). A SHA pin takes the commit the target release's tag points to (`gh api repos/<owner>/<repo>/commits/<tag> --jq .sha`), with the version as its comment. A major-tag pin (`@v5`) floats inside its major by design; the gate decides only when it moves to a new major. Append `(breaking)` to the title if any action's major changed.
@@ -159,10 +165,11 @@ The loop — sync `main`, resolve branch capability, take stock, pick one item, 
 green, check for already-merged, stop and wait — is `shipping-conventions`. Step 1 below is its
 *take stock*; steps 2–7 are its *pick one item*.
 
-1. **Take stock — read-only.** Detect package roots, read their rules files, and list each root's
-   remaining groups per phase (each collected Node override counts as a possible item). Run the
-   comparison of `agentic-upstream-sync` without acting on it, and check each repo-wide group. Render
-   the root table on the first run. The total is the item count for `shipping-conventions`'
+1. **Take stock — read-only.** Detect package roots (only the selected ones under a scoped request),
+   read their rules files, and list each root's remaining groups per phase (each collected Node
+   override counts as a possible item). Run the comparison of `agentic-upstream-sync` without acting
+   on it, and check each repo-wide group, unless a scoped request leaves them out. Render the root
+   table on the first run. The total is the item count for `shipping-conventions`'
    single-mandated-branch decision, which completes here, before anything changes. Nothing remaining
    anywhere: render the [Done report](#done-report) and stop.
 2. **Check `jaredwray/agentic` for updates.** Run `agentic-upstream-sync`. If it changes any file, that
@@ -175,9 +182,11 @@ green, check for already-merged, stop and wait — is `shipping-conventions`. St
    repo-wide dev groups in order. The first group with work is this iteration's PR.
 5. **Runtime phase.** For each root in path order, its highest-priority remaining runtime group; then
    the repo-wide runtime groups in order. The first group with work is this iteration's PR.
-6. **AI models.** Run `ai-model-discovery` once for the whole repo, scanning the source files and
+6. **AI models.** Run `ai-model-discovery` once across the roots in scope, scanning the source files and
    provider SDKs each present rules file's AI models section names. Ship only the first approved
    provider — branch `chore/ai-models-<provider>`, title e.g. `mono - chore: upgrade Anthropic models`.
+   The provider is whoever serves the call (`anthropic`, `openai`, `google`, `bedrock`, `vertex`), so
+   a hosting platform's IDs are one group even when they front several vendors.
    Replace every approved reference (code, config, env templates, docs), make the request-shape
    changes the provider's migration guide requires, and verify each touched root per its rules file;
    if the tests call the provider live and no credentials are available, say so in the PR body. The
@@ -186,8 +195,7 @@ green, check for already-merged, stop and wait — is `shipping-conventions`. St
 7. **Done.** Nothing shipped in steps 2–6: render the [Done report](#done-report) and stop.
 
 To ship an item, apply it per its rules file's Apply and verify section (or
-[containers.md](./containers.md) for an image group), make only the change the group requires, and
-open the PR ready for review. Then hand back to `shipping-conventions`: drive CI green, check for
+[containers.md](./containers.md) for an image group) and open the PR ready for review. Then hand back to `shipping-conventions`: drive CI green, check for
 already-merged, and stop and wait, naming the root and phase the next `continue` picks up.
 
 ## Done report

@@ -33,7 +33,7 @@ say in the done report when it is past end of life per
 [endoflife.date/python](https://endoflife.date/python), with how many deferrals it blocks.
 
 `python` images follow the Python **minor** in `.python-version`, then CI `python-version`, never below
-the floor. Moving to a new minor moves `.python-version` and the images together, with the user's
+the floor; if those two disagree, stop and report. Moving to a new minor moves `.python-version` and the images together, with the user's
 approval.
 
 ## Candidates
@@ -99,10 +99,12 @@ violation, as a backstop. Final means no `a`, `b`, `rc`, or `.dev` segment; a po
 is final. Yanked releases are ineligible. A package from a private index uses that index's upload
 times under the same rule; an index without them leaves the package ineligible.
 
+## Titles
+
+E.g. `root - chore: upgrade Poetry`, `api - chore: upgrade Django dependencies`,
+`root - chore: upgrade AWS SDK dependencies`.
+
 ## AI models
 
 Scan `.py`, `.ipynb`, and `.toml` / `.yaml` / `.ini` config. Provider SDKs: `anthropic`, `openai`,
 `google-genai`, `boto3` (Bedrock), `litellm`, `langchain-*`, `llama-index-*`.
-
-Titles, e.g. `root - chore: upgrade Poetry`, `api - chore: upgrade Django dependencies`,
-`root - chore: upgrade AWS SDK dependencies`.

@@ -38,6 +38,7 @@ const ECOSYSTEM_SECTIONS = [
   'Runtime groups',
   'Apply and verify',
   'Version targeting',
+  'Titles',
   'AI models',
 ];
 // Skills in an orchestration category that are genuinely read-only may opt out here.
@@ -225,6 +226,7 @@ function validateDependencyEcosystems() {
     return;
   }
   const skill = readFileSync(skillFile, 'utf8');
+  if (!skill.includes('](./containers.md)')) err(skillFile, 'does not link containers.md');
   for (const name of readdirSync(ecosystemsDir)) {
     const file = join(ecosystemsDir, name);
     if (!name.endsWith('.md')) {
@@ -235,7 +237,8 @@ function validateDependencyEcosystems() {
     const headings = new Set(
       [...stripCodeFences(readFileSync(file, 'utf8')).matchAll(/^## (.+)$/gm)].map((m) => m[1].trim()),
     );
-    for (const section of ECOSYSTEM_SECTIONS) {
+    // node.md also carries the Overrides section the workflow's overrides step reads.
+    for (const section of name === 'node.md' ? [...ECOSYSTEM_SECTIONS, 'Overrides'] : ECOSYSTEM_SECTIONS) {
       if (!headings.has(section)) err(file, `missing the "## ${section}" section`);
     }
   }

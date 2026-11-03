@@ -93,12 +93,14 @@ v1 path, and for `gopkg.in` bump the `.vN` suffix (`gopkg.in/yaml.v3` → `gopkg
 means no such module. A gated release there goes in the done report, never applied — moving rewrites
 import paths, so it needs the user's approval and its own `(breaking)` PR.
 
+## Titles
+
+The package name is the last element of the module path. E.g. `root - chore: upgrade the Go
+toolchain`, `api - chore: upgrade golang.org/x modules`, `root - chore: upgrade OpenTelemetry modules`.
+
 ## AI models
 
 Scan `.go` source, tests and `testdata` included; skip `go.sum`. Provider modules:
 `github.com/anthropics/anthropic-sdk-go`, `github.com/openai/openai-go`, `google.golang.org/genai`,
 `github.com/aws/aws-sdk-go-v2/service/bedrockruntime`, `github.com/sashabaranov/go-openai`,
 `github.com/tmc/langchaingo`.
-
-Titles, e.g. `root - chore: upgrade the Go toolchain`, `api - chore: upgrade golang.org/x modules`,
-`root - chore: upgrade OpenTelemetry modules`.

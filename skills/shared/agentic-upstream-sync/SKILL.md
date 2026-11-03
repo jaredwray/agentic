@@ -1,6 +1,6 @@
 ---
 name: agentic-upstream-sync
-description: Check a repository against the current main of jaredwray/agentic for defense-in-depth and AGENTS.md updates — the copied Safe Chain bootstrap script, the AGENTS.md template sections, and the DEFENSE_IN_DEPTH.md catalog — then refresh stale copies (never locally edited ones) and flag catalog changes for the defense-in-depth skill. Background discipline the dependency-management skills run on every resume. Use when asked whether a repo's defense-in-depth files or AGENTS.md sections are current with the agentic repo, or to sync them.
+description: Check a repository against the current main of jaredwray/agentic for defense-in-depth and AGENTS.md updates — the copied Safe Chain bootstrap script, the AGENTS.md template sections, and the DEFENSE_IN_DEPTH.md catalog — then refresh stale copies (never locally edited ones) and flag catalog changes for the defense-in-depth skill. Background discipline the dependency-management skill runs on every resume. Use when asked whether a repo's defense-in-depth files or AGENTS.md sections are current with the agentic repo, or to sync them.
 user-invocable: true
 ---
 

@@ -47,8 +47,9 @@ Parse the current tag into `<version>[-<variant>]`. The target is the newest tag
 
 A major move — a new runtime major (`node:20` → `node:22`), a new Python or Go minor
 (`python:3.12` → `3.13`), a new OS release (`ubuntu:22.04` → `24.04`), `postgres:16` → `17` — is
-breaking: **stop and ask the user**. With approval it ships as its own PR with a `(breaking)`
-suffix, per [Runtime version agreement](#runtime-version-agreement).
+the user's call: record it under *Deferred* with the version it would move to, ship the in-lineage
+refresh, and raise it in the done report. With approval it ships later as its own `(breaking)` PR, per
+[Runtime version agreement](#runtime-version-agreement).
 
 **Floating tags** (`node:20-alpine`, `golang:1.22`, a Dev Container `:latest`) resolve at pull time.
 Upgrade them to a digest pin: resolve to a versioned tag and write `name:<tag>@sha256:<index-digest>`
@@ -72,8 +73,11 @@ points at today.
 ## Runtime version agreement
 
 Images follow the runtime version the root's rules file declares in its **Runtime version** section,
-never the other way around: `node` follows the Node major, `rust` the toolchain file, `python` the
-Python minor, `golang` the Go minor, and the `mcr.microsoft.com/dotnet/*` images the .NET major. An
+never the other way around: `node` and `devcontainers/javascript-node` / `typescript-node` follow the
+Node major, `rust` and `devcontainers/rust` the toolchain file, `python` and `devcontainers/python` the
+Python minor, `golang` and `devcontainers/go` the Go minor, and the `mcr.microsoft.com/dotnet/*` images
+(`sdk`, `aspnet`, `runtime`, `runtime-deps`) and `devcontainers/dotnet` the .NET major. A mismatch is
+reported, not upgraded around. An
 image with no matching rules file follows [Tag lineage targeting](#tag-lineage-targeting). An image
 moves to a new runtime version only with the user's approval, in one `(breaking)` PR that also moves
 the version files the rules file names. Never move an image on its own.

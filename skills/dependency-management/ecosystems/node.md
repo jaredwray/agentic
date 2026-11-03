@@ -56,7 +56,7 @@ in the root and every workspace `package.json`, `overrides` in `pnpm-workspace.y
 **Try one** at a time, in listed order, on its branch from the latest `main`:
 
 1. **Try remove.** Delete the pin, run `pnpm install`, and check `pnpm why <pkg>` and the lockfile. If the resolved version is still ≥ the pin, the parent has caught up — that's the PR.
-2. **Try update.** If removal would regress the resolved version, keep that lockfile. Put the override back as `>=<current>` (`<current>` is the exact pin, or the range's lower bound) and run `pnpm install`, not `pnpm add`. The lockfile version is below `<current>`, so pnpm resolves from the registry — the newest version `minimumReleaseAge` allows. If that is newer than the original pin, rewrite the override to that exact version; that's the PR. With npm, set the override to the newest version the npm registry row of the release-age gate allows and run `npm install --min-release-age=7`; if the pin moves, that's the PR.
+2. **Try update.** If removal would regress the resolved version, keep that lockfile. Put the override back as `>=<current>` (`<current>` is the exact pin, or the range's lower bound) and run `pnpm install`, not `pnpm add`. The lockfile version is below `<current>`, so pnpm resolves from the registry — the newest version `minimumReleaseAge` allows. If that is newer than the original pin, rewrite the override to that exact version; that's the PR. Without a `minimumReleaseAge` of at least 10080 that resolution is ungated, so set the override to the newest version the npm registry row of the release-age gate allows instead. With npm, set the override to the newest version the npm registry row of the release-age gate allows and run `npm install --min-release-age=7`; if the pin moves, that's the PR.
 3. **Keep** if neither applies. Discard the branch, return to `main`, and try the next pin.
 
 Stop at the first pin that removes or updates. Kept pins are not deferrals; a later run, usually after
@@ -92,10 +92,10 @@ a parent upgrade, may make them removable. PR titles: `root - chore: remove <pkg
 
 ## Version targeting
 
-- **pnpm:** the "Latest" column of `pnpm outdated` is the exact target — `minimumReleaseAge` already gated it. Never go past it, and don't cross-reference npm, GitHub releases, or changelogs to pick another version. The one cap below it is `@types/node`.
+- **pnpm:** when `pnpm-workspace.yaml` sets `minimumReleaseAge` to 10080 or more, the "Latest" column of `pnpm outdated` is the exact target — the gate already applied. Never go past it, and don't cross-reference GitHub releases or changelogs to pick another version. Without that setting "Latest" is ungated: the target is the newest stable version published at least 7 days ago per `npm view <pkg> time --json`, never past "Latest". The one cap below either is `@types/node`.
 - **npm:** `npm outdated`'s "Latest" is the registry's `latest` tag, which no gate filtered. The target is the newest stable version published at least 7 days ago per `npm view <pkg> time --json`, never past `dist-tags.latest`. The `@types/node` cap applies.
 - **`packageManager`:** when `pnpm` is also a devDependency, its "Latest" — the two must agree. Otherwise the newest stable pnpm published at least 7 days ago per `npm view pnpm time --json`. Never `corepack use pnpm@latest`.
-- **Override updates:** the version `pnpm install` resolves after the `>=<current>` step above.
+- **Override updates:** the version the Overrides step above settles on.
 
 **Drydock artifact diffs.** For each npm package the PR bumps, add an **Artifact diffs** list to the
 PR body: `- [eslint 9.30.0 → 9.34.0](https://drydock.org/diff/eslint/9.30.0/9.34.0)` — the URL is
@@ -104,11 +104,13 @@ artifacts, which the lockfile diff cannot show. Link only npmjs.org-public packa
 published versions: skip private packages and custom registries (the URL would leak the name), and
 anything resolved from git.
 
+## Titles
+
+E.g. `mono - chore: upgrade code quality dependencies`, `web-app - chore: upgrade TypeScript and build
+tooling`, `api - chore: upgrade Prisma dependencies`.
+
 ## AI models
 
 Scan `.ts`, `.js`, `.mjs`, `.cjs` source and `package.json` `scripts`. Provider SDKs:
 `@anthropic-ai/sdk`, `openai`, `@google/genai`, `ai` with `@ai-sdk/*`,
 `@aws-sdk/client-bedrock-runtime`.
-
-Titles, e.g. `mono - chore: upgrade code quality dependencies`, `web-app - chore: upgrade TypeScript
-and build tooling`, `api - chore: upgrade Prisma dependencies`.
