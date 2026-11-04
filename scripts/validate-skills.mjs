@@ -12,11 +12,13 @@
 //     `reference.md`/`scripts/` pointer in a SKILL.md resolves to a real file (no orphans either way).
 //  7. Orchestration skills set `disable-model-invocation: true` so a mutating/expensive loop
 //     never auto-fires. That is every skill under release-ops, security, growth, and
-//     project-setup, plus the dependency-management skills at the skills/ root.
+//     project-setup, plus the dependency-management skill at the skills/ root.
 //  8. `pnpm publish` / `pnpm stage publish` (and leftover `npm publish`) tarball args in skills/
 //     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
 //  9. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
 // 10. skills/SKILL.md does not exist — a skill must live in its own folder.
+// 11. dependency-management links every ecosystem rules file, and each one has the sections the
+//     skill tells the agent it will find.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
@@ -25,9 +27,20 @@ import { parseFrontmatter } from './lib/frontmatter.mjs';
 
 const DESC_BUDGET = 1024;
 const ORCHESTRATION = new Set(['release-ops', 'security', 'growth', 'project-setup']);
-// Used often, so they live at skills/<name>/ (the default one-level scan) instead of a category.
-// They are still orchestration skills and stay manual-only.
-const ROOT_ORCHESTRATION = new Set(['dependency-management-node', 'dependency-management-rust']);
+// Used often, so it lives at skills/<name>/ (the default one-level scan) instead of a category.
+// It is still an orchestration skill and stays manual-only.
+const ROOT_ORCHESTRATION = new Set(['dependency-management']);
+const ECOSYSTEM_SECTIONS = [
+  'Package manager',
+  'Runtime version',
+  'Candidates',
+  'Dev groups',
+  'Runtime groups',
+  'Apply and verify',
+  'Version targeting',
+  'Titles',
+  'AI models',
+];
 // Skills in an orchestration category that are genuinely read-only may opt out here.
 const MODEL_INVOCABLE_EXCEPTIONS = new Set();
 
@@ -202,6 +215,35 @@ function validatePublishTarballPaths() {
   }
 }
 
+// 11. Ecosystem rules. dependency-management reads one rules file per ecosystem present and relies on
+// each having the same sections; an unlinked file would never be read.
+function validateDependencyEcosystems() {
+  const skillDir = join(SKILLS_DIR, 'dependency-management');
+  const skillFile = join(skillDir, 'SKILL.md');
+  const ecosystemsDir = join(skillDir, 'ecosystems');
+  if (!existsSync(skillFile) || !existsSync(ecosystemsDir)) {
+    err(skillFile, 'dependency-management must have SKILL.md and an ecosystems/ directory');
+    return;
+  }
+  const skill = readFileSync(skillFile, 'utf8');
+  if (!skill.includes('](./containers.md)')) err(skillFile, 'does not link containers.md');
+  for (const name of readdirSync(ecosystemsDir)) {
+    const file = join(ecosystemsDir, name);
+    if (!name.endsWith('.md')) {
+      err(file, 'ecosystems/ holds only markdown rules files');
+      continue;
+    }
+    if (!skill.includes(`](./ecosystems/${name})`)) err(skillFile, `does not link ecosystems/${name}`);
+    const headings = new Set(
+      [...stripCodeFences(readFileSync(file, 'utf8')).matchAll(/^## (.+)$/gm)].map((m) => m[1].trim()),
+    );
+    // node.md also carries the Overrides section the workflow's overrides step reads.
+    for (const section of name === 'node.md' ? [...ECOSYSTEM_SECTIONS, 'Overrides'] : ECOSYSTEM_SECTIONS) {
+      if (!headings.has(section)) err(file, `missing the "## ${section}" section`);
+    }
+  }
+}
+
 // --- run ---
 if (existsSync(join(SKILLS_DIR, 'SKILL.md'))) {
   err(join(SKILLS_DIR, 'SKILL.md'), 'SKILL.md must not sit directly in skills/; each skill needs its own folder');
@@ -210,6 +252,7 @@ const skillFiles = skillMarkdownFiles();
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validatePublishTarballPaths();
+validateDependencyEcosystems();
 
 if (warnings.length) {
   console.log(`\n⚠️  ${warnings.length} warning(s):`);

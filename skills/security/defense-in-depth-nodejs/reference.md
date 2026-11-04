@@ -191,7 +191,7 @@ one-off run). If `pnpm` is missing, the script enables Corepack's `pnpm` shim in
 `~/.safe-chain/bin` (`--install-directory`) so it does not EACCES on the javascript-node image's
 root-owned `/usr/local/bin`. It runs the pinned installer from `/` so an in-repo `.nvmrc` cannot
 make NVM's optional legacy scan return 3. The template snapshot is already 7-day-aged; refresh of
-that pin later is `dependency-management-node`, not this item.
+that pin later is `dependency-management`, not this item.
 
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
 same `install` / `postCreateCommand` string must put the shims on `PATH` in that shell:
@@ -286,9 +286,9 @@ digest (manifest list), not a per-platform digest, so amd64 and arm64 stay under
 For each file's `image` property:
 
 1. Already `name:<tag>@sha256:<64 hex>` and `<tag>` is not `latest` → leave it. Refresh rides
-   `dependency-management-node` (and `dependency-management-rust`) under the same 7-day age gate.
+   `dependency-management` under the same 7-day age gate.
 2. Missing (`build` / `dockerFile` instead) → skip that file. Dockerfile `FROM` pins are the
-   Docker image groups in those skills.
+   Docker image groups in `dependency-management`.
 3. Unpinned or floating → inspect with `skopeo` (or `crane`). The target is the newest digest in
    the current lineage whose image `Created` is at least **7 days** ago — the same window as pnpm
    `minimumReleaseAge: 10080`. A missing `Created` is ineligible (fail closed). Rewrite to

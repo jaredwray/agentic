@@ -34,7 +34,20 @@ describe('catalog', () => {
     expect(manual?.invocation).toBe('manual');
     expect(model?.invocation).toBe('model-invoked');
     expect(manual?.category).toBe('security');
-    expect(catalog.byName.get('dependency-management-node')?.category).toBeNull();
+    expect(catalog.byName.get('dependency-management')?.category).toBeNull();
+  });
+
+  it('serves dependency-management as one manual skill with its ecosystem rules files', () => {
+    expect(catalog.skills.filter((skill) => skill.name.startsWith('dependency-management')).map((skill) => skill.name)).toEqual([
+      'dependency-management',
+    ]);
+    const skill = catalog.byName.get('dependency-management');
+    expect(skill?.invocation).toBe('manual');
+    const rels = new Set(skill?.files.map((file) => file.rel));
+    for (const ecosystem of ['node', 'rust', 'dotnet', 'python', 'go']) {
+      expect(rels.has(`dependency-management/ecosystems/${ecosystem}.md`), ecosystem).toBe(true);
+    }
+    expect(rels.has('dependency-management/containers.md')).toBe(true);
   });
 
   it('rejects a skill whose name does not match its folder', () => {

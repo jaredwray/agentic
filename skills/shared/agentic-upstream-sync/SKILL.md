@@ -1,14 +1,13 @@
 ---
 name: agentic-upstream-sync
-description: Check a repository against the current main of jaredwray/agentic for defense-in-depth and AGENTS.md updates — the copied Safe Chain bootstrap script, the AGENTS.md template sections, and the DEFENSE_IN_DEPTH.md catalog — then refresh stale copies (never locally edited ones) and flag catalog changes for the defense-in-depth skill. Background discipline the dependency-management skills run on every resume. Use when asked whether a repo's defense-in-depth files or AGENTS.md sections are current with the agentic repo, or to sync them.
+description: Check a repository against the current main of jaredwray/agentic for defense-in-depth and AGENTS.md updates — the copied Safe Chain bootstrap script, the AGENTS.md template sections, and the DEFENSE_IN_DEPTH.md catalog — then refresh stale copies (never locally edited ones) and flag catalog changes for the defense-in-depth skill. Background discipline the dependency-management skill runs on every resume. Use when asked whether a repo's defense-in-depth files or AGENTS.md sections are current with the agentic repo, or to sync them.
 user-invocable: true
 ---
 
 # Agentic upstream sync
 
 Repos hardened with this plugin carry copies of files that live in `jaredwray/agentic` and keep
-moving there. `dependency-management-node` and `dependency-management-rust` run this check on every
-resume, before any upgrade group; on its own it answers "is this repo current with agentic?".
+moving there. `dependency-management` runs this check on every resume, before any upgrade group; on its own it answers "is this repo current with agentic?".
 
 > Refreshing a copy is a chore, not a judgment call: a stale copy is refreshed without asking. A
 > locally edited copy and a changed catalog are reported, never overwritten.

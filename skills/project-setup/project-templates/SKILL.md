@@ -208,7 +208,7 @@ These templates are the baseline. Most projects layer additional governance on t
 
 - **CI workflows, action pinning, CODEOWNERS, pnpm policy** → the `defense-in-depth-nodejs` skill.
 - **Cutting a release** → the `release-cut` skill.
-- **Dependency upgrades** → the `dependency-management-node` skill (or the `dependency-management-rust` skill for Rust projects).
+- **Dependency upgrades** → the `dependency-management` skill.
 - **Agent instruction files (`AGENTS.md`, `CLAUDE.md`)** — repo-specific by design; not templated.
 
 After the template baseline is in place, point the maintainer to those manuals for the next layer of hardening.

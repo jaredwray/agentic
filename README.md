@@ -94,12 +94,11 @@ These skills exist to counter the recurring failure modes of AI-assisted enginee
 
 ### Dependency management — `skills/<name>/`, manual
 
-These live one level under `skills/` because they are used often.
+It lives one level under `skills/` because it is used often.
 
 | Skill | Does |
 |---|---|
-| `dependency-management-node` | Upgrade Node/pnpm deps one grouped PR at a time — a sync of defense-in-depth files and `AGENTS.md` sections from `jaredwray/agentic` and overrides first, then the dev phase (with a hash-pinned `packageManager`) before runtime, including digest-pinned Dev Container images on a 7-day age gate, and last the AI model IDs the code calls (recommend the provider's latest, bump on approval); npm bumps link Drydock artifact diffs. |
-| `dependency-management-rust` | Upgrade Cargo deps one grouped PR at a time — syncing `AGENTS.md` sections and defense-in-depth files from `jaredwray/agentic` first — respecting the toolchain pin and a 7-day age gate on container / Dev Container image pins; last, recommend and bump the AI model IDs the code calls. |
+| `dependency-management` | Upgrade every dependency in any repo — Node (pnpm or npm), Rust, .NET, Python (uv, Poetry, pip-tools, requirements), and Go, alone or mixed in a monorepo — one grouped PR at a time. It finds each package root and reads only the rules files for the ecosystems present (`ecosystems/<name>.md`). Then it runs overrides, every dev group (tooling, GitHub Actions, digest-pinned Docker and Dev Container images) before any runtime group, and last the AI model IDs the code calls. Every version it moves to has been public for 7 days, no upgrade raises a runtime floor, and each resume syncs defense-in-depth files and `AGENTS.md` sections from `jaredwray/agentic` first. |
 
 ### engineering/ — model-invoked disciplines (one deliverable, then stop)
 

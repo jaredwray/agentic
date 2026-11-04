@@ -269,14 +269,13 @@ if (/javascript-node:latest/.test(reference)) {
   err('reference.md must not recommend javascript-node:latest');
 }
 
-for (const [label, rel] of [
-  ['dependency-management-node', 'skills/dependency-management-node/SKILL.md'],
-  ['dependency-management-rust', 'skills/dependency-management-rust/SKILL.md'],
-]) {
-  const dep = readFileSync(join(ROOT, rel), 'utf8');
-  if (!/Dev Container images/.test(dep) || !/7-day age gate/.test(dep) || !/chore\/devcontainer-images/.test(dep)) {
-    err(`${label} must refresh Dev Container image pins under a 7-day age gate`);
-  }
+const dependencySkill = readFileSync(join(ROOT, 'skills/dependency-management/SKILL.md'), 'utf8');
+const dependencyContainers = readFileSync(join(ROOT, 'skills/dependency-management/containers.md'), 'utf8');
+if (!/chore\/devcontainer-images/.test(dependencySkill) || !/7-day age gate/.test(dependencySkill)) {
+  err('dependency-management must refresh Dev Container image pins under a 7-day age gate');
+}
+if (!/devcontainer\.json/.test(dependencyContainers) || !/7-day age gate/.test(dependencyContainers) || !/@sha256:/.test(dependencyContainers)) {
+  err('dependency-management containers.md must pin Dev Container images by digest under a 7-day age gate');
 }
 if (!reference.includes(SHIM_PATH_EXPORT)) {
   err('reference.md merge guidance must export Safe Chain shims onto PATH for follow-on commands');

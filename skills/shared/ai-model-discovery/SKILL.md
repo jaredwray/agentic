@@ -1,14 +1,14 @@
 ---
 name: ai-model-discovery
-description: Find every AI model ID a repository calls — Anthropic, OpenAI, Google, hosted Bedrock or Vertex IDs, or any other provider — in code, config, env templates, CI, and docs; look up each provider's current catalog and deprecations page; and recommend the newest generally-available model in the same tier, one line per reference, stopping for per-provider approval before anything changes. Read-only background discipline the dependency-management skills run as their last runtime group. Use when asked whether a project's AI models are current, which model to upgrade to, or whether any model ID in use is deprecated or retiring.
+description: Find every AI model ID a repository calls — Anthropic, OpenAI, Google, hosted Bedrock or Vertex IDs, or any other provider — in code, config, env templates, CI, and docs; look up each provider's current catalog and deprecations page; and recommend the newest generally-available model in the same tier, one line per reference, stopping for per-provider approval before anything changes. Read-only background discipline the dependency-management skill runs as its last runtime group. Use when asked whether a project's AI models are current, which model to upgrade to, or whether any model ID in use is deprecated or retiring.
 user-invocable: true
 ---
 
 # AI model discovery
 
 The shared procedure for finding the AI model IDs a repo calls and recommending upgrades.
-`dependency-management-node` and `dependency-management-rust` run it as their last runtime group, once
-the provider SDKs are already at their targets; on its own it answers "are our models current?".
+`dependency-management` runs it as its last runtime group, once for the whole repo, after the
+provider SDKs are already at their targets; on its own it answers "are our models current?".
 
 > This discipline is read-only: it ends with a recommendation and a stop. Applying an approved bump —
 > the edit, the verification, the PR — belongs to the consumer skill.
