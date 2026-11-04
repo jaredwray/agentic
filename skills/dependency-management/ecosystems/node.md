@@ -92,7 +92,7 @@ a parent upgrade, may make them removable. PR titles: `root - chore: remove <pkg
 
 - Bump with `pnpm add <pkg>@<version>` (`pnpm add -D` for devDeps and ecosystem-adjacent devDep members like `@types/react`); `<version>` is the target from [Version targeting](#version-targeting). **Never** `pnpm add <pkg>@latest`, `pnpm update --latest`, `pnpm up --latest`, `npm install <pkg>@latest`, or `npm update` — they bypass the release-age gate.
 - For `packageManager`, `corepack use pnpm@<version>` is the bump and the hash pin in one; commit the lockfile changes its install makes.
-- **Transitive check (pnpm without a `minimumReleaseAge` of at least 10080).** pnpm's resolution is ungated, so after every install — bumps and overrides alike — date every package the lockfile diff adds or moves against the npm registry row of the release-age gate. If any fails, discard the change and record the group or override as deferred until those releases age.
+- **Transitive check (pnpm without a `minimumReleaseAge` of at least 10080).** pnpm's resolution is ungated, so run every `pnpm install` and `pnpm add` — bumps and overrides alike — with `--ignore-scripts`, which installs without running any package's lifecycle scripts. Then date every package the lockfile diff adds or moves against the npm registry row of the release-age gate. Only when all pass, run `pnpm rebuild` so the skipped build scripts run, then verify. If any fails, discard the change and record the group or override as deferred until those releases age.
 - Verify in each affected package: `pnpm build && pnpm test` when a `build` script exists — building first catches type and bundler regressions — otherwise `pnpm test`.
 
 ## Version targeting
