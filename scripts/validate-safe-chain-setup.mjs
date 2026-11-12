@@ -254,6 +254,11 @@ for (const [name, text] of rules) {
   }
 }
 const nodeRules = rules.get('node.md') ?? '';
+// The release jobs above only name the gate; the job itself is in the reference skeleton.
+const gateJob = reference.split(/^ {2}aikido-gate:$/m)[1]?.split('```')[0] ?? '';
+for (const needle of ['scan-release', '--fail-on-sast-scan', '--fail-on-iac-scan', '--fail-on-secrets-scan']) {
+  if (!gateJob.includes(needle)) err(`reference.md release.yaml skeleton: aikido-gate must run ${needle}`);
+}
 
 const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
 if (!/always last/.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {

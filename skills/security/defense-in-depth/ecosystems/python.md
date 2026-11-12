@@ -54,6 +54,12 @@ The § 5 block, only when the root publishes to PyPI:
 
 Policy lives in tracked files (`pyproject.toml`, `poetry.toml`), not in a developer's user config.
 
+No setting limits a Python manager to one index. The lock stands in for it: `uv.lock`,
+`poetry.lock`, and a hashed requirements file record the hash of every file (uv and Poetry also
+record its source), so a frozen install cannot take different content from another index, a git
+URL, or a tarball. A new source arrives only through a reviewed change to the manifest; none of
+these rules adds one.
+
 **uv**
 
 ```toml

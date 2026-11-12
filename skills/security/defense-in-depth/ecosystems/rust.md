@@ -52,6 +52,10 @@ global-min-publish-age = "7 days"
   the packaged `Cargo.lock` without `--locked`.
 - Commit `Cargo.lock` for libraries as well as binaries. `--locked` makes Cargo fail when the lock
   is missing or resolution would change it.
+- Cargo has no setting that limits a build to crates.io. `Cargo.lock` stands in for it: it records
+  the source and checksum of every crate, so a `--locked` build cannot take a crate from a git URL
+  or another registry. Such a source arrives only through a reviewed `Cargo.toml` change, and
+  crates.io accepts no crate that depends on code outside crates.io.
 - Cargo cannot block or sandbox a dependency's `build.rs` or procedural macros: they run at build
   time with the build's privileges. The cooldown, Socket's review of every dependency change, and
   Socket Firewall on the fetch are what stand in front of them.

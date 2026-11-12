@@ -14,7 +14,7 @@ The § 3 block:
 
 ```md
 ### Go
-- [ ] `go.sum` committed for every module; no workflow or script builds with `-mod=mod`
+- [ ] `go.sum` committed for every module; no workflow, script, or tracked env file sets `-mod=mod`, as a flag or in `GOFLAGS`
 - [ ] Checksum database and module proxy left on: no `GOSUMDB=off`, `GOINSECURE`, or `GOPROXY=direct` in workflows, scripts, or tracked env files; `GOPRIVATE` / `GONOSUMDB` name only first-party private module paths
 - [ ] Every `go install` and `go run` of a remote module names an exact version, never `@latest`
 ```
@@ -28,7 +28,7 @@ Go's defaults are the policy. The items make sure nothing turns them off.
 - **`go.sum` and read-only builds.** `go.sum` holds the hash of every module the build uses, and
   since Go 1.16 the default `-mod=readonly` makes `go build` and `go test` fail instead of changing
   `go.mod` or `go.sum`. `-mod=mod` (as a flag or in `GOFLAGS`) lets a build rewrite them: remove it
-  from every workflow and script. Only `go get` and `go mod tidy`, run on purpose, change the files.
+  from every workflow, script, and tracked env file. Only `go get` and `go mod tidy`, run on purpose, change the files.
 - **Checksum database.** With the default `GOSUMDB=sum.golang.org`, a module that is not yet in
   `go.sum` is checked against a public append-only log, so everyone gets the same bytes for a
   version. `GOSUMDB=off` accepts such a module unverified; `GONOSUMDB` and `GOPRIVATE` skip the log
