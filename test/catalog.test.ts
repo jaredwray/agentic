@@ -29,7 +29,7 @@ describe('catalog', () => {
   });
 
   it('marks manual skills from disable-model-invocation', () => {
-    const manual = catalog.byName.get('defense-in-depth-nodejs');
+    const manual = catalog.byName.get('defense-in-depth');
     const model = catalog.byName.get('code-review');
     expect(manual?.invocation).toBe('manual');
     expect(model?.invocation).toBe('model-invoked');

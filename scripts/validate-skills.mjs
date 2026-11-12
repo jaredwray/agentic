@@ -17,8 +17,8 @@
 //     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
 //  9. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
 // 10. skills/SKILL.md does not exist — a skill must live in its own folder.
-// 11. dependency-management links every ecosystem rules file, and each one has the sections the
-//     skill tells the agent it will find.
+// 11. dependency-management and defense-in-depth link every ecosystem rules file they ship, and
+//     each rules file has the sections its skill tells the agent it will find.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
@@ -30,16 +30,39 @@ const ORCHESTRATION = new Set(['release-ops', 'security', 'growth', 'project-set
 // Used often, so it lives at skills/<name>/ (the default one-level scan) instead of a category.
 // It is still an orchestration skill and stays manual-only.
 const ROOT_ORCHESTRATION = new Set(['dependency-management']);
-const ECOSYSTEM_SECTIONS = [
-  'Package manager',
-  'Runtime version',
-  'Candidates',
-  'Dev groups',
-  'Runtime groups',
-  'Apply and verify',
-  'Version targeting',
-  'Titles',
-  'AI models',
+// Skills that read one rules file per ecosystem present, with the sections every rules file has.
+const ECOSYSTEM_SKILLS = [
+  {
+    dir: 'dependency-management',
+    sections: [
+      'Package manager',
+      'Runtime version',
+      'Candidates',
+      'Dev groups',
+      'Runtime groups',
+      'Apply and verify',
+      'Version targeting',
+      'Titles',
+      'AI models',
+    ],
+    // node.md also carries the Overrides section the workflow's overrides step reads.
+    extraSections: { 'node.md': ['Overrides'] },
+    links: ['containers.md'],
+  },
+  {
+    dir: 'security/defense-in-depth',
+    sections: [
+      'Package manager',
+      'Catalog',
+      'Dependency policy',
+      'Install protection',
+      'CI',
+      'Publishing',
+      'Verify',
+    ],
+    extraSections: {},
+    links: ['reference.md'],
+  },
 ];
 // Skills in an orchestration category that are genuinely read-only may opt out here.
 const MODEL_INVOCABLE_EXCEPTIONS = new Set();
@@ -215,18 +238,20 @@ function validatePublishTarballPaths() {
   }
 }
 
-// 11. Ecosystem rules. dependency-management reads one rules file per ecosystem present and relies on
-// each having the same sections; an unlinked file would never be read.
-function validateDependencyEcosystems() {
-  const skillDir = join(SKILLS_DIR, 'dependency-management');
+// 11. Ecosystem rules. Each skill in ECOSYSTEM_SKILLS reads one rules file per ecosystem present and
+// relies on each having the same sections; an unlinked file would never be read.
+function validateEcosystemRules({ dir, sections, extraSections, links }) {
+  const skillDir = join(SKILLS_DIR, dir);
   const skillFile = join(skillDir, 'SKILL.md');
   const ecosystemsDir = join(skillDir, 'ecosystems');
   if (!existsSync(skillFile) || !existsSync(ecosystemsDir)) {
-    err(skillFile, 'dependency-management must have SKILL.md and an ecosystems/ directory');
+    err(skillFile, `${dir} must have SKILL.md and an ecosystems/ directory`);
     return;
   }
   const skill = readFileSync(skillFile, 'utf8');
-  if (!skill.includes('](./containers.md)')) err(skillFile, 'does not link containers.md');
+  for (const link of links) {
+    if (!skill.includes(`](./${link})`)) err(skillFile, `does not link ${link}`);
+  }
   for (const name of readdirSync(ecosystemsDir)) {
     const file = join(ecosystemsDir, name);
     if (!name.endsWith('.md')) {
@@ -234,12 +259,16 @@ function validateDependencyEcosystems() {
       continue;
     }
     if (!skill.includes(`](./ecosystems/${name})`)) err(skillFile, `does not link ecosystems/${name}`);
-    const headings = new Set(
-      [...stripCodeFences(readFileSync(file, 'utf8')).matchAll(/^## (.+)$/gm)].map((m) => m[1].trim()),
-    );
-    // node.md also carries the Overrides section the workflow's overrides step reads.
-    for (const section of name === 'node.md' ? [...ECOSYSTEM_SECTIONS, 'Overrides'] : ECOSYSTEM_SECTIONS) {
+    const content = readFileSync(file, 'utf8');
+    const headings = new Set([...stripCodeFences(content).matchAll(/^## (.+)$/gm)].map((m) => m[1].trim()));
+    for (const section of [...sections, ...(extraSections[name] ?? [])]) {
       if (!headings.has(section)) err(file, `missing the "## ${section}" section`);
+    }
+    // Rules files are not SKILL.md files, so the link check in validateSkill never sees them.
+    for (const match of content.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+      const target = match[1].trim().split('#')[0];
+      if (!target || /^(https?:|mailto:)/.test(target)) continue;
+      if (!existsSync(resolve(ecosystemsDir, target))) err(file, `broken link target: ${match[1]}`);
     }
   }
 }
@@ -252,7 +281,7 @@ const skillFiles = skillMarkdownFiles();
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validatePublishTarballPaths();
-validateDependencyEcosystems();
+for (const skill of ECOSYSTEM_SKILLS) validateEcosystemRules(skill);
 
 if (warnings.length) {
   console.log(`\n⚠️  ${warnings.length} warning(s):`);

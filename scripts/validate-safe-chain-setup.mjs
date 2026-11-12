@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Validates the defense-in-depth-nodejs Safe Chain cloud-bootstrap templates and script.
+// Validates the defense-in-depth Safe Chain cloud-bootstrap templates and script, and the
+// invariants its reference, rules files, and audit scripts must keep.
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
@@ -9,7 +10,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SKILL = join(ROOT, 'skills/security/defense-in-depth-nodejs');
+const SKILL = join(ROOT, 'skills/security/defense-in-depth');
 const SCRIPT = join(SKILL, 'scripts/setup-cloud-environment.sh');
 const DEVCONTAINER = join(SKILL, 'templates/.devcontainer/devcontainer.json');
 const ENVIRONMENT = join(SKILL, 'templates/.cursor/environment.json');
@@ -17,6 +18,7 @@ const CLAUDE_SETTINGS = join(SKILL, 'templates/.claude/settings.json');
 const CLAUDE_HOOK_SCRIPT = join(SKILL, 'templates/.claude/hooks/session-start.sh');
 const AGENTS = join(SKILL, 'templates/AGENTS.md');
 const REFERENCE = join(SKILL, 'reference.md');
+const ECOSYSTEMS = join(SKILL, 'ecosystems');
 const BOOTSTRAP = 'bash ./scripts/setup-cloud-environment.sh';
 const CLAUDE_HOOK = 'bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh';
 const SHIM_PATH_EXPORT = 'export PATH="$HOME/.safe-chain/shims:$HOME/.safe-chain/bin:$PATH"';
@@ -184,8 +186,74 @@ if (scaffoldIdx === -1) {
         err(`catalog section before last mentions lockdown-repo.sh: ${section.split('\n')[0]}`);
       }
     }
+    // § 3 and § 5 are assembled from the rules files, so the scaffold must leave room for them.
+    const dependencies = sections.find((s) => s.startsWith('3. Dependencies')) ?? '';
+    if (!dependencies.includes('<the § 3 block of each ecosystem present>')) {
+      err('catalog § 3 must take the § 3 block of each ecosystem present');
+    }
+    const publishing = sections.find((s) => s.startsWith('5. Publishing')) ?? '';
+    if (!publishing.includes('<the § 5 block of each ecosystem that publishes>')) {
+      err('catalog § 5 must take the § 5 block of each ecosystem that publishes');
+    }
+    if (!/environment `release` requires a reviewer.*\(manual\)$/m.test(publishing)) {
+      err('catalog § 5 must have a (manual) reviewer-gated release environment item');
+    }
   }
 }
+
+// Each rules file's Catalog section supplies the § 3 block (and § 5 block when it has a registry).
+// A block is an md fence that opens with a `### ` heading and holds only checklist items.
+const rules = new Map(
+  readdirSync(ECOSYSTEMS)
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => [name, readFileSync(join(ECOSYSTEMS, name), 'utf8')]),
+);
+const REGISTRY_BLOCKS = { 'node.md': 'npm', 'rust.md': 'crates.io', 'dotnet.md': 'NuGet', 'python.md': 'PyPI' };
+for (const [name, text] of rules) {
+  const catalog = text.split(/^## Catalog$/m)[1]?.split(/^## /m)[0] ?? '';
+  const blocks = [...catalog.matchAll(/```md\n([\s\S]*?)```/g)].map((m) => m[1].trim().split('\n'));
+  if (blocks.length === 0) err(`ecosystems/${name}: Catalog has no md block`);
+  for (const [heading, ...items] of blocks) {
+    if (!/^### \S/.test(heading ?? '')) {
+      err(`ecosystems/${name}: a Catalog block must open with a "### " heading, got "${heading}"`);
+    }
+    if (items.length === 0 || items.some((line) => !line.startsWith('- [ ] '))) {
+      err(`ecosystems/${name}: Catalog block "${heading}" must hold only "- [ ] " items`);
+    }
+    if (items.some((line) => line.includes('lockdown-repo.sh'))) {
+      err(`ecosystems/${name}: Catalog block "${heading}" must not mention lockdown-repo.sh`);
+    }
+  }
+  const registry = REGISTRY_BLOCKS[name];
+  const headings = blocks.map(([heading]) => heading);
+  if (registry && !headings.includes(`### ${registry}`)) {
+    err(`ecosystems/${name}: Catalog must have a "### ${registry}" § 5 block`);
+  }
+  // A job that can mint a registry credential must sit behind the Aikido gate: it needs the gate
+  // itself or a job in the same file that does.
+  for (const [, yaml] of text.matchAll(/```ya?ml\n([\s\S]*?)```/g)) {
+    const jobs = [...yaml.matchAll(/^ {2}([a-z][a-z0-9-]*):\n((?: {4}.*\n| *\n)*)/gm)].map(([, id, body]) => ({
+      id,
+      needs: body.match(/^ {4}needs: \[([^\]]*)\]/m)?.[1].split(',').map((n) => n.trim()) ?? [],
+      publishes: /id-token: write/.test(body),
+      environment: body.match(/^ {4}environment: (\S+)/m)?.[1],
+    }));
+    const gated = (job, seen = new Set()) =>
+      job.needs.includes('aikido-gate') ||
+      job.needs.some((n) => {
+        const parent = jobs.find((j) => j.id === n);
+        return parent && !seen.has(n) && gated(parent, seen.add(n));
+      });
+    for (const job of jobs.filter((j) => j.publishes)) {
+      if (!gated(job)) err(`ecosystems/${name}: publish job "${job.id}" must sit behind aikido-gate`);
+      // npm stages, so its human gate is on the registry; every other registry publishes at once.
+      if (name !== 'node.md' && job.environment !== 'release') {
+        err(`ecosystems/${name}: publish job "${job.id}" must run in the release environment`);
+      }
+    }
+  }
+}
+const nodeRules = rules.get('node.md') ?? '';
 
 const skillMd = readFileSync(join(SKILL, 'SKILL.md'), 'utf8');
 if (!/always last/.test(skillMd) || !/lockdown-repo\.sh/.test(skillMd)) {
@@ -293,6 +361,8 @@ for (const needle of [
   'pnpm safe-chain-verify',
   'pnpm install --frozen-lockfile',
   'pnpm-lock.yaml',
+  'uv sync --locked',
+  'poetry sync',
   '--install-directory',
   'cd /',
   'CLAUDE_ENV_FILE',
@@ -394,6 +464,14 @@ function spacedWorkflowOrJobNames(md) {
 const spacedRef = spacedWorkflowOrJobNames(reference);
 if (spacedRef.length) {
   err(`reference.md workflow/job names must not contain spaces: ${spacedRef.join(', ')}`);
+}
+for (const [name, text] of rules) {
+  // Rules files hold job fragments, so every job-level `name:` in a YAML fence is checked.
+  for (const [, yaml] of text.matchAll(/```ya?ml\n([\s\S]*?)```/g)) {
+    for (const [, jobName] of yaml.matchAll(/^ {4}name:\s*(.+)$/gm)) {
+      if (/\s/.test(jobName.trim())) err(`ecosystems/${name}: job name "${jobName.trim()}" must not contain spaces`);
+    }
+  }
 }
 
 const wfDir = join(ROOT, '.github/workflows');
@@ -594,7 +672,7 @@ try {
     env: { PATH: process.env.PATH, HOME: dir, LANG: 'C' },
   });
   if (result.status === 0) {
-    err('setup-cloud-environment.sh must fail closed without pnpm-lock.yaml');
+    err('setup-cloud-environment.sh must fail closed without a lockfile or requirements file');
   } else if (!/pnpm-lock\.yaml/.test(`${result.stderr}${result.stdout}`)) {
     err(
       `setup-cloud-environment.sh failed without mentioning pnpm-lock.yaml (status ${result.status}): ${result.stderr || result.stdout}`,
@@ -869,6 +947,116 @@ try {
   rmSync(claudeFailDir, { recursive: true, force: true });
 }
 
+// A curl stub whose "installer" only creates the Safe Chain directories, as setup-ci does.
+function writeFakeInstaller(bin) {
+  writeExec(
+    bin,
+    'curl',
+    `out=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-o" ]; then out=$a; fi
+  prev=$a
+done
+printf '%s\\n' '#!/bin/sh
+mkdir -p "$HOME/.safe-chain/shims" "$HOME/.safe-chain/bin"
+exit 0' > "$out"`,
+  );
+  writeExec(bin, 'sha256sum', 'exit 0');
+}
+
+// A package-manager stub that records the directory and arguments of each call.
+function writeLoggingTool(bin, name, log) {
+  writeExec(bin, name, `printf '%s %s %s\\n' '${name}' "$(basename "$PWD")" "$*" >> '${log.replace(/'/g, `'\\''`)}'`);
+}
+
+// One repo, two ecosystems, neither lockfile at the root: each frozen install runs beside its lock.
+const polyglotDir = mkdtempSync(join(tmpdir(), 'safe-chain-polyglot-'));
+try {
+  const home = join(polyglotDir, 'home');
+  const repo = join(polyglotDir, 'repo');
+  const bin = join(polyglotDir, 'bin');
+  const log = join(polyglotDir, 'calls.log');
+  for (const d of [home, bin, join(repo, 'web'), join(repo, 'api')]) mkdirSync(d, { recursive: true });
+  writeFileSync(log, '');
+  writeFileSync(join(repo, 'web/pnpm-lock.yaml'), '');
+  writeFileSync(join(repo, 'web/package.json'), JSON.stringify({ name: 'web' }));
+  writeFileSync(join(repo, 'api/uv.lock'), '');
+  const git = (...args) => spawnSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args]);
+  git('init', '-q');
+  git('add', '-A');
+  writeFakeInstaller(bin);
+  writeLoggingTool(bin, 'pnpm', log);
+  writeLoggingTool(bin, 'uv', log);
+  const result = runBootstrap({ home, cwd: join(repo, 'api'), pathDir: bin });
+  const calls = readFileSync(log, 'utf8');
+  if (result.status !== 0) {
+    err(`setup-cloud-environment.sh must install a repo with nested pnpm and uv roots (got ${result.status}: ${result.stderr || result.stdout})`);
+  }
+  if (!calls.includes('pnpm web install --frozen-lockfile') || !calls.includes('uv api sync --locked')) {
+    err(`setup-cloud-environment.sh must run each frozen install in its lockfile's directory (got: ${calls})`);
+  }
+} finally {
+  rmSync(polyglotDir, { recursive: true, force: true });
+}
+
+// A uv root on a machine without uv: fail closed without pipx; with pipx, install uv through it
+// only after the shims exist, into ~/.safe-chain/bin, which is already on the persisted PATH.
+const pipxDir = mkdtempSync(join(tmpdir(), 'safe-chain-pipx-'));
+try {
+  const home = join(pipxDir, 'home');
+  const bin = join(pipxDir, 'bin');
+  const log = join(pipxDir, 'calls.log');
+  mkdirSync(home, { recursive: true });
+  mkdirSync(bin);
+  writeFileSync(log, '');
+  writeFileSync(join(pipxDir, 'uv.lock'), '');
+  writeFakeInstaller(bin);
+  const noUv = runBootstrap({ home, cwd: pipxDir, pathDir: bin });
+  if (noUv.status === 0 || !/uv is required/.test(noUv.stderr)) {
+    err(`setup-cloud-environment.sh must fail closed when uv.lock has no uv and no pipx (got ${noUv.status}: ${noUv.stderr || noUv.stdout})`);
+  }
+  writeExec(
+    bin,
+    'pipx',
+    `[ -d "$HOME/.safe-chain/shims" ] || { echo "pipx ran before Safe Chain" >&2; exit 9; }
+printf 'pipx %s %s\\n' "$PIPX_BIN_DIR" "$*" >> '${log}'
+printf '#!/bin/sh\\nprintf "uv %%s\\\\n" "$*" >> "%s"\\n' '${log}' > "$PIPX_BIN_DIR/uv"
+chmod +x "$PIPX_BIN_DIR/uv"`,
+  );
+  const withPipx = runBootstrap({ home, cwd: pipxDir, pathDir: bin });
+  const calls = readFileSync(log, 'utf8');
+  if (withPipx.status !== 0) {
+    err(`setup-cloud-environment.sh must install a missing uv with pipx (got ${withPipx.status}: ${withPipx.stderr || withPipx.stdout})`);
+  }
+  if (!calls.includes(`pipx ${home}/.safe-chain/bin install uv`) || !calls.includes('uv sync --locked')) {
+    err(`setup-cloud-environment.sh must pipx-install uv into ~/.safe-chain/bin, then sync (got: ${calls})`);
+  }
+} finally {
+  rmSync(pipxDir, { recursive: true, force: true });
+}
+
+// A pip-tools root has no lockfile the bootstrap can install from: it gets the shims and nothing else.
+const requirementsDir = mkdtempSync(join(tmpdir(), 'safe-chain-requirements-'));
+try {
+  const home = join(requirementsDir, 'home');
+  const bin = join(requirementsDir, 'bin');
+  const log = join(requirementsDir, 'calls.log');
+  mkdirSync(home, { recursive: true });
+  mkdirSync(bin);
+  writeFileSync(log, '');
+  writeFileSync(join(requirementsDir, 'requirements.txt'), '');
+  writeFakeInstaller(bin);
+  writeLoggingTool(bin, 'pip', log);
+  const result = runBootstrap({ home, cwd: requirementsDir, pathDir: bin });
+  const calls = readFileSync(log, 'utf8');
+  if (result.status !== 0 || /\binstall\b/.test(calls) || !calls.includes('safe-chain-verify')) {
+    err(`setup-cloud-environment.sh must verify the shims and install nothing for a requirements-only root (got ${result.status}: ${calls}${result.stderr})`);
+  }
+} finally {
+  rmSync(requirementsDir, { recursive: true, force: true });
+}
+
 const checkNpmjsPath = join(SKILL, 'scripts/check-npmjs.sh');
 const checkNpmjs = readFileSync(checkNpmjsPath, 'utf8');
 if (!/NEVER check this file into a target repo/.test(checkNpmjs)) {
@@ -906,14 +1094,14 @@ if (!/check-npmjs\.sh/.test(skillMd) || !/never copy it into the target repo/i.t
 if (!/NPM_TOKEN`? is not allowed/.test(skillMd)) {
   err('SKILL.md must say NPM_TOKEN is not allowed for check-npmjs.sh');
 }
-if (!/check-npmjs\.sh/.test(reference) || !/Never copy or commit it into the/.test(reference)) {
-  err('reference.md must document check-npmjs.sh and say it is never copied into the target');
+if (!/check-npmjs\.sh/.test(nodeRules) || !/Never copy or commit it into the/.test(nodeRules)) {
+  err('ecosystems/node.md must document check-npmjs.sh and say it is never copied into the target');
 }
-if (!/createStagedPackage/.test(reference) || !/legacy/.test(reference)) {
-  err('reference.md must require createStagedPackage-only permissions and treat legacy configs as fail');
+if (!/createStagedPackage/.test(nodeRules) || !/legacy/.test(nodeRules)) {
+  err('ecosystems/node.md must require createStagedPackage-only permissions and treat legacy configs as fail');
 }
-if (/or NPM_TOKEN/.test(reference) || !/NPM_TOKEN is not allowed/.test(reference)) {
-  err('reference.md must require npm login and must not offer NPM_TOKEN');
+if (/or NPM_TOKEN/.test(nodeRules) || !/NPM_TOKEN is not allowed/.test(nodeRules)) {
+  err('ecosystems/node.md must require npm login and must not offer NPM_TOKEN');
 }
 
 const checkNpmjsHelp = spawnSync('bash', [checkNpmjsPath, '--help'], { encoding: 'utf8' });

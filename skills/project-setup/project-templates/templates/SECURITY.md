@@ -20,4 +20,4 @@ We will acknowledge receipt on the issue and by email, fix it in public, and cre
 
 ## How this repository is secured
 
-This repository follows the [defense-in-depth](https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md) hardening checklist. Measures are listed below as they land; once the hardening rollout starts, the full checklist and current status live in `DEFENSE_IN_DEPTH.md` at the repo root.
+This repository follows the [defense-in-depth](https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth/SKILL.md) hardening checklist. Measures are listed below as they land; once the hardening rollout starts, the full checklist and current status live in `DEFENSE_IN_DEPTH.md` at the repo root.

@@ -1,12 +1,12 @@
 ---
 name: security-status-tracking
-description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth-nodejs skill. Use when recording or reconciling security-hardening progress.
+description: Convention for tracking a hardening rollout's state in a target repo's DEFENSE_IN_DEPTH.md — the status-block format, the three checkbox states (not started / PR pending / merged), inline (manual) markers for maintainer-owned items, first-run scaffolding, and reconciliation rules including never silently unchecking a regression. Background discipline referenced by the defense-in-depth skill. Use when recording or reconciling security-hardening progress.
 user-invocable: true
 ---
 
 # Security status tracking
 
-How the `defense-in-depth-nodejs` skill records rollout state in a target repo's
+How the `defense-in-depth` skill records rollout state in a target repo's
 `DEFENSE_IN_DEPTH.md`. The consumer skill owns the **catalog** (the actual list of items); this
 skill owns the **format and reconciliation rules**.
 
@@ -36,7 +36,7 @@ truth for what's done, pending, deferred, or manual.
   linking back to the operation manual that owns it, e.g.:
 
   ```md
-  Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md.
+  Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth/SKILL.md.
   ```
 
 - **Migration:** older repos carry these blocks inside `SECURITY.md`. On first contact, move each
