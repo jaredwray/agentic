@@ -53,7 +53,7 @@ prev=""
 for arg in "$@"; do
   case "$prev" in
     -m)
-      case "$arg" in pip | pipx | uv | poetry | pdm) blocked "$arg" ;; esac
+      case "${arg%%.*}" in pip | pipx | uv | poetry | pdm) blocked "$arg" ;; esac
       break
       ;;
     -W | -X)
@@ -63,7 +63,8 @@ for arg in "$@"; do
   esac
   case "$arg" in
     -m?*)
-      case "${arg#-m}" in pip | pipx | uv | poetry | pdm) blocked "${arg#-m}" ;; esac
+      module="${arg#-m}"
+      case "${module%%.*}" in pip | pipx | uv | poetry | pdm) blocked "$module" ;; esac
       break
       ;;
     -m | -[!-]*m) prev="-m" ;;

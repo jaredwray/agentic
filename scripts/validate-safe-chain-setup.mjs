@@ -957,13 +957,21 @@ try {
       encoding: 'utf8',
       env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, LANG: 'C' },
     });
-  for (const args of ['-m pip install x', '-mpip install x', '-I -m pip install x', '-Im pip install x', '-W ignore -m uv pip install x']) {
+  for (const args of [
+    '-m pip install x',
+    '-mpip install x',
+    '-I -m pip install x',
+    '-Im pip install x',
+    '-W ignore -m uv pip install x',
+    '-m pip.__main__ install x',
+    '-mpip._internal.cli.main install x',
+  ]) {
     const run = python(args);
     if (run.status === 0 || !/Safe Chain is not set up/.test(run.stderr)) {
       err(`a failed bootstrap must block "python3 ${args}" (got ${run.status}: ${run.stdout}${run.stderr})`);
     }
   }
-  for (const args of ['script.py -m pip', '-m venv .venv', '-c "import pip"']) {
+  for (const args of ['script.py -m pip', '-m venv .venv', '-m pipdeptree', '-c "import pip"']) {
     const run = python(args);
     if (run.status !== 0 || !run.stdout.startsWith('real python3 ')) {
       err(`a failed bootstrap must still run "python3 ${args}" (got ${run.status}: ${run.stdout}${run.stderr})`);
