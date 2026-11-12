@@ -4,7 +4,7 @@
 // Zero dependencies. Does not download or install Safe Chain.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -686,12 +686,12 @@ function writeExec(dir, name, body) {
   writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
 }
 
-function runBootstrap({ home, cwd, pathDir, extraEnv = {} }) {
+function runBootstrap({ home, cwd, pathDir, systemPath = '/usr/bin:/bin', extraEnv = {} }) {
   return spawnSync('bash', [SCRIPT], {
     cwd,
     encoding: 'utf8',
     env: {
-      PATH: `${pathDir}:/usr/bin:/bin`,
+      PATH: `${pathDir}:${systemPath}`,
       HOME: home,
       LANG: 'C',
       ...extraEnv,
@@ -943,6 +943,27 @@ try {
       `a failed bootstrap must leave Claude's package managers blocked, not unprotected (bootstrap ${result.status}; later pnpm ${later.status}: ${later.stdout}${later.stderr})`,
     );
   }
+  // `python -m pip` never reaches the pip stub, so the interpreter stubs must refuse it — in each
+  // spelling Python accepts — and still run Python for everything else.
+  writeExec(bin, 'python3', 'printf "real python3 %s\\n" "$*"');
+  const python = (args) =>
+    spawnSync('bash', ['-c', `. '${envFile}' && python3 ${args}`], {
+      cwd: claudeFailDir,
+      encoding: 'utf8',
+      env: { PATH: `${bin}:/usr/bin:/bin`, HOME: home, LANG: 'C' },
+    });
+  for (const args of ['-m pip install x', '-mpip install x', '-I -m pip install x', '-Im pip install x', '-W ignore -m uv pip install x']) {
+    const run = python(args);
+    if (run.status === 0 || !/Safe Chain is not set up/.test(run.stderr)) {
+      err(`a failed bootstrap must block "python3 ${args}" (got ${run.status}: ${run.stdout}${run.stderr})`);
+    }
+  }
+  for (const args of ['script.py -m pip', '-m venv .venv', '-c "import pip"']) {
+    const run = python(args);
+    if (run.status !== 0 || !run.stdout.startsWith('real python3 ')) {
+      err(`a failed bootstrap must still run "python3 ${args}" (got ${run.status}: ${run.stdout}${run.stderr})`);
+    }
+  }
 } finally {
   rmSync(claudeFailDir, { recursive: true, force: true });
 }
@@ -963,6 +984,21 @@ mkdir -p "$HOME/.safe-chain/shims" "$HOME/.safe-chain/bin"
 exit 0' > "$out"`,
   );
   writeExec(bin, 'sha256sum', 'exit 0');
+}
+
+// A directory that holds only the system utilities the bootstrap needs, for a case that depends
+// on a tool being absent: /usr/bin on a developer machine or a CI image may have pipx or uv.
+function writeSystemTools(dir) {
+  mkdirSync(dir, { recursive: true });
+  for (const tool of ['bash', 'sh', 'env', 'cat', 'mktemp', 'rm', 'dirname', 'mkdir', 'grep', 'chmod']) {
+    const found = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
+    if (!found) {
+      err(`validate-safe-chain-setup needs ${tool} on PATH`);
+      continue;
+    }
+    symlinkSync(found, join(dir, tool));
+  }
+  return dir;
 }
 
 // A package-manager stub that records the directory and arguments of each call.
@@ -1012,7 +1048,8 @@ try {
   writeFileSync(log, '');
   writeFileSync(join(pipxDir, 'uv.lock'), '');
   writeFakeInstaller(bin);
-  const noUv = runBootstrap({ home, cwd: pipxDir, pathDir: bin });
+  const systemPath = writeSystemTools(join(pipxDir, 'tools'));
+  const noUv = runBootstrap({ home, cwd: pipxDir, pathDir: bin, systemPath });
   if (noUv.status === 0 || !/uv is required/.test(noUv.stderr)) {
     err(`setup-cloud-environment.sh must fail closed when uv.lock has no uv and no pipx (got ${noUv.status}: ${noUv.stderr || noUv.stdout})`);
   }
@@ -1024,7 +1061,7 @@ printf 'pipx %s %s\\n' "$PIPX_BIN_DIR" "$*" >> '${log}'
 printf '#!/bin/sh\\nprintf "uv %%s\\\\n" "$*" >> "%s"\\n' '${log}' > "$PIPX_BIN_DIR/uv"
 chmod +x "$PIPX_BIN_DIR/uv"`,
   );
-  const withPipx = runBootstrap({ home, cwd: pipxDir, pathDir: bin });
+  const withPipx = runBootstrap({ home, cwd: pipxDir, pathDir: bin, systemPath });
   const calls = readFileSync(log, 'utf8');
   if (withPipx.status !== 0) {
     err(`setup-cloud-environment.sh must install a missing uv with pipx (got ${withPipx.status}: ${withPipx.stderr || withPipx.stdout})`);

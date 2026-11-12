@@ -217,8 +217,9 @@ Claude Code's Bash tool starts each command from a shell snapshot taken at launc
 files, so the script also appends the shim `PATH` to `CLAUDE_ENV_FILE`, which Claude Code runs before
 every Bash command. A failed SessionStart hook does not stop the session, so the script writes that
 line before anything can fail and seeds `~/.safe-chain/shims` with stubs for `npm`, `npx`, `pnpm`,
-`pnpx`, `pip`, `pip3`, `pipx`, `uv`, `uvx`, `poetry`, and `pdm` that exit 1 until Safe Chain's
-`setup-ci` replaces them: a failed bootstrap leaves package
+`pnpx`, `pip`, `pip3`, `pipx`, `uv`, `uvx`, `poetry`, and `pdm` that exit 1, and with `python` /
+`python3` stubs that run Python but refuse a package manager run as a module (`python -m pip`),
+until Safe Chain's `setup-ci` replaces them: a failed bootstrap leaves package
 installs blocked, not unprotected. The hook script must not append `PATH` itself after the bootstrap
 returns — that write would be skipped when the bootstrap fails. A session with several
 repositories loads no repo hooks, so run Claude Code sessions on this repo alone. `CLAUDE.md`

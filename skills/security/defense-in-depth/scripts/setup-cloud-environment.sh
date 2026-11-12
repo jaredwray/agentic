@@ -40,6 +40,54 @@ if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
       chmod +x "${SAFE_CHAIN_SHIMS}/${cmd}"
     fi
   done
+  # `python -m pip` never reaches the pip stub, so python and python3 get one that runs Python
+  # but refuses a package manager run as a module.
+  python_stub=$(cat <<'STUB'
+#!/usr/bin/env bash
+shims="__SHIMS__"
+blocked() {
+  echo "error: Safe Chain is not set up, so __CMD__ -m $1 is blocked; run bash ./scripts/setup-cloud-environment.sh" >&2
+  exit 1
+}
+prev=""
+for arg in "$@"; do
+  case "$prev" in
+    -m)
+      case "$arg" in pip | pipx | uv | poetry | pdm) blocked "$arg" ;; esac
+      break
+      ;;
+    -W | -X)
+      prev=""
+      continue
+      ;;
+  esac
+  case "$arg" in
+    -m?*)
+      case "${arg#-m}" in pip | pipx | uv | poetry | pdm) blocked "${arg#-m}" ;; esac
+      break
+      ;;
+    -m | -[!-]*m) prev="-m" ;;
+    -W | -X) prev="$arg" ;;
+    -c | --) break ;;
+    -*) prev="" ;;
+    *) break ;;
+  esac
+done
+real=$(PATH="${PATH//"$shims":/}"; command -v __CMD__)
+if [[ -z "$real" || "$real" == "$shims/__CMD__" ]]; then
+  echo "error: could not find __CMD__ outside the Safe Chain shims" >&2
+  exit 1
+fi
+exec "$real" "$@"
+STUB
+  )
+  python_stub=${python_stub//__SHIMS__/$SAFE_CHAIN_SHIMS}
+  for cmd in python python3; do
+    if [[ ! -e "${SAFE_CHAIN_SHIMS}/${cmd}" ]]; then
+      printf '%s\n' "${python_stub//__CMD__/$cmd}" > "${SAFE_CHAIN_SHIMS}/${cmd}"
+      chmod +x "${SAFE_CHAIN_SHIMS}/${cmd}"
+    fi
+  done
   persist_shim_path "$CLAUDE_ENV_FILE"
 fi
 
