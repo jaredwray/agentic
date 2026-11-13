@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lockdown-repo.sh — one-shot GitHub repo lockdown for the defense-in-depth-nodejs skill.
+# lockdown-repo.sh — one-shot GitHub repo lockdown for the defense-in-depth skill.
 #
 # NEVER check this file into a target repo. It lives only in this skill.
 # A repo admin runs it last (DEFENSE_IN_DEPTH.md § 7), after every earlier
@@ -84,7 +84,7 @@ command -v gh >/dev/null || { echo "error: gh CLI is required (https://cli.githu
 # Canonical source of this script. A stale plugin cache or copied file can apply
 # outdated rules. Warn and continue — never fail the run on this check.
 UPSTREAM_REPO="jaredwray/agentic"
-UPSTREAM_PATH="skills/security/defense-in-depth-nodejs/scripts/lockdown-repo.sh"
+UPSTREAM_PATH="skills/security/defense-in-depth/scripts/lockdown-repo.sh"
 
 check_upstream_script() {
   local tmp
@@ -554,7 +554,7 @@ if [[ "$CHECK" -eq 1 ]]; then
   echo "Audit: all applicable settings are in the desired state."
 else
   echo "Done. Re-run with --check to confirm. Remaining catalog items are maintainer-owned:"
-  echo "  · Phishing-resistant 2FA on GitHub and npm accounts"
+  echo "  · Phishing-resistant 2FA on the GitHub account and every package-registry account"
   echo "  · Recovery codes stored offline"
   [[ "$FAILS" -gt 0 ]] && { echo; echo "warning: $FAILS setting(s) could not be applied — see above."; exit 1; }
 fi

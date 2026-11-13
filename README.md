@@ -137,7 +137,7 @@ It lives one level under `skills/` because it is used often.
 
 | Skill | Does |
 |---|---|
-| `defense-in-depth-nodejs` | Harden a Node.js repo against supply-chain compromise — repo lockdown script, pnpm cooldown, pinned + linted CI, digest-pinned Dev Container images, Safe Chain on cloud agents, staged OIDC publishing — one item per PR. |
+| `defense-in-depth` | Harden any repo against supply-chain compromise — Node (pnpm), Rust, .NET, Python (uv, Poetry, pip-tools), and Go, alone or mixed in a monorepo — one item per PR. It reads only the rules files for the ecosystems present (`ecosystems/<name>.md`): a frozen lockfile and a 7-day cooldown per package manager, pinned + linted CI behind Socket Firewall, digest-pinned Dev Container images, Safe Chain on cloud agents, and OIDC trusted publishing with a human gate (npm staged and reviewed in Drydock; PyPI, crates.io, and NuGet from a reviewer-gated environment). A repo admin runs the lockdown script last. |
 | `security-audit` | Source-first vulnerability review of a codebase — reconnaissance, coverage-led hunting, independent validation, and a target-neutral report. Cloudflare's security-audit skill. Manual. |
 
 ### growth/ — manual
@@ -164,7 +164,7 @@ It lives one level under `skills/` because it is used often.
 | `requirements-interview` | The alignment interview — turn a vague request into an agreed spec before building. |
 | `writing-great-skills` | How to author a SKILL.md for this catalog (also the contributor guide). |
 | `ai-model-discovery` | Find the AI model IDs a repo calls, look up each provider's catalog and deprecations, and recommend the newest same-tier model — one line per reference, approval per provider before anything changes. |
-| `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog against `jaredwray/agentic` `main`; refresh stale copies, add missing `AGENTS.md` sections (creating the file in any repo), report edited ones and catalog drift. |
+| `agentic-upstream-sync` | Check a repo's copied defense-in-depth files, `AGENTS.md` template sections, and `DEFENSE_IN_DEPTH.md` catalog (assembled from the rules files of its ecosystems) against `jaredwray/agentic` `main`; refresh stale copies, add missing `AGENTS.md` sections (creating the file in any repo), report edited ones and catalog drift. |
 
 ## Composition
 

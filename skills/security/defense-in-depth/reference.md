@@ -1,7 +1,10 @@
-# Defense in Depth (Node.js) — reference
+# Defense in Depth — reference
 
-Implementation spec for the catalog items. Section numbers match the `DEFENSE_IN_DEPTH.md` block.
-Pull in the section you are implementing.
+Implementation spec for the catalog items every repo shares. Section numbers match the
+`DEFENSE_IN_DEPTH.md` block. Pull in the section you are implementing. What differs by ecosystem —
+the dependency policy, the commands the install firewalls wrap, the CI setup action, and registry
+publishing — lives in that ecosystem's rules file under [ecosystems/](./ecosystems/); each section
+below names the rules-file section it relies on.
 
 ## 1. Security docs
 
@@ -21,17 +24,17 @@ writing new prose. This skill owns the summary section appended after it:
 ```md
 ## How this repository is secured
 
-This repository follows the [defense-in-depth](https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md)
+This repository follows the [defense-in-depth](https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth/SKILL.md)
 hardening checklist; progress is tracked in [DEFENSE_IN_DEPTH.md](./DEFENSE_IN_DEPTH.md). Measures currently in place:
 
 - All changes land through pull requests — direct pushes to `main` are blocked, and merging requires passing status checks.
 - Tags can only be created by repository admins; published GitHub Releases are immutable (assets and tags cannot be changed after publish).
 - Workflow runs from outside collaborators always require maintainer approval, and only allowlisted GitHub Actions can run.
-- CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps `pnpm install` / `npm install`; workflows are security-linted with zizmor on every PR.
+- CI runs with read-only permissions (only jobs whose purpose is mutating the repo get `contents: write`); generated output is an artifact, never committed back; every action is pinned to a full commit SHA; Socket Firewall (`sfw`) wraps package installs; workflows are security-linted with zizmor on every PR.
 - Codespaces, Cursor Cloud Agents, Claude Code on the web, and Codex cloud install through Aikido Safe Chain; package-manager shims must not be bypassed.
 - The Codespaces Dev Container image is pinned by digest (`name:<tag>@sha256:<digest>`), not a floating tag.
-- Dependencies install through pnpm with a 7-day cooldown on new versions, lifecycle scripts blocked by default, and `trustPolicy: no-downgrade`. Socket reviews every dependency change; Aikido scans every build.
-- npm releases are staged, never published directly: CI publishes via stage-only OIDC trusted publishing, Drydock reviews the exact staged artifact, and a maintainer promotes it with 2FA. There are no npm publish tokens.
+- Dependencies install from a committed lockfile that CI refuses to change, and no version younger than 7 days is adopted. Socket reviews every dependency change; Aikido scans every build.
+- Releases publish through OIDC trusted publishing after a maintainer approves them. There are no registry publish tokens.
 ```
 
 **Only list what is live.** The bullets above are the full-rollout end state — include a bullet only
@@ -39,6 +42,11 @@ once its checklist item is checked in `DEFENSE_IN_DEPTH.md`, and update the summ
 that completes a section. A `SECURITY.md` that advertises controls the repo doesn't have is worse
 than none. In the Safe Chain bullet, name Codex cloud only once its environment item is done, not
 ticked off as not used. Keep the whole file under ~40 lines.
+
+Word the last two bullets from the ecosystem blocks that are checked: name each package manager and
+its controls (`pnpm with lifecycle scripts blocked and trustPolicy: no-downgrade`) and each registry
+with its human gate (`npm releases are staged, reviewed in Drydock, and promoted with 2FA`; `PyPI
+releases wait for approval on a protected GitHub environment`).
 
 Private repos: drop the public GitHub issue step from the boilerplate (a private repository has
 no public issue tracker) — the email contact is the reporting channel. Drop the "outside
@@ -50,9 +58,9 @@ approval on private repositories); keep the Actions allowlist clause.
 ```md
 # Defense in Depth
 
-Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth-nodejs/SKILL.md.
+Tracking against https://github.com/jaredwray/agentic/blob/main/skills/security/defense-in-depth/SKILL.md.
 
-Profile: <npm library | website/app> · <public | private>
+Profile: <ecosystems> · <publishes to <registries> | publishes nothing> · <public | private>
 
 ## 1. Security docs
 - [ ] `SECURITY.md` present — contact info + "How this repository is secured" summary
@@ -65,54 +73,50 @@ Profile: <npm library | website/app> · <public | private>
 - [ ] Claude Code on the web environments allow `malware-list.aikido.dev` (Custom network access plus the default package-manager list) (manual)
 - [ ] Dev Container `image` pinned by digest (`name:<tag>@sha256:<digest>`; not a floating tag)
 
-## 3. Dependencies (pnpm)
-- [ ] `packageManager: pnpm@11.3+` pinned in `package.json`
-- [ ] 7-day cooldown: `minimumReleaseAge: 10080`, `minimumReleaseAgeStrict: true`, `minimumReleaseAgeIgnoreMissingTime: false`; no first-party `minimumReleaseAgeExclude`
-- [ ] `trustPolicy: no-downgrade`; no first-party `trustPolicyExclude`
-- [ ] Lifecycle scripts blocked: `strictDepBuilds: true`, `dangerouslyAllowAllBuilds: false`, `allowBuilds: {}` baseline
-- [ ] `blockExoticSubdeps: true`
-- [ ] Lockfile committed; CI installs with `pnpm install --frozen-lockfile`
+## 3. Dependencies
 - [ ] No `.github/dependabot.yml`; other dependency-update tools (if any) open PRs only — never auto-merge
+<the § 3 block of each ecosystem present>
 
 ## 4. GitHub Actions
 - [ ] `permissions: contents: read` (or `{}` + per-job grants) on every workflow
 - [ ] No `contents: write` except jobs whose purpose is mutating the repo (GitHub Release, Changesets version PR); generated output is a workflow artifact, never committed back from CI
 - [ ] Every action pinned to a full commit SHA (`npx actions-up`)
-- [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned); `pnpm install` / `npm install` run as `sfw pnpm install` / `sfw npm install`
+- [ ] Every job installs Socket Firewall (`SocketDev/action` SHA-pinned, `firewall-version` pinned); every package install the firewall supports runs with the `sfw` prefix
 - [ ] `.github/workflows/check-workflows.yaml` lints workflows with zizmor on every PR
 - [ ] Workflow `name:` and job `name:` contain no spaces (kebab-case) so they can be set as required status checks
 - [ ] `persist-credentials: false` on checkouts that don't push
 - [ ] No `pull_request_target` on workflows that run untrusted PR code
-- [ ] Artifact-publishing workflows disable `actions/setup-node` default caching (`package-manager-cache: false`) to prevent cache poisoning
-- [ ] No npm tokens (or other registry credentials) in Actions secrets
+- [ ] Artifact-publishing workflows restore no dependency or build cache (setup-action caching off) to prevent cache poisoning
+- [ ] No registry publish tokens (or other registry credentials) in Actions secrets
 
-## 5. npm publishing — npm libraries only
-- [ ] OIDC trusted publishing configured **stage-only** on npmjs.com for the publish workflow — it can stage, never publish live (manual)
-- [ ] `.github/workflows/release.yaml` packs then stages with `pnpm stage publish ./packed/*.tgz --no-git-checks`
-- [ ] Maintainer promotes staged versions with 2FA (manual)
-- [ ] Drydock connected — staged releases reviewed before promotion (manual)
-- [ ] No direct publish rights: package requires 2FA and disallows tokens (manual)
-- [ ] `package.json` `repository.url` accurate so provenance maps to this repo
+## 5. Publishing
+- [ ] GitHub environment `release` requires a reviewer and deploys only from the default branch and release tags (manual)
+<the § 5 block of each ecosystem that publishes>
 
 ## 6. Security tooling
 - [ ] Aikido runs on every build
-- [ ] Aikido release gate: the release workflow's stage-publish job `needs:` a passing `scan-release`
+- [ ] Aikido release gate: every publish job in the release workflow `needs:` a passing `scan-release`
 - [ ] Socket reviews every PR that changes dependencies
 
 ## 7. Repository lockdown
-- [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub and npm accounts (manual)
+- [ ] Phishing-resistant 2FA (passkeys / hardware keys) on the GitHub account and every package-registry account that can publish (manual)
 - [ ] Recovery codes stored offline in a password manager (manual)
 - [ ] `lockdown-repo.sh` applied by a repo admin (never committed to this repo); `--check` with `--required-checks` and `--allowed-actions` passes (PRs required on the default branch, merges blocked unless required status checks pass, tag ruleset, immutable releases, fork-PR approval (public repos), read-only workflow tokens, Actions allowlist, secret scanning, Dependabot disabled, private vulnerability reporting (public repos))
 ```
 
-Profile adjustments when scaffolding:
+Assemble the catalog when scaffolding:
 
-- **website/app** — omit § 5 entirely.
+- **§ 3** — after the Dependabot item, add the § 3 block from the **Catalog** section of each
+  ecosystem's rules file, in the order of the ecosystem table in `SKILL.md`. Each block starts
+  with its own `### ` heading.
+- **§ 5** — add the § 5 block of each ecosystem that publishes. Omit the `release` environment
+  item when npm is the only registry: staging is npm's human gate. A repo that publishes nothing
+  omits § 5 and the Aikido release-gate item.
 - **private** — omit the private-vulnerability-reporting and fork-PR approval clauses from the
   lockdown item; keep the plan-gated settings only if the plan supports them (the lockdown script
-  reports this); omit § 5 unless the repo actually publishes a package.
-- **no `pnpm-lock.yaml`** — omit the Safe Chain cloud-bootstrap item and the Codex and Claude Code
-  environment items.
+  reports this).
+- **no ecosystem the Safe Chain bootstrap covers** — omit the Safe Chain cloud-bootstrap item and
+  the Codex and Claude Code environment items.
 - **no `devcontainer.json`** — omit the Dev Container image-pin item.
 
 ## 2. CODEOWNERS and cloud bootstrap
@@ -148,8 +152,9 @@ never writes that file.
 
 ### Safe Chain on Codespaces, Cursor Cloud Agents, and Claude Code on the web
 
-File PR (`chore/defense-safe-chain-cloud`). Skip when the target repo has no `pnpm-lock.yaml`. Copy
-the bundled [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) to the
+File PR (`chore/defense-safe-chain-cloud`). Applies when the repo has a Node (pnpm) or Python root —
+the ecosystems Safe Chain shims. Skip it otherwise; each rules file's **Install protection** section
+says whether the bootstrap covers it. Copy the bundled [`./scripts/setup-cloud-environment.sh`](./scripts/setup-cloud-environment.sh) to the
 target's `scripts/setup-cloud-environment.sh`, and copy from this skill's `templates/`:
 
 | Source | Target path |
@@ -163,15 +168,21 @@ target's `scripts/setup-cloud-environment.sh`, and copy from this skill's `templ
 | `scripts/setup-cloud-environment.sh` | `scripts/setup-cloud-environment.sh` |
 
 The bootstrap installs [Aikido Safe Chain](https://github.com/AikidoSec/safe-chain) from a **pinned**
-release, verifies the official installer SHA-256, runs `--ci` so `pnpm` / `npm` / `npx` / `pnpx` use
-shims, persists those shim paths, runs `pnpm safe-chain-verify`, and then `pnpm install
---frozen-lockfile`. It fails closed — no unprotected install, no `latest` installer. Bump the
-version and digest in the bundled script the same way Socket Firewall's `firewall-version` is
-bumped; do not fetch "latest" when applying.
+release, verifies the official installer SHA-256, runs `--ci` so the npm and Python package managers
+use shims, persists those shim paths, and checks the shims with `<manager> safe-chain-verify`. Then it
+runs the frozen install of every tracked lockfile, in that lockfile's directory:
+`pnpm install --frozen-lockfile` for `pnpm-lock.yaml`, `uv sync --locked` for `uv.lock`, and
+`poetry sync` for `poetry.lock`. A root with only requirements files gets the shims and no install.
+It fails closed — no lockfile or requirements file, no run; no unprotected install; no `latest`
+installer. Bump the version and digest in the bundled script the same way Socket Firewall's
+`firewall-version` is bumped; do not fetch "latest" when applying.
 
 Greenfield templates: Codespaces uses a **digest-pinned**
 `mcr.microsoft.com/devcontainers/javascript-node:<version>-<variant>@sha256:<digest>` image (no
-Dockerfile; never `:latest`) and installs GitHub CLI plus Docker via Dev Container Features
+Dockerfile; never `:latest`). In a repo with no Node root, replace the template's `name` and `image`
+with the Dev Container image its rules file names, resolved to `name:<tag>@sha256:<digest>` per
+[Pin Dev Container images](#pin-dev-container-images). The template installs GitHub CLI plus Docker
+via Dev Container Features
 (`ghcr.io/devcontainers/features/github-cli:1` and
 `ghcr.io/devcontainers/features/docker-in-docker:4` with `"moby": false` — Trixie has no Moby
 packages). Cursor uses a managed environment with only `install` (no `build`, no Dockerfile, no
@@ -189,8 +200,10 @@ them in `bash -i`, `source ~/.bashrc`, or `source "$NVM_DIR/nvm.sh"`. A fresh Co
 non-interactive shell, so those only help an already-open terminal (`source ~/.bashrc` after a
 one-off run). If `pnpm` is missing, the script enables Corepack's `pnpm` shim into
 `~/.safe-chain/bin` (`--install-directory`) so it does not EACCES on the javascript-node image's
-root-owned `/usr/local/bin`. It runs the pinned installer from `/` so an in-repo `.nvmrc` cannot
-make NVM's optional legacy scan return 3. The template snapshot is already 7-day-aged; refresh of
+root-owned `/usr/local/bin`. If `uv` or `poetry` is missing and `pipx` is on `PATH`, the script
+installs it with `pipx` into `~/.safe-chain/bin` once the shims are in place, so that install is
+protected too. It runs the pinned installer from `/` so an in-repo `.nvmrc` cannot make NVM's
+optional legacy scan return 3. The template snapshot is already 7-day-aged; refresh of
 that pin later is `dependency-management`, not this item.
 
 The script's `PATH` export stays in its own process. Any follow-on package-manager command in the
@@ -203,8 +216,10 @@ bash ./scripts/setup-cloud-environment.sh && export PATH="$HOME/.safe-chain/shim
 Claude Code's Bash tool starts each command from a shell snapshot taken at launch, not from the rc
 files, so the script also appends the shim `PATH` to `CLAUDE_ENV_FILE`, which Claude Code runs before
 every Bash command. A failed SessionStart hook does not stop the session, so the script writes that
-line before anything can fail and seeds `~/.safe-chain/shims` with `npm` / `npx` / `pnpm` / `pnpx`
-stubs that exit 1 until Safe Chain's `setup-ci` replaces them: a failed bootstrap leaves package
+line before anything can fail and seeds `~/.safe-chain/shims` with stubs for `npm`, `npx`, `pnpm`,
+`pnpx`, `pip`, `pip3`, `pipx`, `uv`, `uvx`, `poetry`, and `pdm` that exit 1, and with `python` /
+`python3` stubs that run Python but refuse a package manager run as a module (`python -m pip`),
+until Safe Chain's `setup-ci` replaces them: a failed bootstrap leaves package
 installs blocked, not unprotected. The hook script must not append `PATH` itself after the bootstrap
 returns — that write would be skipped when the bootstrap fails. A session with several
 repositories loads no repo hooks, so run Claude Code sessions on this repo alone. `CLAUDE.md`
@@ -234,7 +249,7 @@ Merge — never blindly overwrite:
 | `.claude/hooks/session-start.sh` | Copy from the skill | Replace with the skill's script (this is the security control) |
 | `.devcontainer/devcontainer.json` | Write the template | Keep existing keys, image, and Dockerfile. Set or chain `postCreateCommand` with the same-shell pattern above so the bootstrap runs and later installs stay shimmed. Detect GitHub CLI / Docker by feature id, ignoring the tag (`github-cli`, `docker-in-docker`, `docker-outside-of-docker`, `docker-from-docker`). If no GitHub CLI feature is present, add `github-cli:1`. If no Docker feature is present, add `docker-in-docker:4` with `"moby": false`. Do not add a second copy of either. Do not add a Dockerfile. Do not replace an existing image with the template image — pinning that image is the next item. |
 | `.cursor/environment.json` | Write `{ "install": "bash ./scripts/setup-cloud-environment.sh" }` | Keep other keys; if `install` exists, prepend the same-shell pattern above unless it already runs the script. Do not add `build` or a Dockerfile. |
-| `.claude/settings.json` | Write the template | Keep other keys and hooks. Replace a SessionStart hook that already runs the bootstrap (inline or via `session-start.sh`) with the template's hook (`bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh`, `"timeout": 600`, no `matcher`, not `async`); if none does, add the template's `SessionStart` group. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs `pnpm install --frozen-lockfile`. |
+| `.claude/settings.json` | Write the template | Keep other keys and hooks. Replace a SessionStart hook that already runs the bootstrap (inline or via `session-start.sh`) with the template's hook (`bash "$CLAUDE_PROJECT_DIR"/.claude/hooks/session-start.sh`, `"timeout": 600`, no `matcher`, not `async`); if none does, add the template's `SessionStart` group. All matching hooks run in parallel, so remove package installs from other SessionStart hooks — the bootstrap already runs the frozen installs. |
 | `.gitignore` | Append the `.claude/*` block above | Replace a `.claude` or `.claude/` directory rule with that block. If `.claude/*` is already there, add `!.claude/settings.json` and `!.claude/hooks/` when missing. |
 | `AGENTS.md` | Write every template section | Compare each template section per `agentic-upstream-sync` (Compare, step 3): append a missing one, replace a stale one, and list a locally edited one in the PR body. Leave other content alone. |
 | `CLAUDE.md` | Write `@AGENTS.md` | Add `@AGENTS.md` as the first line unless it already imports `AGENTS.md` (or is a symlink to it); leave the rest alone. |
@@ -290,12 +305,12 @@ For each file's `image` property:
 2. Missing (`build` / `dockerFile` instead) → skip that file. Dockerfile `FROM` pins are the
    Docker image groups in `dependency-management`.
 3. Unpinned or floating → inspect with `skopeo` (or `crane`). The target is the newest digest in
-   the current lineage whose image `Created` is at least **7 days** ago — the same window as pnpm
-   `minimumReleaseAge: 10080`. A missing `Created` is ineligible (fail closed). Rewrite to
+   the current lineage whose image `Created` is at least **7 days** ago — the same window as the
+   dependency cooldown. A missing `Created` is ineligible (fail closed). Rewrite to
    `name:<versioned-tag>@sha256:<index-digest>`. Never leave `:latest` as the tag, even with a
    digest. On Microsoft Dev Container images, prefer the `version` + `dev.containers.variant`
-   labels (e.g. `5.0.2-24-trixie`). Lineage is Node major + OS family (`24-trixie`); a Node major
-   bump is breaking — stop and ask. If no digest in lineage is 7 days old, skip and report.
+   labels (e.g. `5.0.2-24-trixie`). Lineage is the runtime version plus OS family (`24-trixie` for
+   Node 24); a new runtime version is breaking — stop and ask. If no digest in lineage is 7 days old, skip and report.
 4. Do not replace an existing image with the greenfield template image.
 
 Stop and report if a `devcontainer.json` is not valid JSON.
@@ -303,52 +318,31 @@ Stop and report if a `devcontainer.json` is not valid JSON.
 Reconcile as done when every `image` value is digest-pinned with a non-`latest` tag, or there is
 no `image` key to pin.
 
-## 3. Dependencies (pnpm)
+## 3. Dependencies
 
-Target `pnpm@11.3+` (`pnpm stage` landed in 11.3); put the policy in `pnpm-workspace.yaml` so
-it's code-reviewed, not developer-local:
+Each ecosystem's checklist is the § 3 block of its rules file, and the spec is that file's
+**Dependency policy** section. Every policy aims at the same four controls, as far as its package
+manager can express them:
 
-```yaml
-minimumReleaseAge: 10080 # 7 days, in minutes
-minimumReleaseAgeStrict: true # fail instead of falling back to a too-new version
-minimumReleaseAgeIgnoreMissingTime: false # missing publish-time metadata fails closed
-blockExoticSubdeps: true
-strictDepBuilds: true
-dangerouslyAllowAllBuilds: false
-trustPolicy: no-downgrade # fail if a later version has weaker trust evidence
+| Control | What it stops |
+| --- | --- |
+| Committed lockfile, frozen in CI | CI fails instead of resolving a version nobody reviewed |
+| 7-day cooldown on new versions | Almost every registry compromise is caught and pulled within days |
+| No dependency code at install time, or a reviewed allowlist | A package cannot run code just by being installed |
+| Only the expected registry | A dependency cannot arrive from a git URL, a tarball, or a look-alike feed |
 
-allowBuilds: {}
-```
+Where a package manager cannot express a control, its rules file says so and names what stands in
+for it. Never claim a control in `SECURITY.md` that the rules file says the manager lacks.
 
-- Pin the package manager in `package.json` (e.g. `"packageManager": "pnpm@11.3.0"`).
-- The 7-day window (`minimumReleaseAge: 10080`) is the single highest-leverage control: almost every
-  npm supply-chain attack is caught and unpublished within days.
-- No first-party excludes. `minimumReleaseAgeExclude` and `trustPolicyExclude` must not list
-  packages this GitHub owner publishes (workspace `package.json` `name` values, or
-  `npm view <pkg> repository.url` / `npm view <pkg> maintainers` matching
-  `gh repo view --json owner --jq .owner.login`) nor globs that cover them (`@scope/*`). A hijacked
-  maintainer account shipping a malicious version of *our* package is what those gates catch;
-  skipping them because "we published it" removes the control. When applying the cooldown or
-  trust-policy item, drop matching entries; omit the key if the list is then empty. Do not add an
-  exclude to unblock a too-new or weaker-trust version — pin to a version that already meets the
-  gate. Leave unrelated third-party entries as they are.
-- Reconcile the cooldown item as done when the three `minimumReleaseAge*` keys match the baseline
-  and `minimumReleaseAgeExclude` contains no first-party package (absent key is fine).
-- `trustPolicy: no-downgrade` fails the install if a later-published version has weaker trust
-  evidence than an earlier one (trusted publisher → provenance-only → none). Reconcile as done
-  when the key is `no-downgrade` and `trustPolicyExclude` contains no first-party package
-  (absent key is fine).
-- `allowBuilds` replaces the older `onlyBuiltDependencies` / `neverBuiltDependencies` /
-  `ignoredBuiltDependencies` settings. Every entry added to it is a security exception that gets code
-  review; run `pnpm approve-builds` only during dependency review, never in CI.
-- CI installs use `--frozen-lockfile` so CI fails if the lockfile would change. Once Socket Firewall
-  is on the job (§ 4), the command is `sfw pnpm install --frozen-lockfile`.
+- One item covers every package root of its ecosystem: apply it in each root in the same PR.
+- A cooldown or trust setting never gains an exclude to unblock a too-new version — first-party
+  packages included. A hijacked maintainer account shipping a malicious version of *our* package is
+  what those gates catch.
 - No Dependabot. Do not add `.github/dependabot.yml`. GitHub-native alerts and security-update
   PRs are disabled in § 7. Aikido already does CVE/SCA and Socket already reviews dependency
   diffs; a third overlapping scanner is noise, not an independent control. If another updater
-  (Renovate) is already configured, it opens PRs through normal review — never auto-merge;
-  Drydock's `github>JoviDeCroock/drydock//renovate/diff-links` preset adds artifact-diff links to
-  its update tables. Don't add an updater where none exists.
+  (Renovate) is already configured, it opens PRs through normal review — never auto-merge. Don't
+  add an updater where none exists.
 
 ## 4. GitHub Actions
 
@@ -359,17 +353,17 @@ allowBuilds: {}
   push `main`. `id-token: write` on a publish job is OIDC (§ 5), not repo write.
 - **Pin by SHA with [actions-up](https://github.com/azat-io/actions-up):** `npx actions-up` scans
   every workflow and composite action, updates to the latest release, and pins to the full commit
-  SHA with a version comment. Use it for the initial pinning PR; afterwards pin refresh rides the
-  monthly dependency/workflow management pass. Never hand-resolve SHAs.
+  SHA with a version comment. Use it for the initial pinning PR; afterwards pin refresh rides
+  `dependency-management`. Never hand-resolve SHAs. It runs through `npx`, so it needs Node on the
+  machine that runs it, not in the repo.
 - `persist-credentials: false` on every `actions/checkout` that doesn't need to push.
 - No `pull_request_target` for workflows that check out or execute untrusted PR code; don't share
   caches across trust boundaries.
-- Artifact-publishing workflows (staged npm publish, GitHub Releases, OIDC, attestations) set
-  `package-manager-cache: false` on every `actions/setup-node` step and do not set `cache:` to a
-  package manager. `setup-node` otherwise enables npm caching by default when `package.json`
-  names npm, and a poisoned Actions cache can run attacker-controlled code in a job that holds
-  publish credentials. Regular CI may still cache.
-- No npm tokens in Actions secrets — publishing is OIDC-only (§ 5).
+- Artifact-publishing workflows (registry publish, GitHub Releases, OIDC, attestations) restore no
+  dependency or build cache: a poisoned Actions cache can run attacker-controlled code in a job
+  that holds publish credentials. Each rules file's **CI** section names the setup-action input
+  that turns its cache off and the cache actions to leave out. Regular CI may still cache.
+- No registry publish tokens in Actions secrets — publishing is OIDC-only (§ 5).
 - Workflow `name:` and job `name:` contain no spaces (kebab-case). GitHub rulesets cannot require
   a status check whose name has a space, so `--required-checks` in § 7 can only name those
   space-free checks. Step names may still have spaces. Details below.
@@ -439,10 +433,12 @@ immediately after checkout (or as the first step if the job does not check out),
 does not currently install packages. This is install-time blocking; the Socket GitHub app in § 6
 reviews dependency diffs on PRs.
 
-Socket Firewall Free is wrapper-mode only. Every `pnpm install` and `npm install` (including
-`npm install --global`) is invoked with the `sfw` prefix — do not rely on PATH shims
-(`corepack enable` and later PATH changes can shadow them). A job that installs dependencies runs
-`sfw pnpm install --frozen-lockfile` (or `sfw npm install …`).
+Socket Firewall Free is wrapper-mode only. Every package-manager command it supports is invoked
+with the `sfw` prefix — do not rely on PATH shims (`corepack enable` and later PATH changes can
+shadow them). Each rules file's **Install protection** section lists the commands to wrap and the
+frozen install a job runs behind it (`sfw pnpm install --frozen-lockfile`, `sfw uv sync --locked`,
+`sfw cargo fetch --locked`). A package manager the firewall does not wrap runs unprefixed; its
+rules file says what protects it instead.
 
 ```yaml
       - name: Install Socket Firewall
@@ -458,9 +454,9 @@ Socket Firewall Free is wrapper-mode only. Every `pnpm install` and `npm install
   up the current reviewed release rather than trusting the version in this file.
 - `mode: firewall-free` needs no Socket API token. The job still needs `contents: read` so the
   action can fetch the release through the GitHub API.
-- Rewrite existing `pnpm install` / `npm install` steps to `sfw pnpm install` / `sfw npm install` in
-  the same PR. Reconcile as done when every job with `steps:` has the Firewall step and no workflow
-  install is missing the prefix.
+- Rewrite every existing install step the rules files name to its `sfw` form in the same PR.
+  Reconcile as done when every job with `steps:` has the Firewall step and no workflow install the
+  firewall supports is missing the prefix.
 
 ### CI security linting: check-workflows.yaml
 
@@ -535,91 +531,43 @@ space-free.
 Reconcile as done when every workflow `name:` and job `name:` in `.github/workflows/` has no
 spaces.
 
-## 5. npm publishing — npm libraries only
+## 5. Publishing
 
-The publishing model, end to end: **CI can stage, only a human can ship, and a second system reviews
-the artifact in between.**
+Applies to every ecosystem that publishes a package. The model is the same on every registry:
+**CI can build, only a human can ship, and no long-lived publish credential exists.**
 
-1. **OIDC trusted publishing, stage-only** — the publish workflow authenticates to npm with a
-   short-lived OIDC token (`id-token: write` on that job only), and the trusted publisher is
-   configured **stage-only** on npmjs.com, so even a tampered workflow cannot publish live. No npm
-   publish tokens exist anywhere: not in Actions secrets, not on laptops (Drydock's read-only
-   review token is the one npm credential held outside npm). Provenance is generated
-   automatically.
-2. **Staged publishing** — CI packs a tarball and runs
-   `pnpm stage publish ./packed/*.tgz --access public --provenance --no-git-checks` (pnpm ≥ 11.3)
-   instead of `pnpm publish`. The version lands in a staging queue, not on the registry.
-   `--no-git-checks` is required: pnpm still runs git-checks for a tarball, and they fail on a
-   detached release-tag checkout and on the untracked pack output. Prefix the glob with `./` so
-   it is a local path. Any pack directory is fine (`packed/`, `dist/`).
-3. **Drydock review** — [Drydock](https://drydock.org) (free for npm maintainers) picks up the
-   staged tarball with a read-only token, diffs it against the last published version, and flags
-   what malware relies on: new lifecycle scripts, unexpected files, network/process calls, added
-   binaries.
-4. **Human promotion** — a maintainer reviews the Drydock report and approves the staged version
-   with a 2FA challenge. That approval — not the CI run — is what publishes.
-5. **No direct publish rights** — package settings require 2FA and disallow tokens, and the trusted
-   publisher is the only automated path in, so a compromised laptop or CI run cannot skip the stage.
+1. **OIDC trusted publishing** — the publish job exchanges a short-lived GitHub OIDC token
+   (`id-token: write` on that job only) for a registry credential that lasts minutes. No registry
+   token sits in Actions secrets or on a laptop.
+2. **A human gate the workflow cannot skip** — how depends on the registry:
+   - **npm** stages the version: CI can only stage, Drydock reviews the staged artifact, and a
+     maintainer promotes it with 2FA.
+   - **PyPI, crates.io, and nuget.org** publish an upload at once, so the gate is in front of the
+     upload: the publish job runs in the `release` GitHub environment, which waits for a
+     maintainer's approval, and the registry's trusted publisher names that environment — it
+     rejects a token minted by any other job.
+3. **The job that can publish runs no dependency code** — where the registry has no staging step,
+   building and publishing are separate jobs. The build job installs, builds, and tests with no
+   `id-token`; the publish job downloads the built artifact and uploads it.
+4. **Published versions are permanent** — no registry here lets a version be replaced. A bad
+   release is yanked, unlisted, or deprecated, and fixed with a new version.
 
-npmjs.com setup (manual, per package): configure the trusted publisher (GitHub Actions provider →
-exact repo, workflow filename matching the file that stages — `release.yaml` for the template
-below — and environment if the job uses one) as **stage-only**, connect Drydock, then set
-**Require two-factor authentication and disallow tokens**. Keep `repository.url` accurate so
-provenance maps to the repo.
-
-Connecting Drydock: create a [Drydock](https://drydock.org/docs) organization and give it a
-granular npm token — **Packages and scopes: Read-only** on the staged packages, **Organizations:
-No access** — under *Organization settings → npm access*; it discovers staged versions on its
-own. Record each decision in Drydock, then approve or reject on npm with 2FA — promotion always
-happens on npm.
-
-Audit those registry settings with
-[`./scripts/check-npmjs.sh`](./scripts/check-npmjs.sh). **Never copy or commit it into the
-target repo.** It is check-only — trusted-publisher writes need interactive 2FA, so apply is
-not a mode. A maintainer still configures npmjs.com; the script is how the agent reconciles
-§ 5 during audit.
-
-```bash
-# from a package checkout, after npm login (NPM_TOKEN is not allowed)
-check-npmjs.sh --repo jaredwray/keyv --workflow release.yaml
-
-# one package, or several:
-check-npmjs.sh keyv @keyv/redis --repo jaredwray/keyv --workflow release.yaml
-```
-
-`--repo` defaults to the current checkout (`gh`, `origin`, or `package.json`). `--workflow`
-defaults to the repo workflow that runs `stage publish`, or `release.yaml`. `--environment`
-is optional; when set, the trusted publisher must use that GitHub environment.
-
-What it checks, per publishable package:
-
-| Setting | Required value |
-| --- | --- |
-| Trusted publisher | exactly one, `type: github` |
-| `claims.repository` | this GitHub `owner/repo` |
-| `claims.workflow_ref.file` | the stage-publish workflow filename |
-| `permissions` | `["createStagedPackage"]` only — `createPackage` (live publish) fails; a missing permissions field is legacy publish-only and also fails |
-| Publishing access | `publish_requires_tfa=true` and `automation_token_overrides_tfa=false` when the registry exposes those fields. `GET /-/package/{pkg}/access` is not allowed on registry.npmjs.org, so this check is skipped with the npmjs.com URL rather than treated as passing |
-| Packument `repository.url` | maps to this GitHub repo |
-
-Drydock connection and human 2FA promotion are not npmjs API settings; they stay `(manual)`.
-A skip is not a pass. On start the script compares itself to `jaredwray/agentic@main` and
-warns if this copy is stale (does not fail the run).
-
-This section owns the stage-publish workflow below plus the registry-side settings.
+Each rules file's **Publishing** section holds the registry's setup, its `(manual)` settings, and
+its release jobs. A Go module publishes by tag and adds nothing here.
 
 ### release.yaml
 
-File PR. Copy into `.github/workflows/release.yaml`. Adapt the test script (`pnpm test:ci` vs
-`pnpm test`), Node version, and pack command to the repo. After copying, run `npx actions-up` so
-the action pins are current rather than trusting this file's snapshot, and look up the current
-reviewed sfw-free version for `firewall-version`. `packageManager` must be pnpm 11.3+ so Corepack
-provides `pnpm stage publish` — do not install the npm CLI for staging.
+File PR, one per registry. All registries share one workflow, `.github/workflows/release.yaml`,
+because every trusted publisher names that filename. Start from this skeleton and append the
+release jobs of each publishing ecosystem's rules file; every one of them `needs: [aikido-gate]`,
+directly or through its build job. After copying, run `npx actions-up` so the action pins are
+current rather than trusting this file's snapshot, and look up the current reviewed sfw-free
+version for `firewall-version`.
 
-If the repo already has a publish workflow, do not replace a custom pipeline wholesale — switch its
-publish step to pack + `pnpm stage publish ./<dir>/*.tgz --no-git-checks`. A new workflow includes
-the Aikido gate so the stage-publish job is never ungated; when a publish workflow already exists,
-§ 6 adds the gate as its own PR.
+If the repo already has a publish workflow, do not replace a custom pipeline wholesale — move its
+publish step to the shape the rules file describes. A new workflow includes the Aikido gate so no
+publish job is ever ungated; when a publish workflow already exists, § 6 adds the gate as its own
+PR.
 
 ```yaml
 name: release
@@ -665,57 +613,28 @@ jobs:
           "$REPO_NAME" "$GITHUB_SHA"
           --apikey "$AIKIDO_CLIENT_API_KEY"
           --fail-on-sast-scan --fail-on-iac-scan --fail-on-secrets-scan
-
-  build:
-    needs: [aikido-gate]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install Socket Firewall
-        uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
-        with:
-          mode: firewall-free
-          firewall-version: "1.15.0"
-      - name: Use Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          package-manager-cache: false
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Prepare pnpm
-        run: corepack prepare
-
-      - name: Install Dependencies
-        run: sfw pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
-
-      - name: Testing
-        run: pnpm test:ci
-
-      - name: Pack
-        run: |
-          mkdir -p packed
-          pnpm pack --pack-destination packed
-          ls -la packed
-
-      - name: Stage publish
-        # pnpm ≥ 11.3. --no-git-checks: git-checks run even for a tarball and
-        # fail on a detached release-tag checkout and on the untracked pack output.
-        run: pnpm stage publish ./packed/*.tgz --access public --provenance --no-git-checks
 ```
 
-Background: [Publishing packages with less anxiety](https://jovidecroock.com/blog/secure-npm-publishing/)
-and [Two places to stop a bad release](https://jovidecroock.com/blog/drydock-release-defenses/).
+### The release environment (manual)
+
+Only for PyPI, crates.io, and nuget.org; npm's gate is staging. The environment is a repository
+setting a maintainer creates under *Settings → Environments*:
+
+- Name it `release` — the name the publish jobs and the trusted publishers use.
+- **Required reviewers**: at least one maintainer. A run then stops at the publish job until a
+  reviewer approves it in the GitHub UI; the workflow's own token cannot approve.
+- **Deployment branches and tags**: *Selected branches and tags* — the default branch and the
+  release tag pattern (`v*`).
+- Add no environment secrets: the registry credential comes from OIDC.
+
+Environments are available on public repositories on every plan; a private repository needs GitHub
+Pro or Team, and some protection rules have limited availability there. When required reviewers
+cannot be set, the environment still scopes the trusted publisher, but nothing waits for a human —
+report that instead of ticking the item. One approval from the listed reviewers releases the job.
+
+The agent reports this item with the registry-side `(manual)` settings and moves on. Reconcile it
+with `gh api repos/<owner>/<repo>/environments/release`: done when `protection_rules` has a
+`required_reviewers` rule and `deployment_branch_policy` is not null.
 
 ## 6. Security tooling
 
@@ -726,8 +645,9 @@ whole setup, and each item is verified by its check appearing on PRs.
   SAST. Aikido also partners with Drydock, so pre-publish review and build-time scanning share
   findings. Code its release gate into the release workflow (`release.yaml` / `publish.yml`): an
   `aikido-gate` job runs `aikido-api-client scan-release … --fail-on-sast-scan --fail-on-iac-scan
-  --fail-on-secrets-scan` and the stage-publish job `needs:` it, so nothing is staged while new
-  findings are open — the job is in the § 5 `release.yaml` template.
+  --fail-on-secrets-scan` and every publish job `needs:` it, so nothing is published or staged
+  while new findings are open — the job is in the § 5 `release.yaml` skeleton. The client installs
+  from npm, so the gate job sets up Node whatever the repo's ecosystem.
 - **Socket** ([socket.dev](https://socket.dev)) is the dependency security linter: it reviews every
   PR that changes dependencies for supply-chain behavior — new install scripts, network access,
   obfuscated code, typosquats, maintainer changes — the risks CVE scanners can't see yet. CI
@@ -740,7 +660,7 @@ whole setup, and each item is verified by its check appearing on PRs.
 
 **Always last. Never checked into a repo. Admin only.** Do not apply until every preceding
 applicable catalog item is checked and on `main` — auto-implementable file items and every
-`(manual)` task (npm-side settings, account 2FA, recovery codes). File items first so
+`(manual)` task (registry-side settings, account 2FA, recovery codes). File items first so
 `--required-checks` names the real CI jobs, the Actions allowlist matches `uses:` in the landed
 workflows, and CODEOWNERS exists before `require_code_owner_review` is enforced. `--check` during
 audit is always allowed; apply mode is not.
@@ -822,14 +742,8 @@ Notes:
 
 ## References
 
-- pnpm staged publishing: https://pnpm.io/cli/stage
-- npm staged publishing: https://github.blog/changelog/2026-05-22-staged-publishing-and-new-install-time-controls-for-npm/
-- npm trusted publishing (OIDC): https://docs.npmjs.com/trusted-publishers/
-- npm 2FA / disallow tokens: https://docs.npmjs.com/requiring-2fa-for-package-publishing-and-settings-modification/
-- npm `trust` CLI: https://docs.npmjs.com/cli/v12/commands/npm-trust/
-- npm registry API (trust + access): https://api-docs.npmjs.com/
-- Drydock: https://drydock.org/
-- Drydock docs (Stage Watchtower setup, Workflow Gate, dependency diff links): https://drydock.org/docs
+Registry and package-manager links are in each rules file under [ecosystems/](./ecosystems/).
+
 - actions-up: https://github.com/azat-io/actions-up
 - zizmor: https://docs.zizmor.sh/
 - Socket: https://socket.dev/
@@ -838,9 +752,6 @@ Notes:
 - sfw-free releases: https://github.com/SocketDev/sfw-free/releases
 - Aikido: https://www.aikido.dev/
 - Aikido Safe Chain: https://github.com/AikidoSec/safe-chain
-- Dev Container javascript-node images: https://mcr.microsoft.com/artifact/mar/devcontainers/javascript-node
-- pnpm settings: https://pnpm.io/settings
+- GitHub environments and required reviewers: https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment
 - GitHub rulesets: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
 - GitHub Actions secure use: https://docs.github.com/en/actions/reference/security/secure-use
-- setup-node caching (disable in publishing workflows): https://github.com/actions/setup-node/blob/main/docs/advanced-usage.md#caching-packages-data
-- Jovi De Croock on the model this follows: https://jovidecroock.com/blog/secure-npm-publishing/

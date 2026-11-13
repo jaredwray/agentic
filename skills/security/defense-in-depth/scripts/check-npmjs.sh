@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-npmjs.sh — audit npmjs.com publishing settings for defense-in-depth-nodejs § 5.
+# check-npmjs.sh — audit npmjs.com publishing settings for the defense-in-depth skill (§ 5, npm).
 #
 # NEVER check this file into a target repo. It lives only in this skill.
 # Check-only: it never changes package settings (writes need interactive 2FA).
@@ -111,7 +111,7 @@ command -v node >/dev/null || { echo "error: node is required"; exit 1; }
 # Canonical source of this script. A stale plugin cache or copied file can audit
 # against outdated rules. Warn and continue — never fail the run on this check.
 UPSTREAM_REPO="jaredwray/agentic"
-UPSTREAM_PATH="skills/security/defense-in-depth-nodejs/scripts/check-npmjs.sh"
+UPSTREAM_PATH="skills/security/defense-in-depth/scripts/check-npmjs.sh"
 
 check_upstream_script() {
   local tmp

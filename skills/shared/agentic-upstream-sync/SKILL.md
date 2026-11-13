@@ -16,14 +16,15 @@ moving there. `dependency-management` runs this check on every resume, before an
 
 | In the target repo | Upstream source on `main` | Kind |
 | --- | --- | --- |
-| `scripts/setup-cloud-environment.sh` | `skills/security/defense-in-depth-nodejs/scripts/setup-cloud-environment.sh` | verbatim copy |
-| `.claude/hooks/session-start.sh` | `skills/security/defense-in-depth-nodejs/templates/.claude/hooks/session-start.sh` | verbatim copy |
-| `AGENTS.md` sections whose `## ` heading matches a template section (`Safe Chain`, `Pull requests`, …) | `skills/security/defense-in-depth-nodejs/templates/AGENTS.md` | section copies |
-| `DEFENSE_IN_DEPTH.md` catalog — section headings and item lines | the `DEFENSE_IN_DEPTH.md` scaffold in `skills/security/defense-in-depth-nodejs/reference.md` § 1 | catalog |
+| `scripts/setup-cloud-environment.sh` | `skills/security/defense-in-depth/scripts/setup-cloud-environment.sh` | verbatim copy |
+| `.claude/hooks/session-start.sh` | `skills/security/defense-in-depth/templates/.claude/hooks/session-start.sh` | verbatim copy |
+| `AGENTS.md` sections whose `## ` heading matches a template section (`Safe Chain`, `Pull requests`, …) | `skills/security/defense-in-depth/templates/AGENTS.md` | section copies |
+| `DEFENSE_IN_DEPTH.md` catalog — section headings and item lines | the `DEFENSE_IN_DEPTH.md` scaffold in `skills/security/defense-in-depth/reference.md` § 1, with the **Catalog** blocks of `skills/security/defense-in-depth/ecosystems/<name>.md` for each ecosystem and registry on the repo's `Profile:` line | catalog |
 
 A row whose target file is absent does not apply — except `AGENTS.md`, which is created when absent:
 its template sections are agent policy for every repo, not only hardened ones. The Safe Chain section
-applies only where `pnpm-lock.yaml` exists. Nothing else is compared: `lockdown-repo.sh` and
+applies only where the Safe Chain bootstrap does: a tracked `pnpm-lock.yaml`, `uv.lock`, `poetry.lock`,
+or `requirements*.txt` / `requirements*.in`. Nothing else is compared: `lockdown-repo.sh` and
 `check-npmjs.sh` are never copied into a target repo, and templates that are merged rather than copied
 (`devcontainer.json`, `environment.json`, `.claude/settings.json`, workflow files) belong to their own
 items.
@@ -36,13 +37,16 @@ items.
 3. Sections: for each template section (from its `## ` heading to the next, ignoring blank lines at
    either end), compare the repo's section with the same heading. Identical → current. Absent →
    missing. Different but equal to an earlier upstream revision
-   (`git log -p -- skills/security/defense-in-depth-nodejs/templates/AGENTS.md` in the clone) →
+   (`git log -p --follow -- skills/security/defense-in-depth/templates/AGENTS.md` in the clone; the
+   file moved, so `--follow` reaches its earlier revisions) →
    stale. Different and matching no upstream revision → locally edited.
 4. Import: `AGENTS.md` has a template section, or gains one in step 3, and `CLAUDE.md` neither
    imports `AGENTS.md` nor is a symlink to it (or is absent) → missing import.
-5. Catalog: compare the section headings and `- [ ]`-style item lines of the repo's
-   `DEFENSE_IN_DEPTH.md` with the upstream scaffold's, ignoring checkbox state and PR annotations. Any
-   difference → catalog drift.
+5. Catalog: assemble the upstream catalog as `defense-in-depth` does — the scaffold, with the § 3
+   and § 5 blocks of the rules files the repo's `Profile:` line names in place of its two
+   placeholder lines. Compare its section headings and `- [ ]`-style item lines with the repo's
+   `DEFENSE_IN_DEPTH.md`, ignoring checkbox state and PR annotations. Any difference, or a `Profile:`
+   line that names no ecosystem → catalog drift.
 
 ## Act
 
@@ -55,5 +59,5 @@ items.
 - Locally edited section → leave it and list it in the PR body (or the report) with a link to the
   upstream diff, for the user to reconcile.
 - Catalog drift → do not edit `DEFENSE_IN_DEPTH.md` here. Report "catalog behind upstream: run
-  `defense-in-depth-nodejs`", which re-audits and ships each new item as its own PR.
+  `defense-in-depth`", which re-audits and ships each new item as its own PR.
 - Nothing drifted → one line saying so, then continue.

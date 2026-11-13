@@ -88,10 +88,10 @@ describe('mcp server', () => {
 
     const loaded = await client.callTool({
       name: 'get_skill',
-      arguments: { name: 'defense-in-depth-nodejs' },
+      arguments: { name: 'defense-in-depth' },
     });
     const body = stripFrontmatter(
-      readFileSync(join(SKILLS_DIR, 'security/defense-in-depth-nodejs/SKILL.md'), 'utf8'),
+      readFileSync(join(SKILLS_DIR, 'security/defense-in-depth/SKILL.md'), 'utf8'),
     );
     const skill = loaded.structuredContent as {
       manual: string;
@@ -99,30 +99,30 @@ describe('mcp server', () => {
     };
     expect(skill.manual).toBe(body);
     const paths = new Map(skill.files.map((file) => [file.path, file.uri]));
-    expect(paths.get('reference.md')).toBe('skill://security/defense-in-depth-nodejs/reference.md');
+    expect(paths.get('reference.md')).toBe('skill://security/defense-in-depth/reference.md');
     expect(paths.get('scripts/lockdown-repo.sh')).toBe(
-      'skill://security/defense-in-depth-nodejs/scripts/lockdown-repo.sh',
+      'skill://security/defense-in-depth/scripts/lockdown-repo.sh',
     );
     expect(paths.get('templates/.claude/settings.json')).toBe(
-      'agentic://skills/security/defense-in-depth-nodejs/templates/.claude/settings.json',
+      'agentic://skills/security/defense-in-depth/templates/.claude/settings.json',
     );
 
     const missing = await client.callTool({ name: 'get_skill', arguments: { name: 'no-such-skill' } });
     expect(missing.isError).toBe(true);
 
     const script = readFileSync(
-      join(SKILLS_DIR, 'security/defense-in-depth-nodejs/scripts/lockdown-repo.sh'),
+      join(SKILLS_DIR, 'security/defense-in-depth/scripts/lockdown-repo.sh'),
       'utf8',
     );
     const read = await client.callTool({
       name: 'read_skill_file',
-      arguments: { name: 'defense-in-depth-nodejs', path: 'scripts/lockdown-repo.sh' },
+      arguments: { name: 'defense-in-depth', path: 'scripts/lockdown-repo.sh' },
     });
     expect((read.structuredContent as { text: string }).text).toBe(script);
 
     const escaped = await client.callTool({
       name: 'read_skill_file',
-      arguments: { name: 'defense-in-depth-nodejs', path: '../x' },
+      arguments: { name: 'defense-in-depth', path: '../x' },
     });
     expect(escaped.isError).toBe(true);
 
@@ -132,11 +132,11 @@ describe('mcp server', () => {
       readFileSync(join(SKILLS_DIR, 'engineering/adr/reference.md'), 'utf8'),
     );
     const hidden = await client.readResource({
-      uri: 'agentic://skills/security/defense-in-depth-nodejs/templates/.claude/settings.json',
+      uri: 'agentic://skills/security/defense-in-depth/templates/.claude/settings.json',
     });
     const hiddenBody = hidden.contents[0];
     expect(hiddenBody && 'text' in hiddenBody ? hiddenBody.text : undefined).toBe(
-      readFileSync(join(SKILLS_DIR, 'security/defense-in-depth-nodejs/templates/.claude/settings.json'), 'utf8'),
+      readFileSync(join(SKILLS_DIR, 'security/defense-in-depth/templates/.claude/settings.json'), 'utf8'),
     );
 
     const prompt = await client.getPrompt({ name: 'code-review' });
