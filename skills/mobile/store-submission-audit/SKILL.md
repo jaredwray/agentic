@@ -45,8 +45,9 @@ third-party SDKs, any listing metadata tracked in the repo, and console state th
 
    | Marker | Store | Rules |
    |---|---|---|
-   | `*.xcodeproj`, `*.xcworkspace`, an `ios/` folder, or an `ios` block in an Expo config | Apple | [stores/apple.md](./stores/apple.md) |
-   | `AndroidManifest.xml`, a Gradle `com.android.application` module, an `android/` folder, or an `android` block in an Expo config | Google Play | [stores/google-play.md](./stores/google-play.md) |
+   | `*.xcodeproj`, `*.xcworkspace`, or an `ios/` folder | Apple | [stores/apple.md](./stores/apple.md) |
+   | `AndroidManifest.xml`, a Gradle `com.android.application` module, or an `android/` folder | Google Play | [stores/google-play.md](./stores/google-play.md) |
+   | An Expo project — `expo` in `package.json` with `app.json` or `app.config.*` — and no tracked native folders | Each store in the config's `platforms`. Unset, that is both `ios` and `android`. | The rules file for each |
 
    Read the rules file of every store the app ships to, and only those. If the user named one store,
    audit that one. Each rules file has the same sections: **Live values**, **Upload gates**,

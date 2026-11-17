@@ -41,7 +41,7 @@ that opening a new account makes it worse; draft nothing else.
 2. **Name what happened.** Rejection of a new version, removal of a live app, suspension, a warning
    with a deadline, or an action on the account. Record the deadline if one is given. For Google
    Play, a rejection leaves the account's standing untouched; removals accumulate toward suspension,
-   and suspensions are strikes against the account.
+   and suspensions are strikes against the account. The action also decides the path in Step 8.
 
 3. **Read the rule as it stands today.** Fetch the cited section from
    `https://developer.apple.com/app-store/review/guidelines/` or the cited policy page under
@@ -84,6 +84,11 @@ that opening a new account makes it worse; draft nothing else.
    | Not reachable | Reply with credentials, steps, or a screen recording; update the review notes; resubmit only if the build must change. | Update App access instructions or the declaration and resubmit. |
    | Listing only | Edit the metadata and resubmit the same build. | Edit the listing or the App content declaration and send for review. |
    | Misapplied | Reply with the evidence first. Appeal to the App Review Board only if the reply fails: one appeal per submission, after answering any request for information. | Appeal through the link in the enforcement email, with the evidence. |
+
+   A Google Play **suspension** does not follow the table. A removed app comes back with a
+   compliant update; a suspended app comes back only through a successful appeal, and its bundle
+   cannot be reused. Whatever the classification, the path is the appeal: say what was wrong, what
+   has been fixed, and where the fix can be seen.
 
    Two Apple options to raise when they fit, not otherwise: for an app already on the store, a
    bug-fix update is not held up by a guideline issue unless it is a legal or safety one — the reply

@@ -99,7 +99,7 @@ Read the **merged** manifest: SDKs add permissions the app's own manifest never 
 
   | Permission or API | Allowed when |
   |---|---|
-  | SMS and Call Log groups (`READ_SMS`, `SEND_SMS`, `READ_CALL_LOG`, …) | The app is the device's default SMS, Phone, or Assistant handler. Otherwise they may not appear in the manifest at all. |
+  | SMS and Call Log groups (`READ_SMS`, `SEND_SMS`, `READ_CALL_LOG`, …) | The app is the device's default SMS, Phone, or Assistant handler, or its core function is one of the exceptions the policy lists (answer `10208820`) — among them backup and restore, caller ID and spam blocking, a connected-device companion, cross-device sync — with no other way to provide it. Either way it is declared; whether an exception was approved is `cannot see`. With neither, the permissions may not appear in the manifest at all. |
   | `ACCESS_BACKGROUND_LOCATION` | A core feature that benefits the user needs location in the background; declared in the console; preceded by a prominent disclosure. Ask for the least: coarse over fine, foreground over background. |
   | `MANAGE_EXTERNAL_STORAGE` | The Storage Access Framework and MediaStore cannot provide the core feature; declared. |
   | `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` | The system photo picker cannot provide the core feature; declared. |
