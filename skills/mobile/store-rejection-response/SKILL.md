@@ -92,8 +92,11 @@ that opening a new account makes it worse; draft nothing else.
 
    A Google Play **suspension** does not follow the table. A removed app comes back with a
    compliant update; a suspended app comes back only through a successful appeal, and its bundle
-   cannot be reused. Whatever the classification, the path is the appeal: say what was wrong, what
-   has been fixed, and where the fix can be seen.
+   cannot be reused. Whatever the classification, the path is the appeal, and the classification
+   decides what it says. **Real:** what was wrong, what has been fixed, and where the fix can be
+   seen. **Not reachable:** how to reach the feature. **Listing only:** the corrected listing or
+   declaration. **Misapplied:** the quoted rule and the evidence. Only a **Real** appeal concedes a
+   violation or claims a fix.
 
    Two Apple options to raise when they fit, not otherwise: for an app already on the store, a
    bug-fix update is not held up by a guideline issue unless it is a legal or safety one — the reply
