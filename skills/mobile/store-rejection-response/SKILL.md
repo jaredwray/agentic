@@ -86,7 +86,7 @@ that opening a new account makes it worse; draft nothing else.
    | Classification | Apple | Google Play |
    |---|---|---|
    | Real | Fix, resubmit, and reply in App Store Connect saying what changed and where to see it. | Fix every instance, then submit the update. Do not resubmit until all are fixed. |
-   | Not reachable | Put working credentials in App Review Information, update the review notes, and reply with the steps or a screen recording; resubmit only if the build must change. | Update App access instructions or the declaration and resubmit. |
+   | Not reachable | Remove the barrier the reviewer hit — working credentials in App Review Information, the backend up, the region, purchase, or hardware explained — then update the review notes and reply with the steps or a screen recording; resubmit only if the build must change. | Update App access instructions or the declaration and resubmit. |
    | Listing only | Edit the metadata and resubmit the same build. | Edit the listing or the App content declaration and send for review. |
    | Misapplied | Reply with the evidence first. Appeal to the App Review Board only if the reply fails: one appeal per submission, after answering any request for information. | Appeal through the link in the enforcement email, with the evidence. |
 
@@ -149,10 +149,11 @@ The reply is read by a reviewer working a queue. Write it for that reader.
 - **At most 150 words** for a reply, 300 for an appeal. One numbered point per cited rule, in the
   notice's order.
 - **Each point says what changed and where to see it** — the build number, then the taps from
-  launch. For **Not reachable**, give the steps and say where the credentials are. For
-  **Misapplied**, quote the rule and name the screen that satisfies it.
-- **No passwords in the draft.** Credentials go in App Review Information or Play's App access
-  section, entered by the user. The reply says they are there, even when the user gave them in chat.
+  launch. For **Not reachable**, name the barrier the reviewer hit and what now gets them past it.
+  For **Misapplied**, quote the rule and name the screen that satisfies it.
+- **No passwords in the draft.** When sign-in was the barrier, credentials go in App Review
+  Information or Play's App access section, entered by the user, and the reply says they are there
+  — even when the user gave them in chat. List entering them under **Before you send**.
 - **State facts only.** No apology, no account of how the mistake happened, no opinion of the rule,
   no mention of other apps that do the same thing, no urgency unless requesting an expedited review.
 - **Promise nothing the build does not do.** A reply describing a fix that is not in the submitted
