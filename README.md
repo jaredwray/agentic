@@ -74,8 +74,8 @@ lets real problems through.
 scopes strictly to what was asked — which quietly guts a workflow built on breadth. Skills whose value
 *is* that breadth carry an `**Effort.**` line in their preamble stating what they need: `xhigh` for
 `refactor`, `production-function`, one-way-door `adr`, and `viral-launch`; `high` or above for
-`code-review`, `debug`, `performance`, `test`, `codebase-archaeology`, and a `test-audit` audit (its
-per-PR gate runs at any level). The mechanical one-PR loops don't carry the note — they run fine at
+`code-review`, `debug`, `performance`, `test`, `codebase-archaeology`, `store-submission-audit`,
+`store-rejection-response`, and a `test-audit` audit (its per-PR gate runs at any level). The mechanical one-PR loops don't carry the note — they run fine at
 the default.
 
 The authoring rules behind all of this live in `skills/shared/writing-great-skills`.
@@ -116,6 +116,13 @@ It lives one level under `skills/` because it is used often.
 | `codebase-archaeology` | Map an unfamiliar codebase — entry points, main flow, safe first changes, risky areas. |
 | `codebase-design` | Shared design vocabulary (deep vs shallow, coupling, seams) other skills reach for. |
 | `explain` | Explain a concept in three layers — 30-second, 5-minute, and a deep dive. |
+
+### mobile/ — model-invoked app-store disciplines (one deliverable, then stop)
+
+| Skill | Does |
+|---|---|
+| `store-submission-audit` | Audit an iOS or Android app before review against the App Review Guidelines and the Google Play policies. It reads only the rules file for each store the app ships to (`stores/<name>.md`), refreshes dated values from the live policy pages, and returns cited findings with the smallest fix, what the privacy label and Data safety form should say, what only the console can show, and a verdict. Read-only. |
+| `store-rejection-response` | Work one rejection, removal, or policy warning from App Review or Google Play — quote the cited rule, reproduce what the reviewer saw, classify each issue, find every other instance of the same rule, and draft the reply or appeal. Drafts only. |
 
 ### features/ — manual product-feature recipes
 
