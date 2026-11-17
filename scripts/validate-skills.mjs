@@ -17,8 +17,9 @@
 //     are prefixed with `./`. `pnpm stage publish` of a `.tgz` also passes `--no-git-checks`.
 //  9. Skills do not tell agents to `npm stage publish` — pnpm ≥ 11.3 is the staged-publish CLI.
 // 10. skills/SKILL.md does not exist — a skill must live in its own folder.
-// 11. dependency-management and defense-in-depth link every ecosystem rules file they ship, and
-//     each rules file has the sections its skill tells the agent it will find.
+// 11. dependency-management, defense-in-depth, and store-submission-audit link every rules file
+//     they ship (one per ecosystem or store), and each rules file has the sections its skill tells
+//     the agent it will find.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname, basename, resolve, relative } from 'node:path';
@@ -30,10 +31,12 @@ const ORCHESTRATION = new Set(['release-ops', 'security', 'growth', 'project-set
 // Used often, so it lives at skills/<name>/ (the default one-level scan) instead of a category.
 // It is still an orchestration skill and stays manual-only.
 const ROOT_ORCHESTRATION = new Set(['dependency-management']);
-// Skills that read one rules file per ecosystem present, with the sections every rules file has.
-const ECOSYSTEM_SKILLS = [
+// Skills that read one rules file per ecosystem or store present. `rulesDir` holds the rules files;
+// `sections` are the headings every one of them has.
+const RULES_FILE_SKILLS = [
   {
     dir: 'dependency-management',
+    rulesDir: 'ecosystems',
     sections: [
       'Package manager',
       'Runtime version',
@@ -51,6 +54,7 @@ const ECOSYSTEM_SKILLS = [
   },
   {
     dir: 'security/defense-in-depth',
+    rulesDir: 'ecosystems',
     sections: [
       'Package manager',
       'Catalog',
@@ -59,6 +63,25 @@ const ECOSYSTEM_SKILLS = [
       'CI',
       'Publishing',
       'Verify',
+    ],
+    extraSections: {},
+    links: ['reference.md'],
+  },
+  {
+    dir: 'mobile/store-submission-audit',
+    rulesDir: 'stores',
+    sections: [
+      'Live values',
+      'Upload gates',
+      'Reviewer access',
+      'Privacy declarations',
+      'Permissions',
+      'Accounts',
+      'Payments',
+      'Content and audience',
+      'Listing',
+      'Functionality',
+      'Console',
     ],
     extraSections: {},
     links: ['reference.md'],
@@ -238,27 +261,27 @@ function validatePublishTarballPaths() {
   }
 }
 
-// 11. Ecosystem rules. Each skill in ECOSYSTEM_SKILLS reads one rules file per ecosystem present and
-// relies on each having the same sections; an unlinked file would never be read.
-function validateEcosystemRules({ dir, sections, extraSections, links }) {
+// 11. Rules files. Each skill in RULES_FILE_SKILLS reads one rules file per ecosystem or store
+// present and relies on each having the same sections; an unlinked file would never be read.
+function validateRulesFiles({ dir, rulesDir, sections, extraSections, links }) {
   const skillDir = join(SKILLS_DIR, dir);
   const skillFile = join(skillDir, 'SKILL.md');
-  const ecosystemsDir = join(skillDir, 'ecosystems');
-  if (!existsSync(skillFile) || !existsSync(ecosystemsDir)) {
-    err(skillFile, `${dir} must have SKILL.md and an ecosystems/ directory`);
+  const rulesPath = join(skillDir, rulesDir);
+  if (!existsSync(skillFile) || !existsSync(rulesPath)) {
+    err(skillFile, `${dir} must have SKILL.md and a ${rulesDir}/ directory`);
     return;
   }
   const skill = readFileSync(skillFile, 'utf8');
   for (const link of links) {
     if (!skill.includes(`](./${link})`)) err(skillFile, `does not link ${link}`);
   }
-  for (const name of readdirSync(ecosystemsDir)) {
-    const file = join(ecosystemsDir, name);
+  for (const name of readdirSync(rulesPath)) {
+    const file = join(rulesPath, name);
     if (!name.endsWith('.md')) {
-      err(file, 'ecosystems/ holds only markdown rules files');
+      err(file, `${rulesDir}/ holds only markdown rules files`);
       continue;
     }
-    if (!skill.includes(`](./ecosystems/${name})`)) err(skillFile, `does not link ecosystems/${name}`);
+    if (!skill.includes(`](./${rulesDir}/${name})`)) err(skillFile, `does not link ${rulesDir}/${name}`);
     const content = readFileSync(file, 'utf8');
     const headings = new Set([...stripCodeFences(content).matchAll(/^## (.+)$/gm)].map((m) => m[1].trim()));
     for (const section of [...sections, ...(extraSections[name] ?? [])]) {
@@ -268,7 +291,7 @@ function validateEcosystemRules({ dir, sections, extraSections, links }) {
     for (const match of content.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
       const target = match[1].trim().split('#')[0];
       if (!target || /^(https?:|mailto:)/.test(target)) continue;
-      if (!existsSync(resolve(ecosystemsDir, target))) err(file, `broken link target: ${match[1]}`);
+      if (!existsSync(resolve(rulesPath, target))) err(file, `broken link target: ${match[1]}`);
     }
   }
 }
@@ -281,7 +304,7 @@ const skillFiles = skillMarkdownFiles();
 const seenNames = new Map();
 for (const file of skillFiles) validateSkill(file, seenNames);
 validatePublishTarballPaths();
-for (const skill of ECOSYSTEM_SKILLS) validateEcosystemRules(skill);
+for (const skill of RULES_FILE_SKILLS) validateRulesFiles(skill);
 
 if (warnings.length) {
   console.log(`\n⚠️  ${warnings.length} warning(s):`);
